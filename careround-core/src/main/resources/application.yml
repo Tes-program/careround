@@ -36,6 +36,7 @@ spring:
       properties:
         enable.idempotence: true
   quartz:
+    auto-startup: false
     job-store-type: jdbc
     jdbc:
       initialize-schema: never
