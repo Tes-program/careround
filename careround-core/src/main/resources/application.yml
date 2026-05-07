@@ -1,64 +1,51 @@
-server:
-  port: 8080
-  shutdown: graceful
-
 spring:
   application:
     name: careround-core
-  datasource:
-    url: jdbc:mysql://${DB_HOST:localhost}:3306/careround_core?useUnicode=true&characterEncoding=UTF-8&serverTimezone=UTC
-    username: ${DB_USER:careround}
-    password: ${DB_PASS:careround}
-    hikari:
-      pool-name: CareRoundCorePool
-      maximum-pool-size: 10
-      minimum-idle: 5
-      connection-timeout: 30000
-      idle-timeout: 600000
-      max-lifetime: 1800000
+  profiles:
+    active: dev
   jpa:
     hibernate:
       ddl-auto: validate
+    show-sql: false
+    open-in-view: false
     properties:
       hibernate:
         dialect: org.hibernate.dialect.MySQLDialect
-        jdbc.time_zone: UTC
   flyway:
     enabled: true
     locations: classpath:db/migration
-  kafka:
-    bootstrap-servers: ${KAFKA_SERVERS:localhost:9092}
-    producer:
-      key-serializer: org.apache.kafka.common.serialization.StringSerializer
-      value-serializer: org.apache.kafka.common.serialization.StringSerializer
-      acks: all
-      retries: 3
-      properties:
-        enable.idempotence: true
+    baseline-on-migrate: true
   quartz:
     job-store-type: jdbc
     jdbc:
       initialize-schema: never
     properties:
-      org.quartz.scheduler.instanceName: CareRoundScheduler
-      org.quartz.scheduler.instanceId: AUTO
       org.quartz.jobStore.isClustered: true
       org.quartz.jobStore.clusterCheckinInterval: 10000
-  data:
-    redis:
-      host: ${REDIS_HOST:localhost}
-      port: 6379
-  lifecycle:
-    timeout-per-shutdown-phase: 30s
+      org.quartz.jobStore.driverDelegateClass: org.quartz.impl.jdbcjobstore.StdJDBCDelegate
+      org.quartz.threadPool.threadCount: 5
 
-careround:
-  jwt:
-    secret: ${JWT_SECRET:careround-dev-secret-32-chars-minimum}
-    expiration-ms: 3600000
-    refresh-expiration-ms: 604800000
+server:
+  port: 8080
+  shutdown: graceful
+
+spring.lifecycle:
+  timeout-per-shutdown-phase: 30s
 
 management:
   endpoints:
     web:
       exposure:
-        include: health,metrics,info,prometheus
+        include: health,metrics,Prometheus,info
+  endpoint:
+    health:
+      show-details: always
+  Prometheus:
+    metrics:
+      export:
+        enabled: true
+
+jwt:
+  secret: ${JWT_SECRET}
+  access-token-expiry-ms: 900000
+  refresh-token-expiry-ms: 604800000

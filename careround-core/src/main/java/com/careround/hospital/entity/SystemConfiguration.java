@@ -4,10 +4,19 @@ import com.careround.shared.entity.BaseEntity;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.Table;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
+import lombok.Setter;
 
 @Entity
-@Table(name = "system_configurations")
+@Table(name = "system_configuration")
+@Getter
+@Setter
+@NoArgsConstructor
 public class SystemConfiguration extends BaseEntity {
+
+    @Column(name = "hospital_id", nullable = false, unique = true, length = 36)
+    private String hospitalId;
 
     @Column(name = "news_amber_threshold", nullable = false)
     private int newsAmberThreshold = 5;
@@ -23,16 +32,4 @@ public class SystemConfiguration extends BaseEntity {
 
     @Column(name = "nok_notification_enabled", nullable = false)
     private boolean nokNotificationEnabled = true;
-
-    // Getters and Setters
-    public int getNewsAmberThreshold() { return newsAmberThreshold; }
-    public void setNewsAmberThreshold(int newsAmberThreshold) { this.newsAmberThreshold = newsAmberThreshold; }
-    public int getNewsRedThreshold() { return newsRedThreshold; }
-    public void setNewsRedThreshold(int newsRedThreshold) { this.newsRedThreshold = newsRedThreshold; }
-    public int getTaskOverdueGraceMinutes() { return taskOverdueGraceMinutes; }
-    public void setTaskOverdueGraceMinutes(int taskOverdueGraceMinutes) { this.taskOverdueGraceMinutes = taskOverdueGraceMinutes; }
-    public boolean isRoundNotificationsEnabled() { return roundNotificationsEnabled; }
-    public void setRoundNotificationsEnabled(boolean roundNotificationsEnabled) { this.roundNotificationsEnabled = roundNotificationsEnabled; }
-    public boolean isNokNotificationEnabled() { return nokNotificationEnabled; }
-    public void setNokNotificationEnabled(boolean nokNotificationEnabled) { this.nokNotificationEnabled = nokNotificationEnabled; }
 }
