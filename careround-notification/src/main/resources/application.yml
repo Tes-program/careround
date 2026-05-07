@@ -1,0 +1,29 @@
+server:
+  port: 8081
+  shutdown: graceful
+
+spring:
+  application:
+    name: careround-notification
+  datasource:
+    url: jdbc:mysql://${DB_HOST:localhost}:3306/careround_notification?useUnicode=true&characterEncoding=UTF-8&serverTimezone=UTC
+    username: ${DB_USER:careround}
+    password: ${DB_PASS:careround}
+    hikari:
+      pool-name: NotificationPool
+      maximum-pool-size: 5
+      minimum-idle: 2
+  jpa:
+    hibernate:
+      ddl-auto: validate
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+  kafka:
+    bootstrap-servers: ${KAFKA_SERVERS:localhost:9092}
+    consumer:
+      group-id: careround-notification
+      auto-offset-reset: earliest
+      enable-auto-commit: false
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.apache.kafka.common.serialization.StringDeserializer
