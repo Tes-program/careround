@@ -5,7 +5,7 @@ spring:
     active: dev
   jpa:
     hibernate:
-      ddl-auto: validate
+      ddl-auto: update
     show-sql: false
     open-in-view: false
     properties:
@@ -18,7 +18,7 @@ spring:
   quartz:
     job-store-type: jdbc
     jdbc:
-      initialize-schema: never
+      initialize-schema: always
     properties:
       org.quartz.jobStore.isClustered: true
       org.quartz.jobStore.clusterCheckinInterval: 10000
@@ -40,7 +40,7 @@ management:
   endpoint:
     health:
       show-details: always
-  Prometheus:
+  prometheus:
     metrics:
       export:
         enabled: true

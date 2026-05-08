@@ -4,6 +4,7 @@ target/
 
 ### Environment ###
 .env
+.env.*
 !.env.example
 
 ### IntelliJ IDEA ###

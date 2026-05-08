@@ -1,7 +1,8 @@
 package com.careround.notification.dlt;
 
-import com.careround.notification.dlt.entity.FailedNotification;
-import com.careround.notification.dlt.repository.FailedNotificationRepository;
+import com.careround.notification.notification.Notification;
+import com.careround.notification.notification.NotificationRepository;
+import com.careround.notification.notification.NotificationStatus;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
@@ -16,7 +17,7 @@ import java.time.LocalDateTime;
 @Slf4j
 public class NotificationDltConsumer {
 
-    private final FailedNotificationRepository failedNotificationRepository;
+    private final NotificationRepository notificationRepository;
 
     @KafkaListener(topicPattern = "careround\\..*\\.DLT",
                    groupId = "careround-notification-dlt")
@@ -25,11 +26,13 @@ public class NotificationDltConsumer {
         log.warn("DLT message received: topic={}, partition={}, offset={}",
                 record.topic(), record.partition(), record.offset());
 
-        var failed = new FailedNotification();
-        failed.setEventType(record.topic().replace(".DLT", ""));
-        failed.setPayload(record.value() != null ? record.value().toString() : null);
-        failed.setErrorMessage("Sent to DLT after max retries");
-        failed.setFailedAt(LocalDateTime.now());
-        failedNotificationRepository.save(failed);
+        var notification = new Notification();
+        notification.setEventType(record.topic().replace(".DLT", ""));
+        notification.setPayload(record.value() != null ? record.value() : null);
+        notification.setStatus(NotificationStatus.FAILED);
+        notification.setFailureReason("Sent to DLT after max retries");
+        notification.setSentAt(LocalDateTime.now());
+        notificationRepository.save(notification);
     }
 }
+
