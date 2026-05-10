@@ -63,7 +63,7 @@ public class UserServiceImpl implements UserService {
     @Override
     @Transactional(readOnly = true)
     public List<UserResponse> listByHospital(String hospitalId) {
-        return userRepository.findAllByHospitalIdAndActiveTrue(hospitalId)
+        return userRepository.findAllByHospitalIdAndIsActiveTrue(hospitalId)
                 .stream()
                 .map(this::toResponse)
                 .toList();

@@ -6,6 +6,7 @@ import com.careround.auth.entity.User;
 import com.careround.auth.enums.UserRole;
 import com.careround.auth.repository.UserRepository;
 import com.careround.shared.exception.BusinessRuleException;
+import com.careround.auth.service.UserServiceImpl;
 import com.careround.shared.exception.ResourceNotFoundException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -31,7 +32,7 @@ class UserServiceTest {
     @Mock private PasswordEncoder passwordEncoder;
 
     @InjectMocks
-    private UserService userService;
+    private UserServiceImpl userService;
 
     private User existingUser;
 
@@ -127,7 +128,7 @@ class UserServiceTest {
 
     @Test
     void listByHospital_shouldReturnAllActiveUsers() {
-        when(userRepository.findAllByHospitalIdAndActiveTrue("hospital-456"))
+        when(userRepository.findAllByHospitalIdAndIsActiveTrue("hospital-456"))
                 .thenReturn(List.of(existingUser));
 
         List<UserResponse> results = userService.listByHospital("hospital-456");

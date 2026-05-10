@@ -38,7 +38,7 @@ public class AuthServiceImpl implements AuthService {
     @Transactional
     public JwtResponse login(LoginRequest request) {
         User user = userRepository
-                .findByHospitalIdAndEmailAndActiveTrue(request.getHospitalId(), request.getEmail())
+                .findByHospitalIdAndEmailAndIsActiveTrue(request.getHospitalId(), request.getEmail())
                 .orElseThrow(() -> new ResourceNotFoundException("Invalid credentials"));
 
         if (!passwordEncoder.matches(request.getPassword(), user.getPasswordHash())) {

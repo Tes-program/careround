@@ -16,7 +16,6 @@ public interface UserRepository extends JpaRepository<User, String> {
 
     boolean existsByHospitalIdAndEmail(String hospitalId, String email);
 
-    Optional<User> findByHospitalIdAndEmailAndActiveTrue(String name, String mail);
+    Optional<User> findByHospitalIdAndEmailAndIsActiveTrue(String hospitalId, String email);
 
-    List<User> findAllByHospitalIdAndActiveTrue(String hospitalId);
 }

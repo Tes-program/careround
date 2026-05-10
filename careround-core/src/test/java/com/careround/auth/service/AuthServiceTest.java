@@ -11,6 +11,7 @@ import com.careround.auth.repository.RefreshTokenRepository;
 import com.careround.auth.repository.UserRepository;
 import com.careround.shared.exception.AccessDeniedException;
 import com.careround.shared.exception.ResourceNotFoundException;
+import com.careround.auth.service.AuthServiceImpl;
 import com.careround.shared.security.JwtService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -26,6 +27,7 @@ import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
@@ -41,7 +43,7 @@ class AuthServiceTest {
     private PasswordEncoder passwordEncoder;
 
     @InjectMocks
-    private AuthService authService;
+    private AuthServiceImpl authService;
 
     private User testUser;
 
@@ -64,7 +66,7 @@ class AuthServiceTest {
     void login_withValidCredentials_shouldReturnJwtResponse() {
         LoginRequest request = new LoginRequest("hospital-456", "doctor@hospital.com", "password123");
 
-        when(userRepository.findByHospitalIdAndEmailAndActiveTrue("hospital-456", "doctor@hospital.com"))
+        when(userRepository.findByHospitalIdAndEmailAndIsActiveTrue("hospital-456", "doctor@hospital.com"))
                 .thenReturn(Optional.of(testUser));
         when(passwordEncoder.matches("password123", "$2a$10$encodedPassword")).thenReturn(true);
         when(jwtService.generateAccessToken(testUser)).thenReturn("access.token");
@@ -83,7 +85,7 @@ class AuthServiceTest {
 
     @Test
     void login_withUnknownUser_shouldThrowResourceNotFoundException() {
-        when(userRepository.findByHospitalIdAndEmailAndActiveTrue(any(), any()))
+        when(userRepository.findByHospitalIdAndEmailAndIsActiveTrue(any(), any()))
                 .thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> authService.login(
@@ -93,9 +95,9 @@ class AuthServiceTest {
 
     @Test
     void login_withWrongPassword_shouldThrowAccessDeniedException() {
-        when(userRepository.findByHospitalIdAndEmailAndActiveTrue(any(), any()))
+        when(userRepository.findByHospitalIdAndEmailAndIsActiveTrue(any(), any()))
                 .thenReturn(Optional.of(testUser));
-        when(passwordEncoder.matches("wrong", any())).thenReturn(false);
+        when(passwordEncoder.matches(eq("wrong"), any())).thenReturn(false);
 
         assertThatThrownBy(() -> authService.login(
                 new LoginRequest("hospital-456", "doctor@hospital.com", "wrong")))
@@ -185,7 +187,7 @@ class AuthServiceTest {
     @Test
     void changePassword_withWrongCurrentPassword_shouldThrowAccessDeniedException() {
         when(userRepository.findById("user-123")).thenReturn(Optional.of(testUser));
-        when(passwordEncoder.matches("wrongPass", any())).thenReturn(false);
+        when(passwordEncoder.matches(eq("wrongPass"), any())).thenReturn(false);
 
         assertThatThrownBy(() -> authService.changePassword(
                 "user-123", new ChangePasswordRequest("wrongPass", "newPass123")))

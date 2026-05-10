@@ -2,7 +2,7 @@ spring:
   datasource:
     url: jdbc:mysql://localhost:3306/careround_core?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC
     username: ${MYSQL_USER:careround}
-    password: ${MYSQL_PASSWORD:careround_password}
+    password: ${MYSQL_PASSWORD:careround_secret}
     hikari:
       pool-name: CorePool
       maximum-pool-size: 10

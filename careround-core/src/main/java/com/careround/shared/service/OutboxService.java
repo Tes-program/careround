@@ -2,8 +2,8 @@ package com.careround.shared.service;
 
 import com.careround.shared.event.OutboxEvent;
 import com.careround.shared.event.OutboxEventRepository;
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.core.JacksonException;
+import tools.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -24,7 +24,7 @@ public class OutboxService {
             event.setPayload(json);
             event.setHospitalId(hospitalId);
             outboxEventRepository.save(event);
-        } catch (JsonProcessingException e) {
+        } catch (JacksonException e) {
             log.error("Failed to serialize outbox event [type={}]: {}", eventType, e.getMessage(), e);
             throw new RuntimeException("Failed to serialize outbox event", e);
         }

@@ -6,6 +6,7 @@ import lombok.*;
 
 @Getter
 @Setter
+@NoArgsConstructor
 @AllArgsConstructor
 public class CreateUserRequest {
     @NotBlank(message = "First name is required")

@@ -29,7 +29,7 @@ CREATE TABLE refresh_tokens (
     CONSTRAINT pk_refresh_tokens      PRIMARY KEY (id),
     CONSTRAINT uk_refresh_tokens_token UNIQUE (token)
 ) ENGINE = InnoDB
-  DEFAULT CHARSET = utf8mb4
+  DEFAULT CHARSET = utf8mb4;
 
 CREATE INDEX idx_refresh_tokens_user_id ON refresh_tokens (user_id);
 CREATE INDEX idx_refresh_tokens_token   ON refresh_tokens (token);
