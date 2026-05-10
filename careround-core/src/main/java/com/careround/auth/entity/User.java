@@ -14,7 +14,9 @@ import lombok.Setter;
 
 @Entity
 @Table(name = "users", uniqueConstraints = {
-        @UniqueConstraint(columnNames = {"hospital_id", "email"})
+        @UniqueConstraint(
+                name = "uk_users_hospital_email",
+                columnNames = {"hospital_id", "email"})
 })
 @Getter
 @Setter

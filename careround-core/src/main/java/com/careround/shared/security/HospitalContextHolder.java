@@ -1,42 +1,57 @@
 package com.careround.shared.security;
 
 import com.careround.auth.enums.UserRole;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
+import lombok.Setter;
 
+@Getter
+@Setter
+@NoArgsConstructor
 public final class HospitalContextHolder {
 
-    private static final ThreadLocal<String> hospitalIdHolder = new ThreadLocal<>();
-    private static final ThreadLocal<String> userIdHolder = new ThreadLocal<>();
-    private static final ThreadLocal<UserRole> roleHolder = new ThreadLocal<>();
+    public record HospitalContext(String hospitalId, String userId, UserRole role) {}
 
-    private HospitalContextHolder() {}
+    private static final ThreadLocal<HospitalContext> CONTEXT = new ThreadLocal<>();
 
-    public static void setHospitalId(String hospitalId) {
-        hospitalIdHolder.set(hospitalId);
+    public static void set(String hospitalId, String userId, UserRole role) {
+        CONTEXT.set(new HospitalContext(hospitalId, userId, role));
+    }
+
+    private static HospitalContext requireContext() {
+        HospitalContext ctx = CONTEXT.get();
+        if (ctx == null) {
+            throw new IllegalStateException(
+                    "No hospital context found for current thread. Request must be authenticated.");
+        }
+        return ctx;
     }
 
     public static String getHospitalId() {
-        return hospitalIdHolder.get();
-    }
-
-    public static void setUserId(String userId) {
-        userIdHolder.set(userId);
+        return requireContext().hospitalId();
     }
 
     public static String getUserId() {
-        return userIdHolder.get();
-    }
-
-    public static void setRole(UserRole role) {
-        roleHolder.set(role);
+        return requireContext().userId();
     }
 
     public static UserRole getRole() {
-        return roleHolder.get();
+        return requireContext().role();
+    }
+
+    public static boolean hasRole(UserRole userRole) {
+        return requireContext().role().equals(userRole);
+    }
+
+    public static boolean hasAnyRole(UserRole... roles) {
+        UserRole current = requireContext().role();
+        for (UserRole r : roles) {
+            if (current == r) return true;
+        }
+        return false;
     }
 
     public static void clear() {
-        hospitalIdHolder.remove();
-        userIdHolder.remove();
-        roleHolder.remove();
+        CONTEXT.remove();
     }
 }
