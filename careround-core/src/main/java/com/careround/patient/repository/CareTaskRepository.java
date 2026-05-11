@@ -15,4 +15,7 @@ public interface CareTaskRepository extends JpaRepository<CareTask, String> {
     List<CareTask> findAllByPatientId(String patientId);
 
     List<CareTask> findAllByStatusInAndWindowEndBefore(List<TaskStatus> statuses, LocalDateTime now);
+
+    List<CareTask> findAllByStatusInAndEscalatedAtIsNullAndWindowEndBefore(
+            List<TaskStatus> statuses, LocalDateTime now);
 }

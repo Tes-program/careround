@@ -6,6 +6,7 @@ import tools.jackson.core.JacksonException;
 import tools.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.slf4j.MDC;
 import org.springframework.stereotype.Service;
 
 @Service
@@ -23,6 +24,7 @@ public class OutboxService {
             event.setEventType(eventType);
             event.setPayload(json);
             event.setHospitalId(hospitalId);
+            event.setCorrelationId(MDC.get("correlationId"));
             outboxEventRepository.save(event);
         } catch (JacksonException e) {
             log.error("Failed to serialize outbox event [type={}]: {}", eventType, e.getMessage(), e);

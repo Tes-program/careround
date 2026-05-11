@@ -6,11 +6,13 @@ import com.careround.hospital.repository.ShiftRepository;
 import com.careround.hospital.repository.WardRepository;
 import com.careround.hospital.shift.dto.AssignStaffRequest;
 import com.careround.hospital.shift.dto.ShiftResponse;
+import com.careround.shared.event.ShiftActivatedEvent;
 import com.careround.shared.exception.AccessDeniedException;
 import com.careround.shared.exception.BusinessRuleException;
 import com.careround.shared.exception.ResourceNotFoundException;
 import com.careround.shared.service.OutboxService;
 import lombok.RequiredArgsConstructor;
+import org.slf4j.MDC;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -44,7 +46,18 @@ public class ShiftServiceImpl implements ShiftService {
         shift.setStatus(ShiftStatus.ACTIVE);
         shift.setAssignedAt(LocalDateTime.now(ZoneOffset.UTC));
 
-        outboxService.publish("SHIFT_ACTIVATED", shift, hospitalId);
+        outboxService.publish("SHIFT_ACTIVATED",
+                new ShiftActivatedEvent(
+                        hospitalId,
+                        shift.getId(),
+                        shift.getWardId(),
+                        shift.getLeadDoctorId(),
+                        shift.getNurseInChargeId(),
+                        shift.getStatus().name(),
+                        shift.getAssignedAt(),
+                        MDC.get("correlationId")
+                ),
+                hospitalId);
         return toResponse(shift);
     }
 

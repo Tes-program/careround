@@ -13,11 +13,14 @@ import com.careround.hospital.medicalteam.dto.SendInviteRequest;
 import com.careround.hospital.repository.MedicalTeamInviteRepository;
 import com.careround.hospital.repository.MedicalTeamMemberRepository;
 import com.careround.hospital.repository.MedicalTeamRepository;
+import com.careround.shared.event.TeamInviteSentEvent;
+import com.careround.shared.event.TeamMemberAddedEvent;
 import com.careround.shared.exception.AccessDeniedException;
 import com.careround.shared.exception.BusinessRuleException;
 import com.careround.shared.exception.ResourceNotFoundException;
 import com.careround.shared.service.OutboxService;
 import lombok.RequiredArgsConstructor;
+import org.slf4j.MDC;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -93,7 +96,17 @@ public class MedicalTeamServiceImpl implements MedicalTeamService {
         invite.setExpiresAt(LocalDateTime.now(ZoneOffset.UTC).plusHours(48));
         invite = inviteRepository.save(invite);
 
-        outboxService.publish("TEAM_INVITE_SENT", invite, hospitalId);
+        outboxService.publish("TEAM_INVITE_SENT",
+                new TeamInviteSentEvent(
+                        hospitalId,
+                        invite.getId(),
+                        invite.getMedicalTeamId(),
+                        invite.getInvitedUserId(),
+                        invite.getInvitedById(),
+                        invite.getExpiresAt(),
+                        MDC.get("correlationId")
+                ),
+                hospitalId);
         return toInviteResponse(invite);
     }
 
@@ -124,7 +137,17 @@ public class MedicalTeamServiceImpl implements MedicalTeamService {
         member.setJoinedAt(LocalDateTime.now(ZoneOffset.UTC));
         memberRepository.save(member);
 
-        outboxService.publish("TEAM_MEMBER_ADDED", invite, hospitalId);
+        outboxService.publish("TEAM_MEMBER_ADDED",
+                new TeamMemberAddedEvent(
+                        hospitalId,
+                        invite.getId(),
+                        invite.getMedicalTeamId(),
+                        userId,
+                        invite.getInvitedById(),
+                        LocalDateTime.now(ZoneOffset.UTC),
+                        MDC.get("correlationId")
+                ),
+                hospitalId);
     }
 
     @Override

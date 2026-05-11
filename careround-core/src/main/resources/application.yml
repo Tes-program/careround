@@ -20,10 +20,14 @@ spring:
     jdbc:
       initialize-schema: never
     properties:
+      org.quartz.scheduler.instanceId: AUTO
+      org.quartz.jobStore.class: org.quartz.impl.jdbcjobstore.JobStoreTX
       org.quartz.jobStore.isClustered: true
-      org.quartz.jobStore.clusterCheckinInterval: 10000
+      org.quartz.jobStore.clusterCheckinInterval: 20000
       org.quartz.jobStore.driverDelegateClass: org.quartz.impl.jdbcjobstore.StdJDBCDelegate
+      org.quartz.jobStore.tablePrefix: QRTZ_
       org.quartz.threadPool.threadCount: 5
+      org.quartz.scheduler.skipUpdateCheck: true
 
 server:
   port: 8080
@@ -49,3 +53,9 @@ jwt:
   secret: ${JWT_SECRET}
   access-token-expiry-ms: 900000
   refresh-token-expiry-ms: 604800000
+
+careround:
+  ratelimit:
+    enabled: true
+    limit: 200
+    window-seconds: 60

@@ -1,8 +1,12 @@
 package com.careround.shared.config;
 
+import com.careround.shared.filter.CorrelationIdFilter;
+import com.careround.shared.filter.RateLimitingFilter;
 import com.careround.shared.security.JwtAuthFilter;
 import lombok.RequiredArgsConstructor;
 import org.springframework.boot.web.servlet.FilterRegistrationBean;
+import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
@@ -29,11 +33,13 @@ import java.util.List;
 @RequiredArgsConstructor
 public class SecurityConfig {
 
+    private final CorrelationIdFilter correlationIdFilter;
+    private final ObjectProvider<RateLimitingFilter> rateLimitingFilterProvider;
     private final JwtAuthFilter jwtAuthFilter;
 
     @Bean
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
-        return http
+        HttpSecurity security = http
                 .csrf(AbstractHttpConfigurer::disable)
                 .cors(cors -> cors.configurationSource(corsConfigurationSource()))
                 .sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
@@ -46,8 +52,32 @@ public class SecurityConfig {
                         ).permitAll()
                         .anyRequest().authenticated()
                 )
-                .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class)
-                .build();
+                .addFilterBefore(correlationIdFilter, UsernamePasswordAuthenticationFilter.class);
+
+        RateLimitingFilter rateLimitingFilter = rateLimitingFilterProvider.getIfAvailable();
+        if (rateLimitingFilter != null) {
+            security.addFilterAfter(rateLimitingFilter, CorrelationIdFilter.class);
+            security.addFilterAfter(jwtAuthFilter, RateLimitingFilter.class);
+        } else {
+            security.addFilterAfter(jwtAuthFilter, CorrelationIdFilter.class);
+        }
+
+        return security.build();
+    }
+
+    @Bean
+    public FilterRegistrationBean<CorrelationIdFilter> correlationIdFilterRegistration(CorrelationIdFilter filter) {
+        FilterRegistrationBean<CorrelationIdFilter> registration = new FilterRegistrationBean<>(filter);
+        registration.setEnabled(false);
+        return registration;
+    }
+
+    @Bean
+    @ConditionalOnBean(RateLimitingFilter.class)
+    public FilterRegistrationBean<RateLimitingFilter> rateLimitingFilterRegistration(RateLimitingFilter filter) {
+        FilterRegistrationBean<RateLimitingFilter> registration = new FilterRegistrationBean<>(filter);
+        registration.setEnabled(false);
+        return registration;
     }
 
     @Bean
