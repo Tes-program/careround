@@ -7,14 +7,19 @@ import com.careround.hospital.enums.ShiftStatus;
 import com.careround.hospital.repository.MedicalTeamRepository;
 import com.careround.hospital.repository.ShiftRepository;
 import com.careround.hospital.repository.WardRepository;
+import com.careround.patient.entity.CareTask;
 import com.careround.patient.entity.Patient;
 import com.careround.patient.entity.PatientRoundReview;
 import com.careround.patient.entity.Round;
+import com.careround.patient.enums.AssignedToRole;
 import com.careround.patient.enums.ClinicalStatus;
 import com.careround.patient.enums.DischargeAssessment;
 import com.careround.patient.enums.PatientStatus;
 import com.careround.patient.enums.RoundStatus;
+import com.careround.patient.enums.TaskPriority;
+import com.careround.patient.enums.TaskSource;
 import com.careround.auth.enums.UserRole;
+import com.careround.patient.repository.CareTaskRepository;
 import com.careround.patient.repository.PatientRepository;
 import com.careround.patient.repository.PatientRoundReviewRepository;
 import com.careround.patient.repository.RoundRepository;
@@ -22,6 +27,7 @@ import com.careround.patient.round.dto.CreateRoundRequest;
 import com.careround.patient.round.dto.PatientRoundReviewResponse;
 import com.careround.patient.round.dto.ReviewPatientRequest;
 import com.careround.patient.round.dto.RoundResponse;
+import com.careround.shared.event.PatientDischargeReadyEvent;
 import com.careround.shared.event.RoundCompletedEvent;
 import com.careround.shared.exception.AccessDeniedException;
 import com.careround.shared.exception.BusinessRuleException;
@@ -50,6 +56,7 @@ public class RoundServiceImpl implements RoundService {
     private final MedicalTeamRepository medicalTeamRepository;
     private final ShiftRepository shiftRepository;
     private final PatientRepository patientRepository;
+    private final CareTaskRepository careTaskRepository;
     private final OutboxService outboxService;
 
     @Override
@@ -163,6 +170,10 @@ public class RoundServiceImpl implements RoundService {
         review.setNewsScoreAtReview(patient.getNewsScore());
         review.setReviewedAt(LocalDateTime.now(ZoneOffset.UTC));
 
+        if (request.dischargeAssessment() == DischargeAssessment.CONFIRMED && !patient.isDischargeReady()) {
+            markPatientDischargeReady(patient, round, userId, hospitalId);
+        }
+
         log.info("action=reviewPatient roundId={} patientId={} userId={}", roundId, patientId, userId);
         return toReviewResponse(patientRoundReviewRepository.save(review));
     }
@@ -224,5 +235,48 @@ public class RoundServiceImpl implements RoundService {
                 r.getReviewedById(), r.getReviewOrder(), r.getNewsScoreAtReview(),
                 r.getClinicalStatus(), r.isWasExamined(), r.getManagementPlan(),
                 r.getDischargeAssessment(), r.isNotifiedNextOfKin(), r.getReviewedAt(), r.getCreatedAt());
+    }
+
+    private void markPatientDischargeReady(Patient patient, Round round, String userId, String hospitalId) {
+        patient.setDischargeReady(true);
+        patient.setStatus(PatientStatus.DISCHARGE_READY);
+        createDischargeTasks(patient, round, userId, hospitalId);
+
+        outboxService.publish("careround.patient.discharge-ready",
+                new PatientDischargeReadyEvent(hospitalId, patient.getId(), patient.getWardId(),
+                        patient.getMedicalTeamId(), patient.getEstimatedDischargeDate(),
+                        MDC.get("correlationId")),
+                hospitalId);
+    }
+
+    private void createDischargeTasks(Patient patient, Round round, String userId, String hospitalId) {
+        LocalDateTime now = LocalDateTime.now(ZoneOffset.UTC);
+        LocalDateTime windowEnd = now.plusHours(24);
+
+        careTaskRepository.save(dischargeTask(patient, round, userId, hospitalId,
+                "DISCHARGE_SUMMARY", "Write discharge summary", AssignedToRole.JUNIOR_DOCTOR,
+                now, windowEnd));
+        careTaskRepository.save(dischargeTask(patient, round, userId, hospitalId,
+                "DISCHARGE_MEDICATIONS", "Prepare discharge medications", AssignedToRole.NURSE,
+                now, windowEnd));
+    }
+
+    private CareTask dischargeTask(Patient patient, Round round, String userId, String hospitalId,
+                                   String taskType, String title, AssignedToRole assignedToRole,
+                                   LocalDateTime windowStart, LocalDateTime windowEnd) {
+        CareTask task = new CareTask();
+        task.setHospitalId(hospitalId);
+        task.setPatientId(patient.getId());
+        task.setWardId(patient.getWardId());
+        task.setRoundId(round.getId());
+        task.setCreatedById(userId);
+        task.setTaskType(taskType);
+        task.setSource(TaskSource.POST_ROUND_JOB);
+        task.setTitle(title);
+        task.setPriority(TaskPriority.ROUTINE);
+        task.setAssignedToRole(assignedToRole);
+        task.setWindowStart(windowStart);
+        task.setWindowEnd(windowEnd);
+        return task;
     }
 }

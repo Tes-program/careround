@@ -11,11 +11,13 @@ import com.careround.hospital.repository.WardRepository;
 import com.careround.patient.entity.Patient;
 import com.careround.patient.entity.PatientRoundReview;
 import com.careround.patient.entity.Round;
+import com.careround.patient.entity.CareTask;
 import com.careround.patient.enums.ClinicalStatus;
 import com.careround.patient.enums.DischargeAssessment;
 import com.careround.patient.enums.PatientStatus;
 import com.careround.patient.enums.RoundStatus;
 import com.careround.patient.enums.RoundType;
+import com.careround.patient.repository.CareTaskRepository;
 import com.careround.patient.repository.PatientRepository;
 import com.careround.patient.repository.PatientRoundReviewRepository;
 import com.careround.patient.repository.RoundRepository;
@@ -57,6 +59,7 @@ class RoundServiceTest {
     @Mock private MedicalTeamRepository medicalTeamRepository;
     @Mock private ShiftRepository shiftRepository;
     @Mock private PatientRepository patientRepository;
+    @Mock private CareTaskRepository careTaskRepository;
     @Mock private OutboxService outboxService;
 
     @InjectMocks private RoundServiceImpl roundService;
@@ -203,6 +206,30 @@ class RoundServiceTest {
         assertThat(result.clinicalStatus()).isEqualTo(ClinicalStatus.IMPROVING);
         assertThat(result.wasExamined()).isTrue();
         assertThat(review.getReviewedById()).isEqualTo("user-1");
+    }
+
+    @Test
+    void reviewPatient_confirmedDischarge_marksPatientReadyCreatesTasksAndPublishesEvent() {
+        Round round = round(ROUND_ID, HOSPITAL_ID, WARD_ID, RoundStatus.IN_PROGRESS);
+        PatientRoundReview review = review(ROUND_ID, "p-1", 1);
+        Patient patient = patient("p-1", HOSPITAL_ID, WARD_ID);
+
+        when(roundRepository.findById(ROUND_ID)).thenReturn(Optional.of(round));
+        when(patientRoundReviewRepository.findByRoundIdAndPatientId(ROUND_ID, "p-1"))
+                .thenReturn(Optional.of(review));
+        when(patientRepository.findByIdAndHospitalId("p-1", HOSPITAL_ID))
+                .thenReturn(Optional.of(patient));
+        when(patientRoundReviewRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+        when(careTaskRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+
+        roundService.reviewPatient(ROUND_ID, "p-1",
+                new ReviewPatientRequest(ClinicalStatus.IMPROVING, true, "Home tomorrow",
+                        DischargeAssessment.CONFIRMED, true));
+
+        assertThat(patient.isDischargeReady()).isTrue();
+        assertThat(patient.getStatus()).isEqualTo(PatientStatus.DISCHARGE_READY);
+        verify(careTaskRepository, org.mockito.Mockito.times(2)).save(any(CareTask.class));
+        verify(outboxService).publish(eq("careround.patient.discharge-ready"), any(), eq(HOSPITAL_ID));
     }
 
     @Test

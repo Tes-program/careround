@@ -179,6 +179,8 @@ class PatientServiceTest {
 
     @Test
     void updatePatientStatus_dischargeWithPendingTasks_throwsBusinessRuleException() {
+        patient.setStatus(PatientStatus.DISCHARGE_READY);
+        patient.setDischargeReady(true);
         when(patientRepository.findByIdAndHospitalId(PATIENT_ID, HOSPITAL_ID))
                 .thenReturn(Optional.of(patient));
 
@@ -194,6 +196,9 @@ class PatientServiceTest {
 
     @Test
     void updatePatientStatus_dischargeWithNoTasks_succeeds() {
+        patient.setStatus(PatientStatus.DISCHARGE_READY);
+        patient.setDischargeReady(true);
+        patient.setBedNumber("4A");
         when(patientRepository.findByIdAndHospitalId(PATIENT_ID, HOSPITAL_ID))
                 .thenReturn(Optional.of(patient));
         when(careTaskRepository.findAllByPatientId(PATIENT_ID)).thenReturn(List.of());
@@ -202,6 +207,8 @@ class PatientServiceTest {
                 new UpdatePatientStatusRequest(PatientStatus.DISCHARGED));
 
         assertThat(result.status()).isEqualTo(PatientStatus.DISCHARGED);
+        assertThat(result.wardId()).isNull();
+        assertThat(result.bedNumber()).isNull();
     }
 
     private AdmitPatientRequest admitRequest(String consultantId) {

@@ -86,7 +86,7 @@ These two have a legitimate reason to be independent:
 | Build | Maven | 3.9+ |
 | Boilerplate | Lombok | 1.18.34 |
 | Mapping | MapStruct | 1.5.5.Final |
-| Frontend | React (Vite) | Node 20 LTS |
+| Frontend | Not present in this repository | Backend API only |
 
 ---
 
@@ -98,15 +98,10 @@ These two have a legitimate reason to be independent:
 careround/
 ├── pom.xml                          ← parent POM (dependencyManagement only)
 ├── docker-compose.yml               ← infrastructure: MySQL, Redis, Kafka, Grafana
-├── docker-compose.full.yml          ← everything including apps (demo day)
 ├── .env                             ← environment variables (never committed)
 ├── .env.example                     ← committed with dummy values
-├── infra/
-│   ├── mysql/init.sql               ← creates 3 schemas + grants
-│   ├── prometheus/prometheus.yml    ← scrapes /actuator/prometheus from all 3 services
-│   └── grafana/
-│       ├── datasources/prometheus.yml
-│       └── dashboards/careround.json
+├── docker/                          ← MySQL init, Prometheus, Grafana provisioning
+├── infra/mysql/seed.sql             ← optional demo seed data
 ├── careround-core/                  ← main Spring Boot application (port 8080)
 ├── careround-notification/          ← Kafka consumer service (port 8081)
 └── careround-audit/                 ← Kafka consumer service (port 8082)
@@ -187,7 +182,6 @@ careround-core/src/main/java/com/careround/
 │   ├── config/QuartzConfig.java
 │   ├── jobs/
 │   │   ├── OutboxPollerJob.java
-│   │   ├── OutboxCleanupJob.java
 │   │   ├── ShiftCreationJob.java
 │   │   ├── TaskOverdueJob.java
 │   │   ├── EscalationUnacknowledgedJob.java
@@ -229,20 +223,30 @@ careround-core/src/main/java/com/careround/
 careround-notification/src/main/java/com/careround/notification/
 ├── NotificationApplication.java
 ├── config/
-│   ├── KafkaConsumerConfig.java     ← DefaultErrorHandler + DLT config
-│   └── KafkaProducerConfig.java     ← needed to publish to DLT
+│   └── KafkaConsumerConfig.java     ← DefaultErrorHandler + DLT KafkaTemplate
+├── client/
+│   ├── CoreLookupClient.java
+│   ├── HttpCoreLookupClient.java
+│   └── NextOfKinContact.java
 ├── consumer/
 │   ├── RoundCompletedConsumer.java
 │   ├── PatientDeteriorationConsumer.java
 │   ├── PatientDischargedConsumer.java
 │   ├── TaskOverdueConsumer.java
-│   └── ShiftCreatedConsumer.java
+│   ├── ShiftCreatedConsumer.java
+│   ├── NotificationFactory.java
+│   └── NotificationIdempotencyGuard.java
 ├── notification/
-│   ├── Notification.java            ← entity (SUCCESSFUL or FAILED)
+│   ├── Notification.java            ← entity (PENDING, SENT, FAILED)
 │   ├── NotificationRepository.java
 │   └── NotificationStatus.java       ← enum
 ├── dlt/
-│   └── NotificationDltConsumer.java  ← consumes failed messages, saves as FAILED
+│   ├── NotificationDltConsumer.java  ← consumes failed messages, saves failed_notifications
+│   ├── entity/FailedNotification.java
+│   └── repository/FailedNotificationRepository.java
+├── provider/
+│   ├── EmailNotificationProvider.java
+│   └── SmsNotificationProvider.java
 └── service/
     └── NotificationService.java
 ```
@@ -507,7 +511,7 @@ addedById           VARCHAR(36) NOT NULL
 ```
 Table: patient
 hospitalId              VARCHAR(36) NOT NULL
-wardId                  VARCHAR(36) NOT NULL
+wardId                  VARCHAR(36) nullable   ← cleared after final discharge
 bedNumber               VARCHAR(20) nullable
 medicalTeamId           VARCHAR(36) NOT NULL
 admittingConsultantId   VARCHAR(36) nullable
@@ -673,10 +677,17 @@ INDEX: (published, created_at)
 ```
 Table: notifications
 eventType       VARCHAR(100) NOT NULL
-payload         LONGTEXT NOT NULL
+hospitalId      VARCHAR(36) nullable
+recipientId     VARCHAR(36) nullable
+recipientType   VARCHAR(20) nullable
+channel         VARCHAR(20) nullable
+subject         VARCHAR(255) nullable
+body            TEXT nullable
+correlationId   VARCHAR(100) nullable
+payload         LONGTEXT nullable
 status          ENUM(NotificationStatus) NOT NULL    ← PENDING, SENT, FAILED
 failureReason   TEXT nullable                        ← populated only if status=FAILED
-sentAt          DATETIME NOT NULL
+sentAt          DATETIME nullable
 retryCount      INT NOT NULL DEFAULT 0
 ```
 
@@ -923,33 +934,32 @@ Round status: SCHEDULED
 
 **Conducting the round:**
 ```
-Lead doctor starts round: PUT /api/v1/rounds/:id/start
+Lead doctor starts round: POST /api/v1/rounds/:roundId/start
   → status: SCHEDULED → IN_PROGRESS
 
 For each patient in queue:
   JuniorDoctor presents (overnight events, vitals, results)
   Consultant examines patient
 
-  POST /api/v1/rounds/:id/reviews
-  Creates PatientRoundReview:
+  PATCH /api/v1/rounds/:roundId/patients/:patientId
+  Updates PatientRoundReview:
     clinicalStatus, managementPlan, dischargeAssessment, wasExamined
     newsScoreAtReview (snapshot of current score)
 
-  JuniorDoctor writes ClinicalNote (ROUND_NOTE) linked to review
-  Post-round CareTasks created (source: POST_ROUND_JOB)
-    assigned to specific team members by role
-  Patient.newsScore and acuityLevel updated
+  JuniorDoctor can write a ClinicalNote (ROUND_NOTE) linked to the review
+  Post-round CareTasks can be created through POST /api/v1/care-tasks
+    with source: POST_ROUND_JOB and roundId set
 
   If dischargeAssessment = CONFIRMED:
     → Patient.isDischargeReady = true
     → Patient.status = DISCHARGE_READY
-    → Auto-creates discharge CareTasks (summary, TTA, bed management)
+    → Auto-creates discharge CareTasks (summary, medications)
     → Outbox publishes → PATIENT_DISCHARGE_READY event
 
 All patients reviewed:
-  PUT /api/v1/rounds/:id/complete
+  POST /api/v1/rounds/:roundId/complete
   Round status: IN_PROGRESS → COMPLETED
-  Outbox publishes → ROUND_COMPLETED event (includes all reviewedPatientIds[])
+  Outbox publishes → ROUND_COMPLETED event
 ```
 
 **Round type reference:**
@@ -986,7 +996,7 @@ If windowEnd passes and status ≠ COMPLETED:
 
 **Post-round doctor job:**
 ```
-Created during PatientRoundReview with source: POST_ROUND_JOB
+Created through POST /api/v1/care-tasks with source: POST_ROUND_JOB
   assignedToRole: JUNIOR_DOCTOR | REGISTRAR | NURSE
   priority: ROUTINE | URGENT | EMERGENCY
 
@@ -1043,16 +1053,15 @@ Patient.isDischargeReady = true
 Patient.status = DISCHARGE_READY
 Outbox publishes → PATIENT_DISCHARGE_READY event
 
-Auto-creates CareTasks (source: POST_ROUND_JOB):
+Auto-creates clinical CareTasks (source: POST_ROUND_JOB):
   "Write discharge summary"   → assignedToRole: JUNIOR_DOCTOR
-  "TTA prescription review"   → assignedToRole: REGISTRAR
-  "Notify bed management"     → assignedToRole: WARD_SUPERVISOR
+  "Prepare discharge medications" → assignedToRole: NURSE
 
 JuniorDoctor creates DISCHARGE_NOTE ClinicalNote
 
 When all discharge CareTasks are COMPLETED:
   Patient.status = DISCHARGED
-  wardId and bedNumber cleared (bed freed)
+  wardId and bedNumber cleared automatically (bed freed)
   Outbox publishes → PATIENT_DISCHARGED event
   NextOfKin notified (if notificationConsent = true)
 
@@ -1140,6 +1149,8 @@ All notifications (successful and failed) are persisted in the `notifications` t
 - **SENT**: Provider stub completed successfully
 - **FAILED**: Provider call failed or the circuit breaker was open
 
+Notification fan-out can enrich events by calling careround-core through `HttpCoreLookupClient`. It currently looks up ward supervisors for shift/task/deterioration alerts and consenting next-of-kin contacts for discharge notifications, using `CAREROUND_CORE_BASE_URL` and optional `CAREROUND_SERVICE_ACCOUNT_JWT`.
+
 ### Consumer group IDs
 
 ```
@@ -1148,7 +1159,7 @@ careround-notification-dlt                ← DLT inspection consumer
 careround-audit-group                     ← AuditEventConsumer
 ```
 
-Consumers must be idempotent — check event ID before processing, skip duplicates.
+Notification consumers are idempotent through `NotificationIdempotencyGuard`, which skips a message when its `correlationId` already has a persisted notification. Audit persists Kafka topic, partition, offset, key, and payload metadata for each consumed event.
 
 ---
 
@@ -1330,7 +1341,7 @@ These rules are enforced at the **service layer**, not the controller layer. Bus
 
 5. **CareTask forward-only status:** Task status transitions: `PENDING -> IN_PROGRESS -> COMPLETED` only. Backward transitions are rejected.
 
-6. **Patient discharge event:** When patient status is changed to `DISCHARGED`, all care tasks for the patient must already be `COMPLETED`; the service publishes `careround.patient.discharged` for notification and audit consumers.
+6. **Patient discharge event:** A patient must be `DISCHARGE_READY` before final discharge. When status is changed to `DISCHARGED`, all care tasks for the patient must already be `COMPLETED`; the service clears `wardId` and `bedNumber`, then publishes `careround.patient.discharged` for notification and audit consumers.
 
 7. **ClinicalNotes are immutable:** ClinicalNote records are never deleted. Amendments create a new version alongside the original with `isAmended = true`.
 
@@ -1460,9 +1471,8 @@ Counter.builder("careround.escalation.created")
 @Transactional
 public void onRoundCompleted(RoundCompletedEvent event) {
     // Check for duplicate processing
-    if (processedEventRepository.existsByEventId(event.getId())) return;
+    if (notificationRepository.existsByCorrelationId(event.correlationId())) return;
     // Process...
-    processedEventRepository.save(new ProcessedEvent(event.getId()));
 }
 ```
 
@@ -1477,7 +1487,6 @@ Java 21 JDK (Temurin)     — https://adoptium.net
 Maven 3.9+
 Docker Desktop
 IntelliJ IDEA Community
-Node.js 20 LTS + npm
 Git
 ```
 
@@ -1507,6 +1516,8 @@ REDIS_HOST=localhost
 REDIS_PORT=6379
 KAFKA_BOOTSTRAP_SERVERS=localhost:9094
 GRAFANA_PASSWORD=admin
+CAREROUND_CORE_BASE_URL=http://localhost:8080
+CAREROUND_SERVICE_ACCOUNT_JWT=<JWT used by notification service for core lookups>
 ```
 
 ### Running the applications
@@ -1520,8 +1531,6 @@ cd careround-core && mvn spring-boot:run -Dspring-boot.run.profiles=dev
 cd careround-notification && mvn spring-boot:run -Dspring-boot.run.profiles=dev
 cd careround-audit && mvn spring-boot:run -Dspring-boot.run.profiles=dev
 
-# React frontend
-cd careround-frontend && npm install && npm run dev
 ```
 
 ### IntelliJ setup
@@ -1535,7 +1544,6 @@ cd careround-frontend && npm install && npm run dev
 ### Port allocation
 
 ```
-3000    React frontend (Vite)
 3001    Grafana
 3306    MySQL
 6379    Redis
@@ -1564,6 +1572,7 @@ V11__create_clinical_note_care_task.sql
 V12__create_outbox.sql
 V13__create_quartz_tables.sql   ← full QRTZ_* schema for MySQL
 V14__create_indexes.sql         ← all composite indexes
+V15__allow_discharged_patients_without_ward.sql
 ```
 
 ---

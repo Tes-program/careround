@@ -142,6 +142,7 @@ public class PatientServiceImpl implements PatientService {
                 .orElseThrow(() -> new ResourceNotFoundException("Patient not found"));
 
         patient.setDischargeReady(true);
+        patient.setStatus(PatientStatus.DISCHARGE_READY);
         if (request.estimatedDischargeDate() != null) {
             patient.setEstimatedDischargeDate(request.estimatedDischargeDate());
         }
@@ -166,14 +167,23 @@ public class PatientServiceImpl implements PatientService {
         PatientStatus current = patient.getStatus();
         PatientStatus target = request.status();
 
-        if (current != PatientStatus.ADMITTED) {
-            throw new BusinessRuleException("Status transition only allowed from ADMITTED");
-        }
         if (target == PatientStatus.ADMITTED) {
-            throw new BusinessRuleException("Cannot transition to ADMITTED from ADMITTED");
+            throw new BusinessRuleException("Cannot transition to ADMITTED");
+        }
+        if (current == PatientStatus.DISCHARGED) {
+            throw new BusinessRuleException("Patient is already discharged");
+        }
+        if (current == PatientStatus.DISCHARGE_READY && target != PatientStatus.DISCHARGED) {
+            throw new BusinessRuleException("Discharge-ready patients can only transition to DISCHARGED");
+        }
+        if (current != PatientStatus.ADMITTED && current != PatientStatus.DISCHARGE_READY) {
+            throw new BusinessRuleException("Unsupported patient status transition");
         }
 
         if (target == PatientStatus.DISCHARGED) {
+            if (current != PatientStatus.DISCHARGE_READY || !patient.isDischargeReady()) {
+                throw new BusinessRuleException("Patient must be marked discharge ready before discharge");
+            }
             long incomplete = careTaskRepository.findAllByPatientId(patientId).stream()
                     .filter(t -> t.getStatus() != TaskStatus.COMPLETED)
                     .count();
@@ -182,10 +192,13 @@ public class PatientServiceImpl implements PatientService {
             }
 
             LocalDateTime dischargedAt = LocalDateTime.now(ZoneOffset.UTC);
+            String dischargedFromWardId = patient.getWardId();
             outboxService.publish("careround.patient.discharged",
-                    new PatientDischargedEvent(hospitalId, patientId, patient.getWardId(),
+                    new PatientDischargedEvent(hospitalId, patientId, dischargedFromWardId,
                             dischargedAt, MDC.get("correlationId")),
                     hospitalId);
+            patient.setWardId(null);
+            patient.setBedNumber(null);
         }
 
         patient.setStatus(target);
