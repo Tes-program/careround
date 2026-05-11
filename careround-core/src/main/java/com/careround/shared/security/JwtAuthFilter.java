@@ -50,7 +50,7 @@ public class JwtAuthFilter extends OncePerRequestFilter {
                 SecurityContext context = SecurityContextHolder.createEmptyContext();
                 context.setAuthentication(auth);
                 SecurityContextHolder.setContext(context);
-                HospitalContextHolder.set(hospitalId, userId, UserRole.valueOf(role));
+                setHospitalContextIfTenantUser(hospitalId, userId, role);
             }
         } catch (JwtException ex) {
             log.debug("Invalid JWT token: {}", ex.getMessage());
@@ -61,6 +61,13 @@ public class JwtAuthFilter extends OncePerRequestFilter {
         }finally {
             HospitalContextHolder.clear();
         }
+    }
+
+    private void setHospitalContextIfTenantUser(String hospitalId, String userId, String role) {
+        if (!StringUtils.hasText(role) || "PLATFORM_ADMIN".equals(role)) {
+            return;
+        }
+        HospitalContextHolder.set(hospitalId, userId, UserRole.valueOf(role));
     }
 
     private String extractToken(HttpServletRequest request) {

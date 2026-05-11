@@ -43,4 +43,11 @@ public class AuthController {
         authService.changePassword(HospitalContextHolder.getUserId(), request);
         return ResponseEntity.ok(ApiResponse.ok("Password changed successfully", null));
     }
+
+    @PostMapping("/activate-account")
+    public ResponseEntity<ApiResponse<Void>> activateAccount(
+            @Valid @RequestBody ActivateAccountRequest request) {
+        authService.activateAccount(request);
+        return ResponseEntity.ok(ApiResponse.ok("Account activated. Please log in.", null));
+    }
 }

@@ -11,6 +11,8 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.List;
+
 @Service
 @RequiredArgsConstructor
 public class HospitalServiceImpl implements HospitalService {
@@ -41,6 +43,14 @@ public class HospitalServiceImpl implements HospitalService {
         Hospital hospital = hospitalRepository.findById(hospitalId)
                 .orElseThrow(() -> new ResourceNotFoundException("Hospital not found"));
         return toResponse(hospital);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<HospitalResponse> listAll() {
+        return hospitalRepository.findAll().stream()
+                .map(this::toResponse)
+                .toList();
     }
 
     private HospitalResponse toResponse(Hospital h) {

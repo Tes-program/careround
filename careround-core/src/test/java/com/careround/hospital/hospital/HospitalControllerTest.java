@@ -1,7 +1,6 @@
 package com.careround.hospital.hospital;
 
 import com.careround.auth.enums.UserRole;
-import com.careround.hospital.hospital.dto.CreateHospitalRequest;
 import com.careround.hospital.hospital.dto.HospitalResponse;
 import com.careround.shared.config.SecurityConfig;
 import com.careround.shared.security.HospitalContextHolder;
@@ -12,10 +11,8 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.context.annotation.Import;
-import org.springframework.http.MediaType;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
-import tools.jackson.databind.ObjectMapper;
 
 import java.time.LocalDateTime;
 
@@ -23,7 +20,6 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.when;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -32,7 +28,6 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 class HospitalControllerTest {
 
     @Autowired private MockMvc mockMvc;
-    @Autowired private ObjectMapper objectMapper;
     @MockitoBean private HospitalService hospitalService;
     @MockitoBean private JwtService jwtService;
 
@@ -51,16 +46,20 @@ class HospitalControllerTest {
     }
 
     @Test
-    void register_withValidPayload_shouldReturn201() throws Exception {
-        when(hospitalService.register(any())).thenReturn(sampleResponse);
+    void listHospitals_asPlatformAdmin_shouldReturn200() throws Exception {
+        when(hospitalService.listAll()).thenReturn(java.util.List.of(sampleResponse));
 
-        mockMvc.perform(post("/api/v1/hospitals")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(
-                                new CreateHospitalRequest("City Hospital", null, "admin@city.com", null))))
-                .andExpect(status().isCreated())
-                .andExpect(jsonPath("$.data.id").value("hosp-1"))
-                .andExpect(jsonPath("$.data.name").value("City Hospital"));
+        mockMvc.perform(get("/api/v1/hospitals")
+                        .with(user("platform").roles("PLATFORM_ADMIN")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data[0].id").value("hosp-1"));
+    }
+
+    @Test
+    void listHospitals_asTenantAdmin_shouldReturn403() throws Exception {
+        mockMvc.perform(get("/api/v1/hospitals")
+                        .with(user("tenant-admin").roles("ADMIN")))
+                .andExpect(status().isForbidden());
     }
 
     @Test

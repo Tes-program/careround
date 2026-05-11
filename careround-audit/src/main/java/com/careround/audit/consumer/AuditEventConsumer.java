@@ -35,7 +35,11 @@ public class AuditEventConsumer {
             "careround.patient.discharged",
             "careround.team.invite-sent",
             "careround.team.member-added",
-            "careround.invite.expired"
+            "careround.invite.expired",
+            "careround.hospital.onboarding_requested",
+            "careround.hospital.onboarding_reviewed",
+            "careround.hospital.provisioned",
+            "careround.user.activation_requested"
     }, groupId = "careround-audit-group")
     @Transactional
     public void listen(ConsumerRecord<String, String> record) {
