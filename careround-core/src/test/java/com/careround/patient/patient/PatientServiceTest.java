@@ -1,7 +1,6 @@
 package com.careround.patient.patient;
 
 import com.careround.auth.enums.UserRole;
-import com.careround.hospital.entity.Department;
 import com.careround.hospital.entity.MedicalTeam;
 import com.careround.hospital.entity.Ward;
 import com.careround.hospital.repository.DepartmentRepository;
@@ -51,7 +50,6 @@ class PatientServiceTest {
     @Mock private WardRepository wardRepository;
     @Mock private MedicalTeamRepository medicalTeamRepository;
     @Mock private DepartmentRepository departmentRepository;
-    @Mock private OnCallRotationRepository onCallRotationRepository;
     @Mock private CareTaskRepository careTaskRepository;
     @Mock private OutboxService outboxService;
 

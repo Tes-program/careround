@@ -27,7 +27,6 @@ import com.careround.patient.round.dto.ReviewPatientRequest;
 import com.careround.patient.round.dto.RoundResponse;
 import com.careround.shared.exception.AccessDeniedException;
 import com.careround.shared.exception.BusinessRuleException;
-import com.careround.shared.exception.ResourceNotFoundException;
 import com.careround.shared.security.HospitalContextHolder;
 import com.careround.shared.service.OutboxService;
 import org.junit.jupiter.api.AfterEach;
@@ -169,8 +168,8 @@ class RoundServiceTest {
 
         verify(patientRoundReviewRepository).saveAll(captor.capture());
         assertThat(captor.getValue()).hasSize(2);
-        assertThat(captor.getValue().get(0).getReviewOrder()).isEqualTo(1);
-        assertThat(captor.getValue().get(0).getClinicalStatus()).isEqualTo(ClinicalStatus.STABLE);
+        assertThat(captor.getValue().getFirst().getReviewOrder()).isEqualTo(1);
+        assertThat(captor.getValue().getFirst().getClinicalStatus()).isEqualTo(ClinicalStatus.STABLE);
     }
 
     @Test
