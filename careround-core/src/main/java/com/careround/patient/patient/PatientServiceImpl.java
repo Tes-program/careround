@@ -20,6 +20,7 @@ import com.careround.patient.patient.dto.UpdatePatientStatusRequest;
 import com.careround.patient.repository.CareTaskRepository;
 import com.careround.patient.repository.PatientRepository;
 import com.careround.shared.event.PatientAdmittedEvent;
+import com.careround.shared.event.PatientDischargedEvent;
 import com.careround.shared.event.PatientDischargeReadyEvent;
 import com.careround.shared.exception.AccessDeniedException;
 import com.careround.shared.exception.BusinessRuleException;
@@ -179,6 +180,12 @@ public class PatientServiceImpl implements PatientService {
             if (incomplete > 0) {
                 throw new BusinessRuleException("Cannot discharge patient: " + incomplete + " incomplete care task(s) remain");
             }
+
+            LocalDateTime dischargedAt = LocalDateTime.now(ZoneOffset.UTC);
+            outboxService.publish("careround.patient.discharged",
+                    new PatientDischargedEvent(hospitalId, patientId, patient.getWardId(),
+                            dischargedAt, MDC.get("correlationId")),
+                    hospitalId);
         }
 
         patient.setStatus(target);

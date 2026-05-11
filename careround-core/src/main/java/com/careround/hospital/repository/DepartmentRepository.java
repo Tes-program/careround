@@ -11,4 +11,6 @@ public interface DepartmentRepository extends JpaRepository<Department, String> 
     List<Department> findAllByHospitalId(String hospitalId);
 
     Optional<Department> findByIdAndHospitalId(String id, String hospitalId);
+
+    long countByHospitalId(String hospitalId);
 }

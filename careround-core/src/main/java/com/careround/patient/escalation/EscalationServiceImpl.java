@@ -73,6 +73,7 @@ public class EscalationServiceImpl implements EscalationService {
         PatientDeteriorationEvent event = new PatientDeteriorationEvent(
                 hospitalId, patientId, patient.getWardId(),
                 patient.getNewsScore(), severity, saved.getId(),
+                saved.getAssignedToId(),
                 MDC.get("correlationId"));
         outboxService.publish("careround.patient.deterioration", event, hospitalId);
 
@@ -113,6 +114,7 @@ public class EscalationServiceImpl implements EscalationService {
         PatientDeteriorationEvent event = new PatientDeteriorationEvent(
                 hospitalId, patientId, patient.getWardId(),
                 patient.getNewsScore(), request.severity(), saved.getId(),
+                saved.getAssignedToId(),
                 MDC.get("correlationId"));
         outboxService.publish("careround.patient.deterioration", event, hospitalId);
 

@@ -13,4 +13,6 @@ public interface RoundRepository extends JpaRepository<Round, String> {
 
     boolean existsByWardIdAndMedicalTeamIdAndRoundTypeAndStatus(
             String wardId, String teamId, RoundType type, RoundStatus status);
+
+    long countByHospitalIdAndStatus(String hospitalId, RoundStatus status);
 }

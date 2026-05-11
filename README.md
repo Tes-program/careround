@@ -296,7 +296,7 @@ The `QRTZ_*` tables in MySQL (created via Flyway V13) and the `QRTZ_LOCKS` table
 ```
 MySQL 8 (single server, port 3306)
 ├── careround_core          ← all domain tables + QRTZ_* + outbox_event
-├── careround_notification  ← failed_notifications only
+├── careround_notification  ← notifications + failed_notifications
 └── careround_audit         ← audit_log only
 ```
 
@@ -674,7 +674,7 @@ INDEX: (published, created_at)
 Table: notifications
 eventType       VARCHAR(100) NOT NULL
 payload         LONGTEXT NOT NULL
-status          ENUM(NotificationStatus) NOT NULL    ← SUCCESSFUL or FAILED
+status          ENUM(NotificationStatus) NOT NULL    ← PENDING, SENT, FAILED
 failureReason   TEXT nullable                        ← populated only if status=FAILED
 sentAt          DATETIME NOT NULL
 retryCount      INT NOT NULL DEFAULT 0
@@ -820,53 +820,55 @@ AssignedToRole:       NURSE, JUNIOR_DOCTOR, REGISTRAR
 ### 10.1 Hospital Onboarding
 
 ```
-Admin registers hospital → Hospital record + SystemConfiguration (defaults) created
-→ Admin creates Departments
-→ Admin creates Wards (assigns WardSupervisor to each)
-→ Admin invites staff (creates User accounts with role + hospitalId)
-→ Admin creates ShiftSchedules (time, days, ward target)
-→ Consultant creates MedicalTeam → sends invites to Registrar and JuniorDoctors
-→ Admin (or Consultant) assigns MedicalTeam to Wards via MedicalTeamWard
-→ Admin configures OnCallRotations
-→ System is operational
+Admin registers hospital -> Hospital record + SystemConfiguration defaults created
+-> Admin creates Departments
+-> Admin creates Wards and optionally assigns WardSupervisor
+-> Admin creates staff User accounts with role + hospitalId
+-> Admin creates ShiftSchedules; wardId can target one ward or be null for all wards
+-> Admin or Consultant creates MedicalTeam
+-> Consultant sends invites to Registrar and JuniorDoctors
+-> Admin or owning Consultant assigns MedicalTeam to Wards via MedicalTeamWard
+-> Admin configures OnCallRotations
+-> System is operational
 ```
 
 ### 10.2 Patient Admission
 
 ```
-WardSupervisor or Admin creates Patient record
-  → admissionType: EMERGENCY | ELECTIVE | TRANSFER
-  → specialtyRequired: matched to Department
+Admin, Consultant, Registrar, or WardSupervisor creates Patient record
+  -> admissionType: EMERGENCY | ELECTIVE | TRANSFER
+  -> wardId and medicalTeamId are supplied by the caller
+  -> specialtyRequired is stored for clinical routing and reporting
 
-System queries OnCallRotation:
-  WHERE department_id = (SELECT id FROM department WHERE name = patient.specialtyRequired)
-  AND role = REGISTRAR_ON_CALL (or CONSULTANT_ON_CALL)
+If admittingConsultantId is omitted, the service resolves the on-call consultant:
+  WHERE department matches specialtyRequired
+  AND role = CONSULTANT_ON_CALL
   AND start_time <= NOW() AND end_time > NOW()
-  → if no match: fall back to General Medicine on-call
-  → assigns patient.medicalTeamId
+  -> if no match: fall back to General Medicine on-call
 
-Admission ClinicalNote (ADMISSION_NOTE) created by receiving doctor
-Nurse records first PatientVitals → newsScore computed → acuityLevel set
+Admission ClinicalNote can be created separately by receiving staff
+Authorized clinical staff records first PatientVitals -> newsScore computed -> acuityLevel set
 Patient appears on ward list ordered by acuityLevel DESC, newsScore DESC
 
-Outbox publishes → PATIENT_ADMITTED event fires
+Outbox publishes -> PATIENT_ADMITTED event fires
 ```
 
 ### 10.3 Automatic Shift Creation
 
 ```
 Quartz ShiftCreationJob runs at configured intervals (every minute)
-→ Reads active ShiftSchedule records from database
-→ For each schedule matching current day and time:
+-> Reads active ShiftSchedule records from database
+-> For each schedule matching current day:
     Checks uniqueness: (ward_id, type, start_time) must not already exist
     Creates Shift with status = PENDING_ASSIGNMENT
     leadDoctorId = null, nurseInChargeId = null
-    Outbox publishes → SHIFT_CREATED event
+    If schedule.wardId is null, creates one shift for every ward in the hospital
+    Outbox publishes -> SHIFT_CREATED event
 
-WardSupervisor receives notification → assigns leadDoctorId + nurseInChargeId
-→ PUT /api/v1/shifts/:id/assign
-→ Shift status transitions: PENDING_ASSIGNMENT → ACTIVE
-→ Outbox publishes → SHIFT_ACTIVATED event
+WardSupervisor receives notification -> assigns leadDoctorId + nurseInChargeId
+-> PUT /api/v1/shifts/:id/assign
+-> Shift status transitions: PENDING_ASSIGNMENT -> ACTIVE
+-> Outbox publishes -> SHIFT_ACTIVATED event
 
 Rounds cannot be created against a PENDING_ASSIGNMENT shift.
 Shift must be ACTIVE before rounds begin.
@@ -876,23 +878,26 @@ Shift must be ACTIVE before rounds begin.
 
 ```
 Consultant creates MedicalTeam:
-  POST /api/v1/medical-teams
-  → consultantId = authenticated user's ID (auto-set)
-  → Must specify departmentId
+  POST /api/v1/teams
+  -> consultantId defaults to authenticated user's ID unless supplied
+  -> Must specify departmentId
 
 Consultant sends invite:
-  POST /api/v1/medical-teams/:id/invites  { invitedUserId }
+  POST /api/v1/teams/:teamId/invites  { invitedUserId }
   Validates: same hospitalId, not already a member, no duplicate PENDING invite
   Creates MedicalTeamInvite (status: PENDING, expiresAt: now + 48h)
-  Outbox publishes → TEAM_INVITE_SENT event
+  Outbox publishes -> TEAM_INVITE_SENT event
 
 Invited doctor accepts:
-  PUT /api/v1/medical-team-invites/:id/accept
+  POST /api/v1/teams/invites/:inviteId/accept
   Creates MedicalTeamMember record
-  Outbox publishes → TEAM_MEMBER_ADDED event
+  Outbox publishes -> TEAM_MEMBER_ADDED event
+
+Admin or owning Consultant assigns ward:
+  POST /api/v1/teams/:teamId/wards { wardId }
 
 Quartz InviteExpiryJob: marks PENDING invites past expiresAt as EXPIRED
-  Outbox publishes → INVITE_EXPIRED event
+  Outbox publishes -> INVITE_EXPIRED event
 ```
 
 ### 10.5 Ward Round
@@ -900,12 +905,11 @@ Quartz InviteExpiryJob: marks PENDING invites past expiresAt as EXPIRED
 **Round creation:**
 ```
 Consultant or Registrar creates Round:
-  POST /api/v1/rounds  { wardId, roundType, shiftId, teamMembers[] }
+  POST /api/v1/rounds  { wardId, medicalTeamId, roundType, leadDoctorId, scheduledTime, teamMembers[] }
   
   Validates:
-    - Shift status must be ACTIVE
-    - For MORNING rounds: no other MORNING round IN_PROGRESS for same
-      wardId + medicalTeamId on same calendar day (409 Conflict if exists)
+    - An ACTIVE shift must exist for the ward
+    - No other round of the same type can be IN_PROGRESS for same wardId + medicalTeamId
 
   Patient queue generated ordered by:
     1. CRITICAL acuity
@@ -1071,20 +1075,22 @@ For each patient on the ward:
 
 Incoming shift lead signs off:
   PUT /api/v1/handovers/:id/complete
-  Handover status → COMPLETED
-  Outgoing shift → HANDED_OVER
-  Incoming shift → ACTIVE
+  Handover status -> COMPLETED
+  Outgoing shift -> HANDED_OVER
+  Incoming shift is not auto-transitioned by handover completion
   Outstanding tasks carry forward (not auto-closed)
-  Outbox publishes → HANDOVER_COMPLETED event
+  Outbox publishes -> HANDOVER_COMPLETED event
 ```
 
-### 10.10 Next-of-Kin Notification
+### 10.10 Notification Fan-Out
 
 | Trigger | Event | Content | Condition |
 |---|---|---|---|
-| Round completed | ROUND_COMPLETED | Confirmation patient was reviewed — no clinical detail | notificationConsent=true AND nokNotificationEnabled=true |
-| Patient discharged | PATIENT_DISCHARGED | Discharge confirmed | notificationConsent=true |
-| RED deterioration | PATIENT_DETERIORATION | Condition changed, contact ward | isEmergencyContact=true |
+| Round completed | ROUND_COMPLETED | Confirmation to round lead doctor | leadDoctorId present |
+| Shift created | SHIFT_CREATED | Email to ward supervisor | ward.supervisorId present |
+| Task overdue | TASK_OVERDUE | SMS to assignee and email to ward supervisor | respective recipient IDs present |
+| Patient deterioration | PATIENT_DETERIORATION | SMS to assigned doctor and email to ward supervisor | respective recipient IDs present |
+| Patient discharged | PATIENT_DISCHARGED | NOK discharge notification | notificationConsent=true; preferredContactMethod controls EMAIL/SMS |
 
 ---
 
@@ -1095,15 +1101,15 @@ All 13 topics use 3 partitions, 1 replica (local dev). All payloads include `hos
 | Topic | Published by | Key payload | Consumers |
 |---|---|---|---|
 | `careround.patient.admitted` | PatientService | patientId, wardId, medicalTeamId | Dashboard, audit |
-| `careround.shift.created` | ShiftCreationJob | shiftId, wardId, shiftType | Notification (WardSupervisor alert), audit |
+| `careround.shift.created` | ShiftCreationJob | shiftId, wardId, shiftType, startTime, endTime | Notification (WardSupervisor alert), audit |
 | `careround.shift.activated` | ShiftService | shiftId, wardId, leadDoctorId, nurseInChargeId | Notification, audit |
-| `careround.round.completed` | RoundService | roundId, wardId, reviewedPatientIds[] | Notification (NOK fan-out), audit |
+| `careround.round.completed` | RoundService | roundId, wardId, medicalTeamId, shiftId, roundType, leadDoctorId, completedAt | Notification (round lead), audit |
 | `careround.handover.completed` | HandoverService | handoverId, wardId, incomingShiftId | Notification, audit |
-| `careround.task.overdue` | TaskOverdueJob | careTaskId, patientId, wardId, assignedToId, priority | Notification, audit |
-| `careround.patient.deterioration` | PatientVitalsService | patientId, wardId, newsScore, severity | Notification (NOK if RED), audit |
+| `careround.task.overdue` | TaskOverdueJob | taskId, patientId, wardId, assignedToId, title, windowEnd | Notification, audit |
+| `careround.patient.deterioration` | PatientVitalsService / EscalationService | patientId, wardId, newsScore, severity, escalationId, assignedToId | Notification, audit |
 | `careround.escalation.unacknowledged` | EscalationUnacknowledgedJob | escalationId, patientId, severity | Notification, audit |
 | `careround.patient.discharge-ready` | RoundService | patientId, wardId, estimatedDischargeDate | Notification, audit |
-| `careround.patient.discharged` | PatientService | patientId, wardId, nokIds[] | Notification (NOK), audit |
+| `careround.patient.discharged` | PatientService | patientId, wardId, dischargedAt | Notification (NOK), audit |
 | `careround.team.invite-sent` | MedicalTeamService | inviteId, teamId, invitedUserId | Notification, audit |
 | `careround.team.member-added` | MedicalTeamService | teamId, userId | Notification, audit |
 | `careround.invite.expired` | InviteExpiryJob | inviteId, teamId, invitedUserId | Notification, audit |
@@ -1127,17 +1133,19 @@ This guarantees zero event loss. If Kafka is down, events queue in MySQL and are
 
 ### Dead Letter Topic (DLT) — careround-notification only
 
-Kafka `DefaultErrorHandler` in NotificationConsumer config: 3 retries with 1-second backoff, then publish to `<topic>.DLT`. `NotificationDltConsumer` persists failed messages to `notifications` table with `status = FAILED` for inspection.
+Kafka `DefaultErrorHandler` in NotificationConsumer config: 3 retries with 1-second backoff, then publish to `<topic>.DLT`. `NotificationDltConsumer` persists failed messages to `failed_notifications` with topic, payload, error message, hospitalId, correlationId, and failedAt.
 
 All notifications (successful and failed) are persisted in the `notifications` table:
-- **SUCCESSFUL**: Notification sent successfully by the provider
-- **FAILED**: Notification sent to DLT after max retries — requires manual review
+- **PENDING**: Notification row created before provider call
+- **SENT**: Provider stub completed successfully
+- **FAILED**: Provider call failed or the circuit breaker was open
 
 ### Consumer group IDs
 
 ```
-careround-notification  ← used by all consumers in careround-notification
-careround-audit         ← used by AuditEventConsumer
+careround-notification-{eventname}-group  ← dedicated group per notification consumer
+careround-notification-dlt                ← DLT inspection consumer
+careround-audit-group                     ← AuditEventConsumer
 ```
 
 Consumers must be idempotent — check event ID before processing, skip duplicates.
@@ -1146,7 +1154,7 @@ Consumers must be idempotent — check event ID before processing, skip duplicat
 
 ## 12. API Endpoints
 
-All endpoints prefixed `/api/v1`. All require JWT Bearer token except auth endpoints. `hospitalId` is always extracted from JWT, never passed as a request parameter.
+All endpoints are prefixed `/api/v1`. All require JWT Bearer token except `POST /hospitals`, `POST /auth/login`, and `POST /auth/refresh`. `hospitalId` is extracted from the JWT for tenant-scoped endpoints.
 
 ### Authentication — careround-core
 
@@ -1157,36 +1165,42 @@ All endpoints prefixed `/api/v1`. All require JWT Bearer token except auth endpo
 | POST | `/auth/logout` | Authenticated |
 | POST | `/auth/change-password` | Authenticated |
 
-### Hospital Management — careround-core (ADMIN only)
+### Hospital and Configuration — careround-core
 
-| Method | Endpoint | Description |
+| Method | Endpoint | Access |
 |---|---|---|
-| POST | `/hospitals` | Register new hospital |
-| GET | `/hospitals/:id` | Get hospital details |
-| PUT | `/hospitals/:id` | Update hospital |
-| GET | `/hospitals/:id/config` | Get SystemConfiguration |
-| PUT | `/hospitals/:id/config` | Update config (thresholds, toggles) |
+| POST | `/hospitals` | Public bootstrap |
+| GET | `/hospitals/me` | Authenticated |
+| GET | `/system-config` | ADMIN |
+| PUT | `/system-config` | ADMIN |
 
-### Department Management — careround-core
+### Department and Ward Management — careround-core
 
 | Method | Endpoint | Access |
 |---|---|---|
 | POST | `/departments` | ADMIN |
-| GET | `/departments` | ADMIN, WARD_SUPERVISOR |
-| GET | `/departments/:id` | ADMIN, WARD_SUPERVISOR |
+| GET | `/departments` | Authenticated |
+| GET | `/departments/:id` | Authenticated |
 | PUT | `/departments/:id` | ADMIN |
 | DELETE | `/departments/:id` | ADMIN |
+| POST | `/wards` | ADMIN |
+| GET | `/wards` | Authenticated |
+| GET | `/wards/:id` | Authenticated |
+| PUT | `/wards/:id` | ADMIN, WARD_SUPERVISOR |
+| DELETE | `/wards/:id` | ADMIN |
 
-### Ward Management — careround-core
+### Dashboards — careround-core
+
+Role dashboards expose operational summaries for the authenticated tenant: active patients, open escalations, open and overdue tasks, active shifts, rounds in progress, and role-specific counts.
 
 | Method | Endpoint | Access |
 |---|---|---|
-| POST | `/wards` | ADMIN |
-| GET | `/wards` | All clinical staff |
-| GET | `/wards/:id` | All clinical staff |
-| PUT | `/wards/:id` | ADMIN |
-| GET | `/wards/:id/patients` | All clinical staff (ordered by acuity) |
-| GET | `/wards/:id/dashboard` | WARD_SUPERVISOR, CONSULTANT |
+| GET | `/dashboard/me` | Authenticated current-role dashboard |
+| GET | `/dashboard/admin` | ADMIN |
+| GET | `/dashboard/consultant` | CONSULTANT |
+| GET | `/dashboard/doctor` | CONSULTANT, REGISTRAR, JUNIOR_DOCTOR |
+| GET | `/dashboard/nurse` | NURSE |
+| GET | `/dashboard/ward-supervisor` | WARD_SUPERVISOR |
 
 ### Staff Management — careround-core
 
@@ -1194,187 +1208,151 @@ All endpoints prefixed `/api/v1`. All require JWT Bearer token except auth endpo
 |---|---|---|
 | POST | `/users` | ADMIN |
 | GET | `/users` | ADMIN |
-| GET | `/users/:id` | ADMIN, self |
-| PUT | `/users/:id` | ADMIN |
-| PUT | `/users/:id/deactivate` | ADMIN |
 | GET | `/users/me` | Authenticated |
-| GET | `/users/me/invites` | Authenticated |
+| GET | `/users/:id` | ADMIN |
+| PUT | `/users/:id/deactivate` | ADMIN |
 
 ### Medical Team Management — careround-core
 
+Medical-team endpoints use `/teams` in the implemented API.
+
 | Method | Endpoint | Access |
 |---|---|---|
-| POST | `/medical-teams` | ADMIN, CONSULTANT |
-| GET | `/medical-teams` | ADMIN, CONSULTANT |
-| GET | `/medical-teams/:id` | ADMIN, team members |
-| PUT | `/medical-teams/:id` | ADMIN, owning CONSULTANT |
-| DELETE | `/medical-teams/:id/members/:userId` | ADMIN, owning CONSULTANT |
-| POST | `/medical-teams/:id/wards` | ADMIN, owning CONSULTANT |
-| DELETE | `/medical-teams/:id/wards/:wardId` | ADMIN, owning CONSULTANT |
-| POST | `/medical-teams/:id/invites` | Owning CONSULTANT |
-| GET | `/medical-teams/:id/invites` | Owning CONSULTANT |
-| DELETE | `/medical-teams/:id/invites/:inviteId` | Owning CONSULTANT |
-| PUT | `/medical-team-invites/:id/accept` | Invited user |
-| PUT | `/medical-team-invites/:id/decline` | Invited user |
+| POST | `/teams` | ADMIN, CONSULTANT |
+| GET | `/teams` | Authenticated |
+| GET | `/teams/:id` | Authenticated tenant user |
+| POST | `/teams/:teamId/wards` | ADMIN, owning CONSULTANT |
+| DELETE | `/teams/:teamId/wards/:wardId` | ADMIN, owning CONSULTANT |
+| POST | `/teams/:teamId/invites` | Owning CONSULTANT |
+| DELETE | `/teams/:teamId/members/:userId` | ADMIN, owning CONSULTANT |
+| GET | `/teams/invites/pending` | Authenticated invited user |
+| POST | `/teams/invites/:inviteId/accept` | Invited user |
+| POST | `/teams/invites/:inviteId/decline` | Invited user |
 
 ### Patient Management — careround-core
 
 | Method | Endpoint | Access |
 |---|---|---|
-| POST | `/patients` | ADMIN, WARD_SUPERVISOR |
-| GET | `/patients` | All clinical staff |
-| GET | `/patients/:id` | All clinical staff |
-| PUT | `/patients/:id` | ADMIN, WARD_SUPERVISOR |
-| PUT | `/patients/:id/discharge` | System / REGISTRAR (all discharge tasks complete) |
-| GET | `/patients/:id/timeline` | All clinical staff |
+| POST | `/patients` | ADMIN, CONSULTANT, REGISTRAR, WARD_SUPERVISOR |
+| GET | `/patients/:patientId` | Authenticated clinical tenant user |
+| GET | `/patients/ward/:wardId` | Authenticated clinical tenant user |
+| GET | `/patients/search?q=...` | Authenticated clinical tenant user |
+| PATCH | `/patients/:patientId/discharge-ready` | CONSULTANT |
+| PATCH | `/patients/:patientId/status` | CONSULTANT, WARD_SUPERVISOR |
 
 ### Next-of-Kin — careround-core
 
 | Method | Endpoint | Access |
 |---|---|---|
-| POST | `/patients/:id/next-of-kin` | ADMIN, WARD_SUPERVISOR, NURSE |
-| GET | `/patients/:id/next-of-kin` | All clinical staff |
-| PUT | `/patients/:id/next-of-kin/:nokId` | ADMIN, WARD_SUPERVISOR |
-| DELETE | `/patients/:id/next-of-kin/:nokId` | ADMIN, WARD_SUPERVISOR |
+| POST | `/patients/:patientId/next-of-kin` | ADMIN, NURSE, WARD_SUPERVISOR, CONSULTANT, REGISTRAR |
+| GET | `/patients/:patientId/next-of-kin` | Authenticated clinical tenant user |
+| PUT | `/patients/:patientId/next-of-kin/:nokId` | ADMIN, NURSE, WARD_SUPERVISOR, CONSULTANT, REGISTRAR |
+| DELETE | `/patients/:patientId/next-of-kin/:nokId` | ADMIN, WARD_SUPERVISOR, CONSULTANT |
+| PATCH | `/patients/:patientId/next-of-kin/:nokId/consent` | ADMIN, NURSE, WARD_SUPERVISOR |
 
 ### Patient Vitals — careround-core
 
 | Method | Endpoint | Access |
 |---|---|---|
-| POST | `/patients/:id/vitals` | NURSE |
-| GET | `/patients/:id/vitals` | All clinical staff |
-| GET | `/patients/:id/vitals/latest` | All clinical staff |
+| POST | `/patients/:patientId/vitals` | NURSE, JUNIOR_DOCTOR, REGISTRAR, CONSULTANT, WARD_SUPERVISOR |
+| GET | `/patients/:patientId/vitals?limit=10` | Authenticated clinical tenant user |
+| GET | `/patients/:patientId/vitals/latest` | Authenticated clinical tenant user |
 
-### On-Call Rotation — careround-core
-
-| Method | Endpoint | Access |
-|---|---|---|
-| POST | `/on-call-rotations` | ADMIN |
-| GET | `/on-call-rotations` | ADMIN, WARD_SUPERVISOR |
-| GET | `/on-call-rotations/current` | All clinical staff |
-| PUT | `/on-call-rotations/:id` | ADMIN |
-| DELETE | `/on-call-rotations/:id` | ADMIN |
-
-### Shift Schedules — careround-core
+### On-Call Rotation and Shift Schedules — careround-core
 
 | Method | Endpoint | Access |
 |---|---|---|
+| POST | `/oncall` | ADMIN |
+| GET | `/oncall` | Authenticated |
+| GET | `/oncall/:id` | Authenticated |
+| GET | `/oncall/current?departmentId=...&role=...` | Authenticated |
+| DELETE | `/oncall/:id` | ADMIN |
 | POST | `/shift-schedules` | ADMIN |
-| GET | `/shift-schedules` | ADMIN, WARD_SUPERVISOR |
-| PUT | `/shift-schedules/:id` | ADMIN |
-| PUT | `/shift-schedules/:id/toggle` | ADMIN |
-| DELETE | `/shift-schedules/:id` | ADMIN |
+| GET | `/shift-schedules` | Authenticated |
+| GET | `/shift-schedules/:id` | Authenticated |
+| PUT | `/shift-schedules/:id/deactivate` | ADMIN |
 
-### Shift Management — careround-core
-
-| Method | Endpoint | Access |
-|---|---|---|
-| GET | `/shifts` | WARD_SUPERVISOR, Doctors |
-| GET | `/shifts/:id` | WARD_SUPERVISOR, Doctors |
-| PUT | `/shifts/:id/assign` | WARD_SUPERVISOR |
-| PUT | `/shifts/:id/status` | WARD_SUPERVISOR |
-| GET | `/wards/:wardId/shifts/current` | All clinical staff |
-
-### Handover Management — careround-core
+### Shift and Handover Management — careround-core
 
 | Method | Endpoint | Access |
 |---|---|---|
-| POST | `/handovers` | Lead doctor, WARD_SUPERVISOR |
-| GET | `/handovers/:id` | All clinical staff |
-| POST | `/handovers/:id/patient-notes` | Any clinical staff on shift |
-| PUT | `/handovers/:id/patient-notes/:noteId` | Author only |
-| PUT | `/handovers/:id/complete` | Incoming shift lead |
-| GET | `/wards/:wardId/handovers` | WARD_SUPERVISOR |
+| PUT | `/shifts/:id/assign` | ADMIN, WARD_SUPERVISOR |
+| GET | `/shifts/current/:wardId` | Authenticated clinical tenant user |
+| POST | `/handovers` | CONSULTANT, REGISTRAR, NURSE, WARD_SUPERVISOR |
+| POST | `/handovers/:handoverId/patient-notes` | CONSULTANT, REGISTRAR, NURSE, WARD_SUPERVISOR |
+| POST | `/handovers/:handoverId/complete` | CONSULTANT, REGISTRAR, NURSE, WARD_SUPERVISOR |
+| GET | `/handovers/ward/:wardId` | Authenticated clinical tenant user |
+| GET | `/handovers/:handoverId/patient-notes` | Authenticated clinical tenant user |
 
 ### Ward Rounds — careround-core
 
 | Method | Endpoint | Access |
 |---|---|---|
 | POST | `/rounds` | CONSULTANT, REGISTRAR |
-| GET | `/rounds` | All clinical staff |
-| GET | `/rounds/:id` | All clinical staff |
-| PUT | `/rounds/:id/start` | Round lead doctor |
-| PUT | `/rounds/:id/complete` | Round lead doctor |
-| PUT | `/rounds/:id/cancel` | Round lead doctor, WARD_SUPERVISOR |
-| POST | `/rounds/:id/patient-reviews` | All doctors on round |
-| GET | `/rounds/:id/patient-reviews` | All clinical staff |
-| PUT | `/rounds/:id/patient-reviews/:reviewId` | Round lead doctor |
+| POST | `/rounds/:roundId/start` | CONSULTANT, REGISTRAR |
+| PATCH | `/rounds/:roundId/patients/:patientId` | CONSULTANT, REGISTRAR, JUNIOR_DOCTOR |
+| POST | `/rounds/:roundId/complete` | CONSULTANT, REGISTRAR |
+| GET | `/rounds?wardId=...&teamId=...` | Authenticated clinical tenant user |
+| GET | `/rounds/:roundId/reviews` | Authenticated clinical tenant user |
 
-### Clinical Notes — careround-core
+### Clinical Notes, Care Tasks, and Escalations — careround-core
 
 | Method | Endpoint | Access |
 |---|---|---|
-| POST | `/clinical-notes` | All doctors |
-| GET | `/patients/:id/clinical-notes` | All clinical staff |
-| GET | `/clinical-notes/:id` | All clinical staff |
-| PUT | `/clinical-notes/:id/amend` | Author or senior doctor |
-
-### Care Tasks — careround-core
-
-| Method | Endpoint | Access |
-|---|---|---|
-| POST | `/care-tasks` | NURSE (nursing), DOCTOR (post-round) |
-| GET | `/care-tasks` | All clinical staff |
-| GET | `/care-tasks/:id` | All clinical staff |
-| PUT | `/care-tasks/:id/status` | Assigned staff member |
-| PUT | `/care-tasks/:id` | Task creator or senior doctor |
-| DELETE | `/care-tasks/:id` | Task creator, REGISTRAR, CONSULTANT |
-
-### Escalations — careround-core
-
-| Method | Endpoint | Access |
-|---|---|---|
-| POST | `/escalations` | NURSE, any clinical staff |
-| GET | `/escalations` | All clinical staff, WARD_SUPERVISOR |
-| GET | `/escalations/:id` | All clinical staff |
-| PUT | `/escalations/:id/acknowledge` | Assigned doctor |
-| PUT | `/escalations/:id/resolve` | Assigned doctor, CONSULTANT |
-
-### Reports — careround-core
-
-| Method | Endpoint | Access |
-|---|---|---|
-| GET | `/reports/task-completion` | WARD_SUPERVISOR, ADMIN |
-| GET | `/reports/overdue-tasks` | WARD_SUPERVISOR, CONSULTANT |
-| GET | `/reports/round-history` | WARD_SUPERVISOR, CONSULTANT |
-| GET | `/reports/ward-summary` | WARD_SUPERVISOR, CONSULTANT |
-| GET | `/reports/patient-flow` | ADMIN, WARD_SUPERVISOR |
+| POST | `/clinical-notes` | CONSULTANT, REGISTRAR, JUNIOR_DOCTOR, NURSE, WARD_SUPERVISOR |
+| PATCH | `/clinical-notes/:noteId/amend` | CONSULTANT, REGISTRAR, JUNIOR_DOCTOR, NURSE, WARD_SUPERVISOR |
+| GET | `/clinical-notes/patient/:patientId` | Authenticated clinical tenant user |
+| POST | `/care-tasks` | CONSULTANT, REGISTRAR, NURSE, WARD_SUPERVISOR |
+| PATCH | `/care-tasks/:taskId/assign` | CONSULTANT, REGISTRAR, NURSE, WARD_SUPERVISOR |
+| PATCH | `/care-tasks/:taskId/progress` | NURSE, JUNIOR_DOCTOR, REGISTRAR, WARD_SUPERVISOR |
+| PATCH | `/care-tasks/:taskId/complete` | NURSE, JUNIOR_DOCTOR, REGISTRAR, WARD_SUPERVISOR |
+| GET | `/care-tasks/ward/:wardId?status=PENDING` | Authenticated clinical tenant user |
+| GET | `/care-tasks/patient/:patientId` | Authenticated clinical tenant user |
+| POST | `/escalations` | NURSE, JUNIOR_DOCTOR, REGISTRAR, WARD_SUPERVISOR |
+| GET | `/escalations/ward/:wardId` | Authenticated clinical tenant user |
+| GET | `/escalations/patient/:patientId` | Authenticated clinical tenant user |
+| PATCH | `/escalations/:escalationId/acknowledge` | REGISTRAR, CONSULTANT |
+| PATCH | `/escalations/:escalationId/resolve` | REGISTRAR, CONSULTANT |
 
 ---
 
 ## 13. Business Rules
 
-These rules are enforced at the **service layer**, not the controller layer. Violation throws `BusinessRuleException` (HTTP 422).
+These rules are enforced at the **service layer**, not the controller layer. Business rule violations throw `BusinessRuleException` (HTTP 422); authorization violations throw `AccessDeniedException`.
 
-1. **Round MORNING uniqueness:** A MORNING round cannot be created if another MORNING round is `IN_PROGRESS` for the same `wardId + medicalTeamId` on the same calendar day.
+1. **Round active uniqueness:** A round cannot be created if another round of the same `roundType` is already `IN_PROGRESS` for the same `wardId + medicalTeamId`.
 
 2. **Round requires active shift:** A Round cannot be created against a Shift with `status = PENDING_ASSIGNMENT`. Shift must be `ACTIVE`.
 
 3. **Handover requires active shift:** A Handover can only be initiated if the outgoing `Shift.status = ACTIVE`.
 
-4. **Discharge confirmation — Consultant only:** Only a user with `role = CONSULTANT` can set `dischargeAssessment = CONFIRMED`. Any other role attempting this → `AccessDeniedException`.
+4. **Discharge confirmation - Consultant only:** Only a user with `role = CONSULTANT` can set `dischargeAssessment = CONFIRMED` during a round review. Any other role attempting this returns `AccessDeniedException`.
 
-5. **CareTask forward-only status:** Task status transitions: `PENDING → IN_PROGRESS → COMPLETED` only. Backward transitions are rejected.
+5. **CareTask forward-only status:** Task status transitions: `PENDING -> IN_PROGRESS -> COMPLETED` only. Backward transitions are rejected.
 
-6. **ClinicalNotes are immutable:** ClinicalNote records are never deleted. Amendments create a new version alongside the original with `isAmended = true`.
+6. **Patient discharge event:** When patient status is changed to `DISCHARGED`, all care tasks for the patient must already be `COMPLETED`; the service publishes `careround.patient.discharged` for notification and audit consumers.
 
-7. **OutboxService inside transaction:** `OutboxService.publish()` must always be called within an existing `@Transactional` context. It inserts an `OutboxEvent` row — never publishes to Kafka directly.
+7. **ClinicalNotes are immutable:** ClinicalNote records are never deleted. Amendments create a new version alongside the original with `isAmended = true`.
 
-8. **Vitals update patient:** `Patient.newsScore` and `Patient.acuityLevel` are updated on every `PatientVitals` save, within the same transaction.
+8. **OutboxService inside transaction:** `OutboxService.publish()` must always be called within an existing `@Transactional` context. It inserts an `OutboxEvent` row and never publishes to Kafka directly.
 
-9. **Invite same hospital:** A `MedicalTeamInvite` can only be sent to a User within the same `hospitalId`.
+9. **Vitals update patient:** `Patient.newsScore` and `Patient.acuityLevel` are updated on every `PatientVitals` save, within the same transaction.
 
-10. **No duplicate pending invite:** A user cannot receive a duplicate `PENDING` invite to the same `MedicalTeam`.
+10. **Invite same hospital:** A `MedicalTeamInvite` can only be sent to a User within the same `hospitalId`.
 
-11. **Invite ownership:** Only the Consultant whose `userId = MedicalTeam.consultantId` can send invites or remove members from that team.
+11. **No duplicate pending invite:** A user cannot receive a duplicate `PENDING` invite to the same `MedicalTeam`.
 
-12. **ShiftSchedule idempotency:** `ShiftCreationJob` checks for existing Shift records before creating. Unique constraint `(ward_id, type, start_time)` enforces this at the database level.
+12. **Invite ownership:** Only the Consultant whose `userId = MedicalTeam.consultantId` can send invites or remove members from that team. Admins can assign/remove team ward mappings.
 
-13. **Cross-tenant scoping:** `hospitalId` from the authenticated user's JWT must match the `hospitalId` of every entity being accessed. Violations → `AccessDeniedException`.
+13. **ShiftSchedule idempotency:** `ShiftCreationJob` checks for existing Shift records before creating. Unique constraint `(ward_id, type, start_time)` enforces this at the database level. If `ShiftSchedule.wardId` is null, the schedule applies to every ward in the hospital.
 
-14. **NEWS thresholds from config:** Alert thresholds are read from `SystemConfiguration` per hospital, never hardcoded.
+14. **Cross-tenant scoping:** `hospitalId` from the authenticated user's JWT must match the `hospitalId` of every entity being accessed. Violations return `AccessDeniedException`.
 
-15. **Cross-module repository access forbidden:** Domain modules within careround-core must not import repositories from other domain modules. Use the service layer for cross-module calls.
+15. **NEWS thresholds from config:** Alert thresholds are read from `SystemConfiguration` per hospital, never hardcoded.
+
+16. **Dashboard scoping:** Dashboard responses are role-specific summaries scoped to the authenticated user's `hospitalId`; ward-supervisor metrics are further scoped to wards where `ward.supervisorId = userId`.
+
+17. **Cross-module repository access:** The current implementation keeps all repositories inside the modular monolith and uses direct repository access where workflows span bounded contexts. This is an implementation tradeoff; extractable service boundaries should be tightened before splitting modules into separate deployables.
 
 ---
 

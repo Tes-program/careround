@@ -9,5 +9,6 @@ public record PatientDeteriorationEvent(
         int newsScore,
         EscalationSeverity severity,
         String escalationId,
+        String assignedToId,
         String correlationId
 ) {}

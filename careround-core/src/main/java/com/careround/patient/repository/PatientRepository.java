@@ -23,6 +23,12 @@ public interface PatientRepository extends JpaRepository<Patient, String> {
 
     List<Patient> findAllByMedicalTeamIdAndStatus(String teamId, PatientStatus status);
 
+    long countByHospitalIdAndStatus(String hospitalId, PatientStatus status);
+
+    long countByHospitalIdAndWardIdInAndStatus(String hospitalId, List<String> wardIds, PatientStatus status);
+
+    long countByHospitalIdAndMedicalTeamIdInAndStatus(String hospitalId, List<String> medicalTeamIds, PatientStatus status);
+
     @Query("SELECT p FROM Patient p WHERE p.hospitalId = :hospitalId AND " +
            "(p.hospitalNumber LIKE %:q% OR p.firstName LIKE %:q% OR p.lastName LIKE %:q%)")
     List<Patient> searchByHospitalId(@Param("hospitalId") String hospitalId, @Param("q") String q);

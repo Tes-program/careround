@@ -2,9 +2,11 @@ package com.careround.scheduler.service;
 
 import com.careround.hospital.entity.Shift;
 import com.careround.hospital.entity.ShiftSchedule;
+import com.careround.hospital.entity.Ward;
 import com.careround.hospital.enums.ShiftStatus;
 import com.careround.hospital.repository.ShiftRepository;
 import com.careround.hospital.repository.ShiftScheduleRepository;
+import com.careround.hospital.repository.WardRepository;
 import com.careround.shared.event.ShiftCreatedEvent;
 import com.careround.shared.service.OutboxService;
 import lombok.RequiredArgsConstructor;
@@ -28,6 +30,7 @@ public class ShiftCreationProcessor {
 
     private final ShiftScheduleRepository shiftScheduleRepository;
     private final ShiftRepository shiftRepository;
+    private final WardRepository wardRepository;
     private final OutboxService outboxService;
 
     @Transactional
@@ -37,7 +40,7 @@ public class ShiftCreationProcessor {
         DayOfWeek currentDay = today.getDayOfWeek();
 
         for (ShiftSchedule schedule : shiftScheduleRepository.findAllByIsActiveTrue()) {
-            if (!appliesToday(schedule, currentDay) || schedule.getWardId() == null) {
+            if (!appliesToday(schedule, currentDay)) {
                 continue;
             }
 
@@ -47,7 +50,13 @@ public class ShiftCreationProcessor {
                 endTime = endTime.plusDays(1);
             }
 
-            if (createShiftIfMissing(schedule, startTime, endTime, correlationId)) {
+            if (schedule.getWardId() == null) {
+                for (Ward ward : wardRepository.findAllByHospitalId(schedule.getHospitalId())) {
+                    if (createShiftIfMissing(schedule, ward.getId(), startTime, endTime, correlationId)) {
+                        createdCount++;
+                    }
+                }
+            } else if (createShiftIfMissing(schedule, schedule.getWardId(), startTime, endTime, correlationId)) {
                 createdCount++;
             }
         }
@@ -56,16 +65,17 @@ public class ShiftCreationProcessor {
     }
 
     private boolean createShiftIfMissing(ShiftSchedule schedule,
+                                         String wardId,
                                          LocalDateTime startTime,
                                          LocalDateTime endTime,
                                          String correlationId) {
         if (shiftRepository.existsByWardIdAndTypeAndStartTime(
-                schedule.getWardId(), schedule.getShiftType(), startTime)) {
+                wardId, schedule.getShiftType(), startTime)) {
             return false;
         }
 
         Shift shift = new Shift();
-        shift.setWardId(schedule.getWardId());
+        shift.setWardId(wardId);
         shift.setShiftScheduleId(schedule.getId());
         shift.setType(schedule.getShiftType());
         shift.setStartTime(startTime);

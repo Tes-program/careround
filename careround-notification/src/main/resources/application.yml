@@ -55,6 +55,25 @@ management:
     export:
       enabled: true
 
+resilience4j:
+  circuitbreaker:
+    instances:
+      emailProvider:
+        slidingWindowSize: 10
+        failureRateThreshold: 50
+        waitDurationInOpenState: 30s
+        permittedNumberOfCallsInHalfOpenState: 3
+      smsProvider:
+        slidingWindowSize: 10
+        failureRateThreshold: 50
+        waitDurationInOpenState: 30s
+        permittedNumberOfCallsInHalfOpenState: 3
+
+careround:
+  core:
+    base-url: ${CAREROUND_CORE_BASE_URL:http://localhost:8080}
+    service-account-jwt: ${CAREROUND_SERVICE_ACCOUNT_JWT:}
+
 logging:
   level:
     com.careround: DEBUG

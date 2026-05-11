@@ -41,7 +41,7 @@ public class QuartzConfig {
     private Properties quartzProperties() {
         Properties properties = new Properties();
         properties.setProperty("org.quartz.scheduler.instanceId", "AUTO");
-        properties.setProperty("org.quartz.jobStore.class", "org.quartz.impl.jdbcjobstore.JobStoreTX");
+        properties.setProperty("org.quartz.jobStore.class", "org.springframework.scheduling.quartz.LocalDataSourceJobStore");
         properties.setProperty("org.quartz.jobStore.driverDelegateClass", "org.quartz.impl.jdbcjobstore.StdJDBCDelegate");
         properties.setProperty("org.quartz.jobStore.isClustered", "true");
         properties.setProperty("org.quartz.jobStore.clusterCheckinInterval", "20000");

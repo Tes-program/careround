@@ -1,11 +1,15 @@
 package com.careround.hospital.medicalteam;
 
+import com.careround.auth.enums.UserRole;
 import com.careround.auth.repository.UserRepository;
 import com.careround.hospital.entity.MedicalTeam;
 import com.careround.hospital.entity.MedicalTeamInvite;
 import com.careround.hospital.entity.MedicalTeamMember;
 import com.careround.hospital.entity.MedicalTeamMemberId;
+import com.careround.hospital.entity.MedicalTeamWard;
+import com.careround.hospital.entity.MedicalTeamWardId;
 import com.careround.hospital.enums.InviteStatus;
+import com.careround.hospital.medicalteam.dto.AssignWardRequest;
 import com.careround.hospital.medicalteam.dto.CreateMedicalTeamRequest;
 import com.careround.hospital.medicalteam.dto.InviteResponse;
 import com.careround.hospital.medicalteam.dto.MedicalTeamResponse;
@@ -13,6 +17,8 @@ import com.careround.hospital.medicalteam.dto.SendInviteRequest;
 import com.careround.hospital.repository.MedicalTeamInviteRepository;
 import com.careround.hospital.repository.MedicalTeamMemberRepository;
 import com.careround.hospital.repository.MedicalTeamRepository;
+import com.careround.hospital.repository.MedicalTeamWardRepository;
+import com.careround.hospital.repository.WardRepository;
 import com.careround.shared.event.TeamInviteSentEvent;
 import com.careround.shared.event.TeamMemberAddedEvent;
 import com.careround.shared.exception.AccessDeniedException;
@@ -34,7 +40,9 @@ public class MedicalTeamServiceImpl implements MedicalTeamService {
 
     private final MedicalTeamRepository medicalTeamRepository;
     private final MedicalTeamMemberRepository memberRepository;
+    private final MedicalTeamWardRepository teamWardRepository;
     private final MedicalTeamInviteRepository inviteRepository;
+    private final WardRepository wardRepository;
     private final UserRepository userRepository;
     private final OutboxService outboxService;
 
@@ -175,9 +183,7 @@ public class MedicalTeamServiceImpl implements MedicalTeamService {
         MedicalTeam team = medicalTeamRepository.findByIdAndHospitalId(teamId, hospitalId)
                 .orElseThrow(() -> new ResourceNotFoundException("Medical team not found"));
 
-        if (!team.getConsultantId().equals(requestingUserId)) {
-            throw new AccessDeniedException("Only the team consultant can remove members");
-        }
+        assertTeamOwnerOrAdmin(hospitalId, team, requestingUserId);
 
         MedicalTeamMemberId memberId = new MedicalTeamMemberId(teamId, memberUserId);
         if (!memberRepository.existsById(memberId)) {
@@ -187,10 +193,60 @@ public class MedicalTeamServiceImpl implements MedicalTeamService {
     }
 
     @Override
+    @Transactional
+    public MedicalTeamResponse assignWard(String hospitalId, String teamId, String requestingUserId, AssignWardRequest request) {
+        MedicalTeam team = medicalTeamRepository.findByIdAndHospitalId(teamId, hospitalId)
+                .orElseThrow(() -> new ResourceNotFoundException("Medical team not found"));
+        assertTeamOwnerOrAdmin(hospitalId, team, requestingUserId);
+
+        wardRepository.findByIdAndHospitalId(request.wardId(), hospitalId)
+                .orElseThrow(() -> new ResourceNotFoundException("Ward not found"));
+
+        MedicalTeamWardId id = new MedicalTeamWardId(teamId, request.wardId());
+        if (!teamWardRepository.existsById(id)) {
+            MedicalTeamWard assignment = new MedicalTeamWard();
+            assignment.setId(id);
+            assignment.setAssignedAt(LocalDateTime.now(ZoneOffset.UTC));
+            teamWardRepository.save(assignment);
+        }
+        return toResponse(team);
+    }
+
+    @Override
+    @Transactional
+    public void removeWard(String hospitalId, String teamId, String wardId, String requestingUserId) {
+        MedicalTeam team = medicalTeamRepository.findByIdAndHospitalId(teamId, hospitalId)
+                .orElseThrow(() -> new ResourceNotFoundException("Medical team not found"));
+        assertTeamOwnerOrAdmin(hospitalId, team, requestingUserId);
+
+        wardRepository.findByIdAndHospitalId(wardId, hospitalId)
+                .orElseThrow(() -> new ResourceNotFoundException("Ward not found"));
+
+        MedicalTeamWardId id = new MedicalTeamWardId(teamId, wardId);
+        if (!teamWardRepository.existsById(id)) {
+            throw new ResourceNotFoundException("Medical team is not assigned to this ward");
+        }
+        teamWardRepository.deleteById(id);
+    }
+
+    @Override
     @Transactional(readOnly = true)
     public List<InviteResponse> listPendingInvites(String userId) {
         return inviteRepository.findAllByInvitedUserIdAndStatus(userId, InviteStatus.PENDING)
                 .stream().map(this::toInviteResponse).toList();
+    }
+
+    private void assertTeamOwnerOrAdmin(String hospitalId, MedicalTeam team, String requestingUserId) {
+        if (team.getConsultantId().equals(requestingUserId)) {
+            return;
+        }
+
+        boolean isAdmin = userRepository.findByIdAndHospitalId(requestingUserId, hospitalId)
+                .map(user -> user.getRole() == UserRole.ADMIN)
+                .orElse(false);
+        if (!isAdmin) {
+            throw new AccessDeniedException("Only an admin or the team consultant can manage this team");
+        }
     }
 
     private MedicalTeamResponse toResponse(MedicalTeam t) {

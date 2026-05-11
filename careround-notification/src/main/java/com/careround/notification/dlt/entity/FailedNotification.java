@@ -26,6 +26,15 @@ public class FailedNotification {
     @Column(name = "event_type", nullable = false, length = 100)
     private String eventType;
 
+    @Column(length = 255)
+    private String topic;
+
+    @Column(name = "hospital_id", length = 36)
+    private String hospitalId;
+
+    @Column(name = "correlation_id", length = 100)
+    private String correlationId;
+
     @Column(columnDefinition = "LONGTEXT")
     private String payload;
 

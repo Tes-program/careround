@@ -1,5 +1,6 @@
 package com.careround.hospital.medicalteam;
 
+import com.careround.hospital.medicalteam.dto.AssignWardRequest;
 import com.careround.hospital.medicalteam.dto.CreateMedicalTeamRequest;
 import com.careround.hospital.medicalteam.dto.InviteResponse;
 import com.careround.hospital.medicalteam.dto.MedicalTeamResponse;
@@ -60,6 +61,27 @@ public class MedicalTeamController {
                 HospitalContextHolder.getHospitalId(), teamId,
                 HospitalContextHolder.getUserId(), request);
         return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.ok("Invite sent", response));
+    }
+
+    @PostMapping("/{teamId}/wards")
+    @PreAuthorize("hasAnyRole('ADMIN', 'CONSULTANT')")
+    public ResponseEntity<ApiResponse<MedicalTeamResponse>> assignWard(
+            @PathVariable String teamId,
+            @Valid @RequestBody AssignWardRequest request) {
+        MedicalTeamResponse response = medicalTeamService.assignWard(
+                HospitalContextHolder.getHospitalId(), teamId,
+                HospitalContextHolder.getUserId(), request);
+        return ResponseEntity.ok(ApiResponse.ok("Ward assigned to team", response));
+    }
+
+    @DeleteMapping("/{teamId}/wards/{wardId}")
+    @PreAuthorize("hasAnyRole('ADMIN', 'CONSULTANT')")
+    public ResponseEntity<ApiResponse<Void>> removeWard(
+            @PathVariable String teamId,
+            @PathVariable String wardId) {
+        medicalTeamService.removeWard(HospitalContextHolder.getHospitalId(), teamId,
+                wardId, HospitalContextHolder.getUserId());
+        return ResponseEntity.ok(ApiResponse.ok("Ward removed from team", null));
     }
 
     @DeleteMapping("/{teamId}/members/{userId}")

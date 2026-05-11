@@ -13,4 +13,6 @@ public interface ShiftScheduleRepository extends JpaRepository<ShiftSchedule, St
     List<ShiftSchedule> findAllByIsActiveTrue();
 
     Optional<ShiftSchedule> findByIdAndHospitalId(String id, String hospitalId);
+
+    long countByHospitalIdAndIsActiveTrue(String hospitalId);
 }

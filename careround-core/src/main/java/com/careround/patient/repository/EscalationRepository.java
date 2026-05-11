@@ -26,4 +26,9 @@ public interface EscalationRepository extends JpaRepository<Escalation, String> 
 
     List<Escalation> findAllByPatientIdInAndStatusInOrderBySeverityDescCreatedAtAsc(
             List<String> patientIds, List<EscalationStatus> statuses);
+
+    long countByHospitalIdAndStatusIn(String hospitalId, List<EscalationStatus> statuses);
+
+    long countByHospitalIdAndAssignedToIdAndStatusIn(
+            String hospitalId, String assignedToId, List<EscalationStatus> statuses);
 }

@@ -6,7 +6,10 @@ import com.careround.auth.repository.UserRepository;
 import com.careround.hospital.entity.MedicalTeam;
 import com.careround.hospital.entity.MedicalTeamInvite;
 import com.careround.hospital.entity.MedicalTeamMemberId;
+import com.careround.hospital.entity.MedicalTeamWardId;
+import com.careround.hospital.entity.Ward;
 import com.careround.hospital.enums.InviteStatus;
+import com.careround.hospital.medicalteam.dto.AssignWardRequest;
 import com.careround.hospital.medicalteam.dto.CreateMedicalTeamRequest;
 import com.careround.hospital.medicalteam.dto.InviteResponse;
 import com.careround.hospital.medicalteam.dto.MedicalTeamResponse;
@@ -14,6 +17,8 @@ import com.careround.hospital.medicalteam.dto.SendInviteRequest;
 import com.careround.hospital.repository.MedicalTeamInviteRepository;
 import com.careround.hospital.repository.MedicalTeamMemberRepository;
 import com.careround.hospital.repository.MedicalTeamRepository;
+import com.careround.hospital.repository.MedicalTeamWardRepository;
+import com.careround.hospital.repository.WardRepository;
 import com.careround.shared.exception.AccessDeniedException;
 import com.careround.shared.exception.BusinessRuleException;
 import com.careround.shared.exception.ResourceNotFoundException;
@@ -42,7 +47,9 @@ class MedicalTeamServiceTest {
 
     @Mock private MedicalTeamRepository medicalTeamRepository;
     @Mock private MedicalTeamMemberRepository memberRepository;
+    @Mock private MedicalTeamWardRepository teamWardRepository;
     @Mock private MedicalTeamInviteRepository inviteRepository;
+    @Mock private WardRepository wardRepository;
     @Mock private UserRepository userRepository;
     @Mock private OutboxService outboxService;
 
@@ -205,6 +212,25 @@ class MedicalTeamServiceTest {
         medicalTeamService.removeMember(HOSPITAL_ID, TEAM_ID, "user-target", CONSULTANT_ID);
 
         verify(memberRepository).deleteById(memberId);
+    }
+
+    @Test
+    void assignWard_happyPath_shouldCreateTeamWardAssignment() {
+        Ward ward = new Ward();
+        ward.setId("ward-1");
+        ward.setHospitalId(HOSPITAL_ID);
+        when(medicalTeamRepository.findByIdAndHospitalId(TEAM_ID, HOSPITAL_ID))
+                .thenReturn(Optional.of(team));
+        when(wardRepository.findByIdAndHospitalId("ward-1", HOSPITAL_ID))
+                .thenReturn(Optional.of(ward));
+        when(teamWardRepository.existsById(new MedicalTeamWardId(TEAM_ID, "ward-1")))
+                .thenReturn(false);
+
+        MedicalTeamResponse result = medicalTeamService.assignWard(
+                HOSPITAL_ID, TEAM_ID, CONSULTANT_ID, new AssignWardRequest("ward-1"));
+
+        assertThat(result.id()).isEqualTo(TEAM_ID);
+        verify(teamWardRepository).save(any());
     }
 
     @Test

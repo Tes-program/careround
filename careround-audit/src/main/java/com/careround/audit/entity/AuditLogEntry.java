@@ -39,6 +39,18 @@ public class AuditLogEntry {
     @Column(columnDefinition = "LONGTEXT")
     private String payload;
 
+    @Column(name = "kafka_topic", length = 255)
+    private String kafkaTopic;
+
+    @Column(name = "kafka_partition")
+    private Integer kafkaPartition;
+
+    @Column(name = "kafka_offset")
+    private Long kafkaOffset;
+
+    @Column(name = "received_at")
+    private LocalDateTime receivedAt;
+
     @Column(name = "processed_at", nullable = false)
     private LocalDateTime processedAt;
 

@@ -18,4 +18,6 @@ public interface UserRepository extends JpaRepository<User, String> {
 
     Optional<User> findByHospitalIdAndEmailAndIsActiveTrue(String hospitalId, String email);
 
+    long countByHospitalIdAndIsActiveTrue(String hospitalId);
+
 }

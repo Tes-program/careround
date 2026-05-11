@@ -2,9 +2,11 @@ package com.careround.scheduler.jobs;
 
 import com.careround.hospital.entity.Shift;
 import com.careround.hospital.entity.ShiftSchedule;
+import com.careround.hospital.entity.Ward;
 import com.careround.hospital.enums.ShiftType;
 import com.careround.hospital.repository.ShiftRepository;
 import com.careround.hospital.repository.ShiftScheduleRepository;
+import com.careround.hospital.repository.WardRepository;
 import com.careround.scheduler.service.ShiftCreationProcessor;
 import com.careround.shared.event.ShiftCreatedEvent;
 import com.careround.shared.service.OutboxService;
@@ -38,13 +40,16 @@ class ShiftCreationJobTest {
     private ShiftRepository shiftRepository;
 
     @Mock
+    private WardRepository wardRepository;
+
+    @Mock
     private OutboxService outboxService;
 
     private ShiftCreationProcessor processor;
 
     @BeforeEach
     void setUp() {
-        processor = new ShiftCreationProcessor(shiftScheduleRepository, shiftRepository, outboxService);
+        processor = new ShiftCreationProcessor(shiftScheduleRepository, shiftRepository, wardRepository, outboxService);
     }
 
     @Test
@@ -90,6 +95,29 @@ class ShiftCreationJobTest {
         verify(outboxService).publish(eq("SHIFT_CREATED"), any(ShiftCreatedEvent.class), eq("hosp-1"));
     }
 
+    @Test
+    void hospitalWideSchedule_createsShiftForEachWard() {
+        ShiftSchedule schedule = activeSchedule(LocalDate.now(ZoneOffset.UTC).getDayOfWeek().name());
+        schedule.setWardId(null);
+        Ward wardOne = ward("ward-1");
+        Ward wardTwo = ward("ward-2");
+        when(shiftScheduleRepository.findAllByIsActiveTrue()).thenReturn(List.of(schedule));
+        when(wardRepository.findAllByHospitalId("hosp-1")).thenReturn(List.of(wardOne, wardTwo));
+        when(shiftRepository.existsByWardIdAndTypeAndStartTime(any(), eq(ShiftType.DAY), any(LocalDateTime.class)))
+                .thenReturn(false);
+        when(shiftRepository.save(any())).thenAnswer(invocation -> {
+            Shift shift = invocation.getArgument(0);
+            shift.setId("shift-" + shift.getWardId());
+            return shift;
+        });
+
+        int created = processor.createShiftsForToday("corr-1");
+
+        assertThat(created).isEqualTo(2);
+        verify(outboxService, org.mockito.Mockito.times(2))
+                .publish(eq("SHIFT_CREATED"), any(ShiftCreatedEvent.class), eq("hosp-1"));
+    }
+
     private ShiftSchedule activeSchedule(String daysOfWeek) {
         ShiftSchedule schedule = new ShiftSchedule();
         schedule.setId("schedule-1");
@@ -101,5 +129,13 @@ class ShiftCreationJobTest {
         schedule.setDaysOfWeek(daysOfWeek);
         schedule.setActive(true);
         return schedule;
+    }
+
+    private Ward ward(String id) {
+        Ward ward = new Ward();
+        ward.setId(id);
+        ward.setHospitalId("hosp-1");
+        ward.setName(id);
+        return ward;
     }
 }

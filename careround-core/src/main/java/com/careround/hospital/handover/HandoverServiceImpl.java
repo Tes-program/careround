@@ -60,6 +60,8 @@ public class HandoverServiceImpl implements HandoverService {
                 .orElseThrow(() -> new ResourceNotFoundException("Outgoing shift not found"));
         if (!outgoing.getWardId().equals(request.wardId()))
             throw new AccessDeniedException("Outgoing shift does not belong to this ward");
+        if (outgoing.getStatus() != ShiftStatus.ACTIVE)
+            throw new BusinessRuleException("Handover can only be initiated from an ACTIVE outgoing shift");
 
         Shift incoming = shiftRepository.findById(request.incomingShiftId())
                 .orElseThrow(() -> new ResourceNotFoundException("Incoming shift not found"));

@@ -18,4 +18,15 @@ public interface CareTaskRepository extends JpaRepository<CareTask, String> {
 
     List<CareTask> findAllByStatusInAndEscalatedAtIsNullAndWindowEndBefore(
             List<TaskStatus> statuses, LocalDateTime now);
+
+    long countByHospitalIdAndStatusIn(String hospitalId, List<TaskStatus> statuses);
+
+    long countByHospitalIdAndAssignedToIdAndStatusIn(String hospitalId, String assignedToId, List<TaskStatus> statuses);
+
+    long countByHospitalIdAndWardIdInAndStatusIn(String hospitalId, List<String> wardIds, List<TaskStatus> statuses);
+
+    long countByHospitalIdAndStatusInAndWindowEndBefore(String hospitalId, List<TaskStatus> statuses, LocalDateTime now);
+
+    long countByHospitalIdAndWardIdInAndStatusInAndWindowEndBefore(
+            String hospitalId, List<String> wardIds, List<TaskStatus> statuses, LocalDateTime now);
 }

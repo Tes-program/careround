@@ -28,6 +28,27 @@ public class Notification {
     @Column(name = "event_type", nullable = false, length = 100)
     private String eventType;
 
+    @Column(name = "hospital_id", length = 36)
+    private String hospitalId;
+
+    @Column(name = "recipient_id", length = 36)
+    private String recipientId;
+
+    @Column(name = "recipient_type", length = 20)
+    private String recipientType;
+
+    @Column(length = 20)
+    private String channel;
+
+    @Column(length = 255)
+    private String subject;
+
+    @Column(columnDefinition = "TEXT")
+    private String body;
+
+    @Column(name = "correlation_id", length = 100)
+    private String correlationId;
+
     @Column(columnDefinition = "LONGTEXT")
     private String payload;
 
@@ -38,7 +59,7 @@ public class Notification {
     @Column(name = "failure_reason", columnDefinition = "TEXT")
     private String failureReason;
 
-    @Column(name = "sent_at", nullable = false)
+    @Column(name = "sent_at")
     private LocalDateTime sentAt;
 
     @Column(name = "retry_count", nullable = false)

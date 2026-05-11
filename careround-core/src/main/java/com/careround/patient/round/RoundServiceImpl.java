@@ -14,6 +14,7 @@ import com.careround.patient.enums.ClinicalStatus;
 import com.careround.patient.enums.DischargeAssessment;
 import com.careround.patient.enums.PatientStatus;
 import com.careround.patient.enums.RoundStatus;
+import com.careround.auth.enums.UserRole;
 import com.careround.patient.repository.PatientRepository;
 import com.careround.patient.repository.PatientRoundReviewRepository;
 import com.careround.patient.repository.RoundRepository;
@@ -148,6 +149,11 @@ public class RoundServiceImpl implements RoundService {
         Patient patient = patientRepository.findByIdAndHospitalId(patientId, hospitalId)
                 .orElseThrow(() -> new ResourceNotFoundException("Patient not found"));
 
+        if (request.dischargeAssessment() == DischargeAssessment.CONFIRMED
+                && HospitalContextHolder.getRole() != UserRole.CONSULTANT) {
+            throw new AccessDeniedException("Only consultants can confirm discharge");
+        }
+
         review.setReviewedById(userId);
         review.setClinicalStatus(request.clinicalStatus());
         review.setWasExamined(request.wasExamined());
@@ -179,7 +185,8 @@ public class RoundServiceImpl implements RoundService {
 
         outboxService.publish("careround.round.completed",
                 new RoundCompletedEvent(hospitalId, round.getId(), round.getWardId(),
-                        round.getMedicalTeamId(), round.getShiftId(), MDC.get("correlationId")),
+                        round.getMedicalTeamId(), round.getShiftId(), round.getRoundType(),
+                        round.getLeadDoctorId(), round.getCompletedAt(), MDC.get("correlationId")),
                 hospitalId);
 
         log.info("action=completeRound roundId={} hospitalId={}", roundId, hospitalId);
