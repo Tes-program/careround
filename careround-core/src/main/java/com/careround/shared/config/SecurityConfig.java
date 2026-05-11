@@ -6,7 +6,6 @@ import com.careround.shared.security.JwtAuthFilter;
 import lombok.RequiredArgsConstructor;
 import org.springframework.boot.web.servlet.FilterRegistrationBean;
 import org.springframework.beans.factory.ObjectProvider;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
@@ -73,9 +72,10 @@ public class SecurityConfig {
     }
 
     @Bean
-    @ConditionalOnBean(RateLimitingFilter.class)
-    public FilterRegistrationBean<RateLimitingFilter> rateLimitingFilterRegistration(RateLimitingFilter filter) {
-        FilterRegistrationBean<RateLimitingFilter> registration = new FilterRegistrationBean<>(filter);
+    public FilterRegistrationBean<RateLimitingFilter> rateLimitingFilterRegistration(
+            ObjectProvider<RateLimitingFilter> rateLimitingFilterProvider) {
+        FilterRegistrationBean<RateLimitingFilter> registration = new FilterRegistrationBean<>();
+        rateLimitingFilterProvider.ifAvailable(registration::setFilter);
         registration.setEnabled(false);
         return registration;
     }
