@@ -26,11 +26,7 @@ public class JwtService {
     @Value("${jwt.access-token-expiry-ms:900000}")
     private long accessTokenExpiryMs;
 
-//    @Value("${jwt.refresh-token-expiry-ms:604800000}")
-//    private long refreshTokenExpiryMs;
-
     private SecretKey signingKey() {
-//        byte[] keyBytes = secret.getBytes(StandardCharsets.UTF_8);
         byte[] keyBytes = Decoders.BASE64.decode(secret);
         return Keys.hmacShaKeyFor(keyBytes);
     }
@@ -46,10 +42,6 @@ public class JwtService {
                 accessTokenExpiryMs,
                 "access");
     }
-
-//    public String generateRefreshToken(String userId, String email, String hospitalId) {
-//        return buildToken(userId, hospitalId, refreshTokenExpiryMs, "refresh");
-//    }
 
     private String buildToken(String userId, String email, String hospitalId, String role, long expiryMs,
                               String tokenType) {

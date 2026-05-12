@@ -185,7 +185,8 @@ careround-core/src/main/java/com/careround/
 │   │   ├── ShiftCreationJob.java
 │   │   ├── TaskOverdueJob.java
 │   │   ├── EscalationUnacknowledgedJob.java
-│   │   └── InviteExpiryJob.java
+│   │   ├── InviteExpiryJob.java
+│   │   └── RefreshTokenCleanupJob.java
 │   └── service/JobSchedulingService.java
 │
 └── shared/                          ← Cross-cutting infrastructure
@@ -291,7 +292,7 @@ spring:
       org.quartz.threadPool.threadCount: 5
 ```
 
-The `QRTZ_*` tables in MySQL (created via Flyway V13) and the `QRTZ_LOCKS` table provide distributed locking. No ShedLock needed — Quartz handles cluster safety natively.
+The `QRTZ_*` tables in MySQL (created via Flyway V13) and the `QRTZ_LOCKS` table provide distributed locking. No ShedLock needed — Quartz handles cluster safety natively. Registered jobs include outbox polling, shift creation, overdue-task detection, unacknowledged-escalation handling, invite expiry, and hourly refresh-token cleanup.
 
 ---
 
@@ -931,6 +932,8 @@ After activation:
   -> Admin configures OnCallRotations
   -> System is operational
 ```
+
+Refresh tokens are persisted for session rotation. Logout, password change, token refresh, and expired-token usage mark tokens revoked; `RefreshTokenCleanupJob` runs hourly and deletes rows where `revoked = true` or `expires_at` is in the past.
 
 ### 10.2 Patient Admission
 
@@ -1648,7 +1651,7 @@ docker compose up -d
 ```env
 MYSQL_ROOT_PASSWORD=careround_root
 MYSQL_USER=careround
-MYSQL_PASSWORD=careround_secret
+MYSQL_PASSWORD=careround_password
 JWT_SECRET=<256-bit hex string — generate with: openssl rand -hex 32>
 REDIS_HOST=localhost
 REDIS_PORT=6379
@@ -1716,6 +1719,7 @@ V14__create_indexes.sql         ← all composite indexes
 V15__allow_discharged_patients_without_ward.sql
 V16__create_onboarding_platform_activation.sql
 V17__add_care_task_workload_conflict.sql
+V18__add_refresh_token_cleanup_indexes.sql
 ```
 
 ---
@@ -1736,6 +1740,12 @@ CREATE INDEX idx_care_task_overdue
 -- Outbox poller (every second)
 CREATE INDEX idx_outbox_unpublished
   ON outbox_event(published, created_at);
+
+-- Refresh token cleanup (hourly)
+CREATE INDEX idx_refresh_tokens_expires_at
+  ON refresh_tokens(expires_at);
+CREATE INDEX idx_refresh_tokens_revoked
+  ON refresh_tokens(revoked);
 
 -- On-call rotation lookup (every admission + escalation)
 CREATE INDEX idx_on_call_dept_time
@@ -1783,7 +1793,7 @@ Apply to all external provider calls (email, SMS). Configure: 5 consecutive fail
 
 ### Quartz JDBC clustering (careround-core)
 
-Already covered in Section 5. Critical: `QRTZ_LOCKS` table provides distributed locking. No ShedLock needed. All five Quartz jobs fire on exactly one instance across any number of horizontal cores.
+Already covered in Section 5. Critical: `QRTZ_LOCKS` table provides distributed locking. No ShedLock needed. All registered Quartz jobs fire on exactly one instance across any number of horizontal cores.
 
 ### Redis rate limiting
 

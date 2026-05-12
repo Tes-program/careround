@@ -4,6 +4,8 @@ import com.careround.auth.dto.*;
 import com.careround.auth.service.AuthService;
 import com.careround.shared.dto.ApiResponse;
 import com.careround.shared.security.HospitalContextHolder;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
@@ -12,11 +14,16 @@ import org.springframework.web.bind.annotation.*;
 @RestController
 @RequestMapping("/api/v1/auth")
 @RequiredArgsConstructor
+@Tag(name = "Authentication", description = "Tenant user authentication, session refresh, logout, password changes, and account activation")
 public class AuthController {
 
     private final AuthService authService;
 
     @PostMapping("/login")
+    @Operation(
+            summary = "Log in a tenant user",
+            description = "Authenticates an active hospital user and returns an access token plus a persisted refresh token."
+    )
     public ResponseEntity<ApiResponse<JwtResponse>> login(
             @Valid @RequestBody LoginRequest request) {
         JwtResponse response = authService.login(request);
@@ -24,6 +31,10 @@ public class AuthController {
     }
 
     @PostMapping("/refresh")
+    @Operation(
+            summary = "Refresh tenant JWTs",
+            description = "Validates an active refresh token, revokes it, and returns a new access token and refresh token pair."
+    )
     public ResponseEntity<ApiResponse<JwtResponse>> refresh(
             @Valid @RequestBody RefreshTokenRequest request) {
         JwtResponse response = authService.refresh(request);
@@ -31,6 +42,10 @@ public class AuthController {
     }
 
     @PostMapping("/logout")
+    @Operation(
+            summary = "Log out a tenant user",
+            description = "Revokes the supplied refresh token so it can no longer be used for session renewal."
+    )
     public ResponseEntity<ApiResponse<Void>> logout(
             @Valid @RequestBody RefreshTokenRequest request) {
         authService.logout(request.getRefreshToken());
@@ -38,6 +53,10 @@ public class AuthController {
     }
 
     @PostMapping("/change-password")
+    @Operation(
+            summary = "Change the current user's password",
+            description = "Changes the authenticated user's password and revokes all of their existing refresh tokens."
+    )
     public ResponseEntity<ApiResponse<Void>> changePassword(
             @Valid @RequestBody ChangePasswordRequest request) {
         authService.changePassword(HospitalContextHolder.getUserId(), request);
@@ -45,6 +64,10 @@ public class AuthController {
     }
 
     @PostMapping("/activate-account")
+    @Operation(
+            summary = "Activate a provisioned tenant account",
+            description = "Consumes a valid account activation token, sets the user's password, and enables normal login."
+    )
     public ResponseEntity<ApiResponse<Void>> activateAccount(
             @Valid @RequestBody ActivateAccountRequest request) {
         authService.activateAccount(request);
