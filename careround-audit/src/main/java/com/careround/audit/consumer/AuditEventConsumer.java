@@ -39,7 +39,8 @@ public class AuditEventConsumer {
             "careround.hospital.onboarding_requested",
             "careround.hospital.onboarding_reviewed",
             "careround.hospital.provisioned",
-            "careround.user.activation_requested"
+            "careround.user.activation_requested",
+            "careround.care_task.workload_conflict"
     }, groupId = "careround-audit-group")
     @Transactional
     public void listen(ConsumerRecord<String, String> record) {

@@ -26,6 +26,8 @@ public record CareTaskResponse(
         TaskStatus status,
         String completedById,
         LocalDateTime completedAt,
+        boolean workloadConflict,
+        String workloadConflictReason,
         LocalDateTime createdAt,
         LocalDateTime updatedAt
 ) {}

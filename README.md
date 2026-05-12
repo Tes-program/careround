@@ -696,14 +696,17 @@ source           ENUM(TaskSource) NOT NULL
 title            VARCHAR(255) NOT NULL
 description      TEXT nullable
 priority         ENUM(TaskPriority) NOT NULL DEFAULT ROUTINE
-windowStart      DATETIME nullable
-windowEnd        DATETIME nullable
+windowStart      DATETIME NOT NULL for API-created tasks
+windowEnd        DATETIME NOT NULL for API-created tasks
 status           ENUM(TaskStatus) NOT NULL DEFAULT PENDING
 completedById    VARCHAR(36) nullable
 completedAt      DATETIME nullable
 escalatedAt      DATETIME nullable
+workloadConflict BOOLEAN NOT NULL DEFAULT FALSE
+workloadConflictReason TEXT nullable
 
 INDEX: (hospital_id, ward_id, status, window_end)
+INDEX: (hospital_id, assigned_to_id, status, window_start, window_end)
 ```
 
 ### OutboxEvent
@@ -1065,9 +1068,18 @@ All patients reviewed:
 Nurse creates: POST /api/v1/care-tasks
   source: NURSING_CARE_PLAN
   taskType: free text ("Medication", "Vitals Check", "Wound Dressing", etc.)
-  windowStart, windowEnd set
-  assignedToId: Nurse
+  windowStart, windowEnd required
+  assignedToRole: NURSE
+  assignedToId: system-selected nurse
   status: PENDING
+
+Auto-assignment:
+  1. Assign to nurseInChargeId on the patient's ward active shift
+  2. If that nurse has an overlapping PENDING or IN_PROGRESS task, assign another active nurse from a same-specialty ward
+  3. If every same-specialty nurse has a clash, assign to the ward nurse in charge anyway
+     -> workloadConflict = true
+     -> Outbox publishes careround.care_task.workload_conflict
+     -> WardSupervisor notified
 
 At windowStart: assigned nurse notified
 Nurse starts: status → IN_PROGRESS
@@ -1083,7 +1095,7 @@ If windowEnd passes and status ≠ COMPLETED:
 **Post-round doctor job:**
 ```
 Created through POST /api/v1/care-tasks with source: POST_ROUND_JOB
-  assignedToRole: JUNIOR_DOCTOR | REGISTRAR | NURSE
+  assignedToRole: NURSE for API-created tasks; system-generated discharge jobs can still target JUNIOR_DOCTOR or NURSE
   priority: ROUTINE | URGENT | EMERGENCY
 
 EMERGENCY: if not started within 30 minutes → auto-escalate to Registrar
@@ -1184,6 +1196,7 @@ Incoming shift lead signs off:
 | Round completed | ROUND_COMPLETED | Confirmation to round lead doctor | leadDoctorId present |
 | Shift created | SHIFT_CREATED | Email to ward supervisor | ward.supervisorId present |
 | Task overdue | TASK_OVERDUE | SMS to assignee and email to ward supervisor | respective recipient IDs present |
+| Care task workload conflict | CARE_TASK_WORKLOAD_CONFLICT | Email to ward supervisor | every same-specialty active nurse already has a clashing task |
 | Patient deterioration | PATIENT_DETERIORATION | SMS to assigned doctor and email to ward supervisor | respective recipient IDs present |
 | Patient discharged | PATIENT_DISCHARGED | NOK discharge notification | notificationConsent=true; preferredContactMethod controls EMAIL/SMS |
 | User activation requested | USER_ACTIVATION_REQUESTED | Email activation URL to first hospital admin | onboarding provisioning completed |
@@ -1192,7 +1205,7 @@ Incoming shift lead signs off:
 
 ## 11. Kafka Event Catalogue
 
-All 17 topics use 3 partitions, 1 replica (local dev). All payloads include `hospitalId` and `correlationId`.
+All 18 topics use 3 partitions, 1 replica (local dev). All payloads include `hospitalId` and `correlationId`.
 
 | Topic | Published by | Key payload | Consumers |
 |---|---|---|---|
@@ -1213,6 +1226,7 @@ All 17 topics use 3 partitions, 1 replica (local dev). All payloads include `hos
 | `careround.hospital.onboarding_reviewed` | HospitalOnboardingService | hospitalId=platform, requestId, status, reviewedByUserId | Audit |
 | `careround.hospital.provisioned` | HospitalOnboardingService | requestId, hospitalId, adminUserId | Audit |
 | `careround.user.activation_requested` | HospitalOnboardingService | hospitalId, userId, email, activationUrl | Notification (first admin email), audit |
+| `careround.care_task.workload_conflict` | CareTaskService | taskId, wardId, patientId, assignedNurseId, wardSupervisorId, windowStart, windowEnd | Notification (ward supervisor), audit |
 
 ### Transactional Outbox Pattern — mandatory
 
@@ -1422,7 +1436,7 @@ Medical-team endpoints use `/teams` in the implemented API.
 | PATCH | `/clinical-notes/:noteId/amend` | CONSULTANT, REGISTRAR, JUNIOR_DOCTOR, NURSE, WARD_SUPERVISOR |
 | GET | `/clinical-notes/patient/:patientId` | Authenticated clinical tenant user |
 | POST | `/care-tasks` | CONSULTANT, REGISTRAR, NURSE, WARD_SUPERVISOR |
-| PATCH | `/care-tasks/:taskId/assign` | CONSULTANT, REGISTRAR, NURSE, WARD_SUPERVISOR |
+| PATCH | `/care-tasks/:taskId/assign` | WARD_SUPERVISOR, or NURSE who created the task |
 | PATCH | `/care-tasks/:taskId/progress` | NURSE, JUNIOR_DOCTOR, REGISTRAR, WARD_SUPERVISOR |
 | PATCH | `/care-tasks/:taskId/complete` | NURSE, JUNIOR_DOCTOR, REGISTRAR, WARD_SUPERVISOR |
 | GET | `/care-tasks/ward/:wardId?status=PENDING` | Authenticated clinical tenant user |
@@ -1449,35 +1463,41 @@ These rules are enforced at the **service layer**, not the controller layer. Bus
 
 5. **CareTask forward-only status:** Task status transitions: `PENDING -> IN_PROGRESS -> COMPLETED` only. Backward transitions are rejected.
 
-6. **Patient discharge event:** A patient must be `DISCHARGE_READY` before final discharge. When status is changed to `DISCHARGED`, all care tasks for the patient must already be `COMPLETED`; the service clears `wardId` and `bedNumber`, then publishes `careround.patient.discharged` for notification and audit consumers.
+6. **CareTask time window required:** API-created care tasks must include both `windowStart` and `windowEnd`, and `windowEnd` must be after `windowStart`.
 
-7. **ClinicalNotes are immutable:** ClinicalNote records are never deleted. Amendments create a new version alongside the original with `isAmended = true`.
+7. **CareTask automatic nurse assignment:** API-created care tasks are assigned to the patient's active ward `nurseInChargeId`. If that nurse has an overlapping `PENDING` or `IN_PROGRESS` task, the service selects another active nurse from a same-specialty ward. If every same-specialty nurse clashes, the task remains assigned to the ward nurse, `workloadConflict=true`, and `careround.care_task.workload_conflict` is published.
 
-8. **OutboxService inside transaction:** `OutboxService.publish()` must always be called within an existing `@Transactional` context. It inserts an `OutboxEvent` row and never publishes to Kafka directly.
+8. **CareTask manual reassignment:** Manual assignment can be performed only by a `WARD_SUPERVISOR` or by the `NURSE` who created the task. Manual reassignment can override conflicts; nurse conflicts are recorded with `workloadConflict=true`.
 
-9. **Vitals update patient:** `Patient.newsScore` and `Patient.acuityLevel` are updated on every `PatientVitals` save, within the same transaction.
+9. **Patient discharge event:** A patient must be `DISCHARGE_READY` before final discharge. When status is changed to `DISCHARGED`, all care tasks for the patient must already be `COMPLETED`; the service clears `wardId` and `bedNumber`, then publishes `careround.patient.discharged` for notification and audit consumers.
 
-10. **Invite same hospital:** A `MedicalTeamInvite` can only be sent to a User within the same `hospitalId`.
+10. **ClinicalNotes are immutable:** ClinicalNote records are never deleted. Amendments create a new version alongside the original with `isAmended = true`.
 
-11. **No duplicate pending invite:** A user cannot receive a duplicate `PENDING` invite to the same `MedicalTeam`.
+11. **OutboxService inside transaction:** `OutboxService.publish()` must always be called within an existing `@Transactional` context. It inserts an `OutboxEvent` row and never publishes to Kafka directly.
 
-12. **Invite ownership:** Only the Consultant whose `userId = MedicalTeam.consultantId` can send invites or remove members from that team. Admins can assign/remove team ward mappings.
+12. **Vitals update patient:** `Patient.newsScore` and `Patient.acuityLevel` are updated on every `PatientVitals` save, within the same transaction.
 
-13. **ShiftSchedule idempotency:** `ShiftCreationJob` checks for existing Shift records before creating. Unique constraint `(ward_id, type, start_time)` enforces this at the database level. If `ShiftSchedule.wardId` is null, the schedule applies to every ward in the hospital.
+13. **Invite same hospital:** A `MedicalTeamInvite` can only be sent to a User within the same `hospitalId`.
 
-14. **Cross-tenant scoping:** `hospitalId` from the authenticated user's JWT must match the `hospitalId` of every entity being accessed. Violations return `AccessDeniedException`.
+14. **No duplicate pending invite:** A user cannot receive a duplicate `PENDING` invite to the same `MedicalTeam`.
 
-15. **NEWS thresholds from config:** Alert thresholds are read from `SystemConfiguration` per hospital, never hardcoded.
+15. **Invite ownership:** Only the Consultant whose `userId = MedicalTeam.consultantId` can send invites or remove members from that team. Admins can assign/remove team ward mappings.
 
-16. **Dashboard scoping:** Dashboard responses are role-specific summaries scoped to the authenticated user's `hospitalId`; ward-supervisor metrics are further scoped to wards where `ward.supervisorId = userId`.
+16. **ShiftSchedule idempotency:** `ShiftCreationJob` checks for existing Shift records before creating. Unique constraint `(ward_id, type, start_time)` enforces this at the database level. If `ShiftSchedule.wardId` is null, the schedule applies to every ward in the hospital.
 
-17. **Cross-module repository access:** The current implementation keeps all repositories inside the modular monolith and uses direct repository access where workflows span bounded contexts. This is an implementation tradeoff; extractable service boundaries should be tightened before splitting modules into separate deployables.
+17. **Cross-tenant scoping:** `hospitalId` from the authenticated user's JWT must match the `hospitalId` of every entity being accessed. Violations return `AccessDeniedException`.
 
-18. **Hospital onboarding gate:** Public users can only create `HospitalOnboardingRequest` records. A live `Hospital`, `SystemConfiguration`, and first tenant `ADMIN` are created only when a `PLATFORM_ADMIN` provisions an `APPROVED` request.
+18. **NEWS thresholds from config:** Alert thresholds are read from `SystemConfiguration` per hospital, never hardcoded.
 
-19. **First admin activation:** The provisioned tenant admin starts inactive. Activation requires a valid, unexpired, unused token, sets the admin password, marks the token used, and then requires normal login through `/api/v1/auth/login`.
+19. **Dashboard scoping:** Dashboard responses are role-specific summaries scoped to the authenticated user's `hospitalId`; ward-supervisor metrics are further scoped to wards where `ward.supervisorId = userId`.
 
-20. **Platform auth isolation:** Platform operators are stored in `platform_operator`, not `users`. Platform JWTs can access platform-admin endpoints but do not populate tenant `HospitalContextHolder` state.
+20. **Cross-module repository access:** The current implementation keeps all repositories inside the modular monolith and uses direct repository access where workflows span bounded contexts. This is an implementation tradeoff; extractable service boundaries should be tightened before splitting modules into separate deployables.
+
+21. **Hospital onboarding gate:** Public users can only create `HospitalOnboardingRequest` records. A live `Hospital`, `SystemConfiguration`, and first tenant `ADMIN` are created only when a `PLATFORM_ADMIN` provisions an `APPROVED` request.
+
+22. **First admin activation:** The provisioned tenant admin starts inactive. Activation requires a valid, unexpired, unused token, sets the admin password, marks the token used, and then requires normal login through `/api/v1/auth/login`.
+
+23. **Platform auth isolation:** Platform operators are stored in `platform_operator`, not `users`. Platform JWTs can access platform-admin endpoints but do not populate tenant `HospitalContextHolder` state.
 
 ---
 
@@ -1695,6 +1715,7 @@ V13__create_quartz_tables.sql   ← full QRTZ_* schema for MySQL
 V14__create_indexes.sql         ← all composite indexes
 V15__allow_discharged_patients_without_ward.sql
 V16__create_onboarding_platform_activation.sql
+V17__add_care_task_workload_conflict.sql
 ```
 
 ---
