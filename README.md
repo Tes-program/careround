@@ -1685,6 +1685,25 @@ cd careround-audit && mvn spring-boot:run -Dspring-boot.run.profiles=dev
 4. Create Run Configurations (Spring Boot) for each service with `Active profiles: dev`
 5. Add `.env` file contents as environment variables in each Run Configuration
 
+### API documentation
+
+Swagger UI is served by `careround-core` only:
+
+```
+http://localhost:8080/swagger-ui.html
+http://localhost:8080/swagger-ui/index.html
+http://localhost:8080/swagger-ui
+http://localhost:8080/docs
+```
+
+OpenAPI JSON:
+
+```
+http://localhost:8080/v3/api-docs
+```
+
+`careround-notification` and `careround-audit` are Kafka consumer services and do not expose Swagger UI.
+
 ### Port allocation
 
 ```
