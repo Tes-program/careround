@@ -156,8 +156,8 @@ INSERT INTO medical_team_invite (id, hospital_id, medical_team_id, invited_user_
 ('invite-abj-accepted', 'hosp-ng-abj', 'team-abj-emergency', 'user-abj-nurse-hauwa', 'user-abj-cons-yusuf', 'ACCEPTED', DATE_ADD(NOW(), INTERVAL 2 DAY), DATE_SUB(NOW(), INTERVAL 1 DAY), NOW());
 
 INSERT INTO shift_schedule (id, hospital_id, ward_id, shift_type, start_time, end_time, days_of_week, is_active, created_at, updated_at) VALUES
-('sched-luth-day-all', 'hosp-ng-luth', NULL, 'DAY', '07:00:00', '19:00:00', 'MONDAY,TUESDAY,WEDNESDAY,THURSDAY,FRIDAY,SATURDAY,SUNDAY', TRUE, NOW(), NOW()),
-('sched-luth-night-all', 'hosp-ng-luth', NULL, 'NIGHT', '19:00:00', '07:00:00', 'MONDAY,TUESDAY,WEDNESDAY,THURSDAY,FRIDAY,SATURDAY,SUNDAY', TRUE, NOW(), NOW()),
+('sched-luth-day-all', 'hosp-ng-luth', NULL, 'DAY', '07:00:00', '19:00:00', 'MONDAY,TUESDAY,WEDNESDAY,THURSDAY,FRIDAY', TRUE, NOW(), NOW()),
+('sched-luth-night-all', 'hosp-ng-luth', NULL, 'NIGHT', '19:00:00', '07:00:00', 'MONDAY,TUESDAY,WEDNESDAY,THURSDAY,FRIDAY', TRUE, NOW(), NOW()),
 ('sched-abj-emergency-day', 'hosp-ng-abj', 'ward-abj-emergency', 'DAY', '08:00:00', '20:00:00', 'MONDAY,TUESDAY,WEDNESDAY,THURSDAY,FRIDAY', TRUE, NOW(), NOW()),
 ('sched-knh-day', 'hosp-ke-knh', 'ward-knh-med', 'DAY', '07:30:00', '19:30:00', 'MONDAY,TUESDAY,WEDNESDAY,THURSDAY,FRIDAY', TRUE, NOW(), NOW()),
 ('sched-uk-day', 'hosp-uk-stmary', 'ward-uk-acute', 'DAY', '08:00:00', '20:00:00', 'MONDAY,TUESDAY,WEDNESDAY,THURSDAY,FRIDAY', TRUE, NOW(), NOW());
