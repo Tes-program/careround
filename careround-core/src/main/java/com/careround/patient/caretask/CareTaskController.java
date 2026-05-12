@@ -36,7 +36,7 @@ public class CareTaskController {
     }
 
     @PatchMapping("/{taskId}/assign")
-    @PreAuthorize("hasAnyRole('CONSULTANT', 'REGISTRAR', 'NURSE', 'WARD_SUPERVISOR')")
+    @PreAuthorize("hasAnyRole('NURSE', 'WARD_SUPERVISOR')")
     public ResponseEntity<ApiResponse<CareTaskResponse>> assignTask(
             @PathVariable String taskId,
             @Valid @RequestBody AssignTaskRequest request) {

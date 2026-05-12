@@ -1,6 +1,8 @@
 package com.careround.patient.caretask;
 
 import com.careround.auth.enums.UserRole;
+import com.careround.hospital.entity.Ward;
+import com.careround.hospital.repository.WardRepository;
 import com.careround.patient.caretask.dto.AssignTaskRequest;
 import com.careround.patient.caretask.dto.CareTaskResponse;
 import com.careround.patient.caretask.dto.CreateCareTaskRequest;
@@ -16,6 +18,7 @@ import com.careround.shared.exception.AccessDeniedException;
 import com.careround.shared.exception.BusinessRuleException;
 import com.careround.shared.exception.ResourceNotFoundException;
 import com.careround.shared.security.HospitalContextHolder;
+import com.careround.shared.service.OutboxService;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -39,6 +42,9 @@ class CareTaskServiceTest {
 
     @Mock private CareTaskRepository careTaskRepository;
     @Mock private PatientRepository patientRepository;
+    @Mock private WardRepository wardRepository;
+    @Mock private CareTaskAssignmentService careTaskAssignmentService;
+    @Mock private OutboxService outboxService;
 
     @InjectMocks private CareTaskServiceImpl careTaskService;
 
@@ -60,7 +66,11 @@ class CareTaskServiceTest {
     @Test
     void createTask_happyPath_returnsCareTaskResponse() {
         Patient patient = patient(PATIENT_ID, HOSPITAL_ID, WARD_ID, PatientStatus.ADMITTED);
+        var windowStart = java.time.LocalDateTime.now();
+        var windowEnd = windowStart.plusMinutes(30);
         when(patientRepository.findByIdAndHospitalId(PATIENT_ID, HOSPITAL_ID)).thenReturn(Optional.of(patient));
+        when(careTaskAssignmentService.assignForNewTask(HOSPITAL_ID, WARD_ID, windowStart, windowEnd))
+                .thenReturn(new CareTaskAssignmentResult("nurse-1", false, null));
         when(careTaskRepository.save(any())).thenAnswer(inv -> {
             CareTask t = inv.getArgument(0);
             t.setId(TASK_ID);
@@ -69,23 +79,40 @@ class CareTaskServiceTest {
 
         CareTaskResponse result = careTaskService.createTask(new CreateCareTaskRequest(
                 PATIENT_ID, "Blood test", TaskSource.NURSING_CARE_PLAN,
-                "Take blood sample", null, null, null, null, null));
+                "Take blood sample", null, null, null, windowStart, windowEnd));
 
         assertThat(result.id()).isEqualTo(TASK_ID);
         assertThat(result.taskType()).isEqualTo("Blood test");
         assertThat(result.status()).isEqualTo(TaskStatus.PENDING);
+        assertThat(result.assignedToId()).isEqualTo("nurse-1");
+        assertThat(result.assignedToRole()).isEqualTo(AssignedToRole.NURSE);
     }
 
     @Test
     void createTask_patientNotAdmitted_throwsBusinessRuleException() {
         Patient patient = patient(PATIENT_ID, HOSPITAL_ID, WARD_ID, PatientStatus.DISCHARGED);
+        var windowStart = java.time.LocalDateTime.now();
+        when(patientRepository.findByIdAndHospitalId(PATIENT_ID, HOSPITAL_ID)).thenReturn(Optional.of(patient));
+
+        assertThatThrownBy(() -> careTaskService.createTask(new CreateCareTaskRequest(
+                PATIENT_ID, "Blood test", TaskSource.NURSING_CARE_PLAN,
+                "Take blood sample", null, null, null, windowStart, windowStart.plusMinutes(30))))
+                .isInstanceOf(BusinessRuleException.class)
+                .hasMessageContaining("admitted");
+
+        verify(careTaskRepository, never()).save(any());
+    }
+
+    @Test
+    void createTask_missingWindow_throwsBusinessRuleException() {
+        Patient patient = patient(PATIENT_ID, HOSPITAL_ID, WARD_ID, PatientStatus.ADMITTED);
         when(patientRepository.findByIdAndHospitalId(PATIENT_ID, HOSPITAL_ID)).thenReturn(Optional.of(patient));
 
         assertThatThrownBy(() -> careTaskService.createTask(new CreateCareTaskRequest(
                 PATIENT_ID, "Blood test", TaskSource.NURSING_CARE_PLAN,
                 "Take blood sample", null, null, null, null, null)))
                 .isInstanceOf(BusinessRuleException.class)
-                .hasMessageContaining("admitted");
+                .hasMessageContaining("time window");
 
         verify(careTaskRepository, never()).save(any());
     }
@@ -99,6 +126,36 @@ class CareTaskServiceTest {
                 new AssignTaskRequest("nurse-1", AssignedToRole.NURSE)))
                 .isInstanceOf(BusinessRuleException.class)
                 .hasMessageContaining("PENDING");
+    }
+
+    @Test
+    void assignTask_nurseWhoDidNotCreateTask_throwsAccessDeniedException() {
+        CareTask task = task(TASK_ID, HOSPITAL_ID, TaskStatus.PENDING);
+        task.setCreatedById("other-nurse");
+        when(careTaskRepository.findById(TASK_ID)).thenReturn(Optional.of(task));
+
+        assertThatThrownBy(() -> careTaskService.assignTask(TASK_ID,
+                new AssignTaskRequest("nurse-2", AssignedToRole.NURSE)))
+                .isInstanceOf(AccessDeniedException.class)
+                .hasMessageContaining("nurse who created");
+    }
+
+    @Test
+    void assignTask_conflictingManualOverride_marksWorkloadConflict() {
+        CareTask task = task(TASK_ID, HOSPITAL_ID, TaskStatus.PENDING);
+        when(careTaskRepository.findById(TASK_ID)).thenReturn(Optional.of(task));
+        when(careTaskAssignmentService.hasConflictExcludingTask(
+                HOSPITAL_ID, "nurse-2", TASK_ID, task.getWindowStart(), task.getWindowEnd()))
+                .thenReturn(true);
+        when(careTaskRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+        when(wardRepository.findByIdAndHospitalId(WARD_ID, HOSPITAL_ID)).thenReturn(Optional.of(ward()));
+
+        CareTaskResponse result = careTaskService.assignTask(TASK_ID,
+                new AssignTaskRequest("nurse-2", AssignedToRole.NURSE));
+
+        assertThat(result.assignedToId()).isEqualTo("nurse-2");
+        assertThat(result.workloadConflict()).isTrue();
+        assertThat(result.workloadConflictReason()).contains("Manual override");
     }
 
     @Test
@@ -141,6 +198,7 @@ class CareTaskServiceTest {
 
     private CareTask task(String id, String hospitalId, TaskStatus status) {
         CareTask t = new CareTask();
+        var windowStart = java.time.LocalDateTime.now();
         t.setId(id);
         t.setHospitalId(hospitalId);
         t.setPatientId(PATIENT_ID);
@@ -150,6 +208,16 @@ class CareTaskServiceTest {
         t.setTitle("Take blood sample");
         t.setStatus(status);
         t.setCreatedById("user-1");
+        t.setWindowStart(windowStart);
+        t.setWindowEnd(windowStart.plusMinutes(30));
         return t;
+    }
+
+    private Ward ward() {
+        Ward ward = new Ward();
+        ward.setId(WARD_ID);
+        ward.setHospitalId(HOSPITAL_ID);
+        ward.setSupervisorId("supervisor-1");
+        return ward;
     }
 }

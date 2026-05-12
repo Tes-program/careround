@@ -50,13 +50,14 @@ class CareTaskControllerTest {
 
     @BeforeEach
     void setUp() {
+        LocalDateTime now = LocalDateTime.now();
         HospitalContextHolder.set("hosp-1", "user-1", UserRole.NURSE);
         sampleTask = new CareTaskResponse("task-1", "hosp-1", "patient-1", "ward-1",
                 null, "user-1", null, null,
                 "Blood test", TaskSource.NURSING_CARE_PLAN, "Take blood sample",
-                null, TaskPriority.ROUTINE, null, null,
-                TaskStatus.PENDING, null, null,
-                LocalDateTime.now(), LocalDateTime.now());
+                null, TaskPriority.ROUTINE, now, now.plusMinutes(30),
+                TaskStatus.PENDING, null, null, false, null,
+                now, now);
     }
 
     @AfterEach
@@ -74,7 +75,7 @@ class CareTaskControllerTest {
                         .content(objectMapper.writeValueAsString(
                                 new CreateCareTaskRequest("patient-1", "Blood test",
                                         TaskSource.NURSING_CARE_PLAN, "Take blood sample",
-                                        null, null, null, null, null))))
+                                        null, null, null, LocalDateTime.now(), LocalDateTime.now().plusMinutes(30)))))
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.data.taskType").value("Blood test"));
     }
@@ -87,7 +88,7 @@ class CareTaskControllerTest {
                         .content(objectMapper.writeValueAsString(
                                 new CreateCareTaskRequest("patient-1", "Blood test",
                                         TaskSource.NURSING_CARE_PLAN, "Take blood sample",
-                                        null, null, null, null, null))))
+                                        null, null, null, LocalDateTime.now(), LocalDateTime.now().plusMinutes(30)))))
                 .andExpect(status().isForbidden());
     }
 

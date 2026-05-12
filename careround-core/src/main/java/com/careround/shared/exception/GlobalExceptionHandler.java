@@ -51,6 +51,12 @@ public class GlobalExceptionHandler {
                 .body(error(422, "Unprocessable Entity", ex.getMessage(), request));
     }
 
+    @ExceptionHandler(ConflictException.class)
+    public ResponseEntity<ErrorResponse> handleConflict(ConflictException ex, HttpServletRequest request) {
+        return ResponseEntity.status(HttpStatus.CONFLICT)
+                .body(error(409, "Conflict", ex.getMessage(), request));
+    }
+
     @ExceptionHandler(MethodArgumentNotValidException.class)
     public ResponseEntity<ErrorResponse> handleValidation(MethodArgumentNotValidException ex, HttpServletRequest request) {
         String details = ex.getBindingResult().getFieldErrors().stream()

@@ -13,9 +13,15 @@ public interface ShiftRepository extends JpaRepository<Shift, String> {
 
     Optional<Shift> findFirstByWardIdAndStatusOrderByStartTimeDesc(String wardId, ShiftStatus status);
 
+    Optional<Shift> findFirstByWardIdAndStatusAndStartTimeLessThanAndEndTimeGreaterThanOrderByStartTimeDesc(
+            String wardId, ShiftStatus status, LocalDateTime windowEnd, LocalDateTime windowStart);
+
     boolean existsByWardIdAndTypeAndStartTime(String wardId, ShiftType type, LocalDateTime startTime);
 
     List<Shift> findAllByWardIdOrderByStartTimeDesc(String wardId);
+
+    List<Shift> findAllByStatusAndStartTimeLessThanAndEndTimeGreaterThan(
+            ShiftStatus status, LocalDateTime windowEnd, LocalDateTime windowStart);
 
     long countByWardIdInAndStatus(List<String> wardIds, ShiftStatus status);
 }

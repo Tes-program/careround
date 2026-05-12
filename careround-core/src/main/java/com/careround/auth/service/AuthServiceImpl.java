@@ -4,6 +4,7 @@ import com.careround.auth.dto.ChangePasswordRequest;
 import com.careround.auth.dto.JwtResponse;
 import com.careround.auth.dto.LoginRequest;
 import com.careround.auth.dto.RefreshTokenRequest;
+import com.careround.auth.dto.ActivateAccountRequest;
 import com.careround.auth.entity.RefreshToken;
 import com.careround.auth.entity.User;
 import com.careround.auth.repository.RefreshTokenRepository;
@@ -30,6 +31,7 @@ public class AuthServiceImpl implements AuthService {
     private final RefreshTokenRepository refreshTokenRepository;
     private final JwtService jwtService;
     private final PasswordEncoder passwordEncoder;
+    private final AccountActivationService accountActivationService;
 
     @Value("${jwt.refresh-token-expiry-ms}")
     private long refreshTokenExpiryMs;
@@ -92,6 +94,12 @@ public class AuthServiceImpl implements AuthService {
         user.setPasswordHash(passwordEncoder.encode(request.getNewPassword()));
         // Invalidate all existing sessions for this user
         refreshTokenRepository.revokeAllByUserId(userId);
+    }
+
+    @Override
+    @Transactional
+    public void activateAccount(ActivateAccountRequest request) {
+        accountActivationService.activate(request.getToken(), request.getPassword());
     }
 
     private JwtResponse toJwtResponse(String accessToken, String refreshToken, User user) {

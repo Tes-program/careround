@@ -24,6 +24,11 @@ public class KafkaTopicConfig {
     @Bean public NewTopic teamInviteSent() { return topic("careround.team.invite-sent"); }
     @Bean public NewTopic teamMemberAdded() { return topic("careround.team.member-added"); }
     @Bean public NewTopic inviteExpired() { return topic("careround.invite.expired"); }
+    @Bean public NewTopic hospitalOnboardingRequested() { return topic("careround.hospital.onboarding_requested"); }
+    @Bean public NewTopic hospitalOnboardingReviewed() { return topic("careround.hospital.onboarding_reviewed"); }
+    @Bean public NewTopic hospitalProvisioned() { return topic("careround.hospital.provisioned"); }
+    @Bean public NewTopic userActivationRequested() { return topic("careround.user.activation_requested"); }
+    @Bean public NewTopic careTaskWorkloadConflict() { return topic("careround.care_task.workload_conflict"); }
 
     private NewTopic topic(String name) {
         return TopicBuilder.name(name)

@@ -15,6 +15,6 @@ public record CreateCareTaskRequest(
         String description,
         TaskPriority priority,
         String roundId,
-        LocalDateTime windowStart,
-        LocalDateTime windowEnd
+        @NotNull(message = "windowStart is required") LocalDateTime windowStart,
+        @NotNull(message = "windowEnd is required") LocalDateTime windowEnd
 ) {}

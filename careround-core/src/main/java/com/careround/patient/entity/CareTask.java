@@ -80,4 +80,10 @@ public class CareTask extends BaseEntity {
 
     @Column(name = "escalated_at")
     private LocalDateTime escalatedAt;
+
+    @Column(name = "workload_conflict", nullable = false)
+    private boolean workloadConflict = false;
+
+    @Column(name = "workload_conflict_reason", columnDefinition = "TEXT")
+    private String workloadConflictReason;
 }
