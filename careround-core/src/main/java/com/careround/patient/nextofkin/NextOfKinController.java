@@ -5,6 +5,8 @@ import com.careround.patient.nextofkin.dto.NextOfKinResponse;
 import com.careround.patient.nextofkin.dto.UpdateNextOfKinRequest;
 import com.careround.patient.nextofkin.dto.UpdateNotificationConsentRequest;
 import com.careround.shared.dto.ApiResponse;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -25,12 +27,14 @@ import java.util.List;
 @RestController
 @RequestMapping("/api/v1/patients/{patientId}/next-of-kin")
 @RequiredArgsConstructor
+@Tag(name = "Next Of Kin", description = "Patient next-of-kin contacts and notification consent")
 public class NextOfKinController {
 
     private final NextOfKinService nextOfKinService;
 
     @PostMapping
     @PreAuthorize("hasAnyRole('ADMIN', 'NURSE', 'WARD_SUPERVISOR', 'CONSULTANT', 'REGISTRAR')")
+    @Operation(summary = "Add next of kin", description = "Adds a next-of-kin contact to a patient.")
     public ResponseEntity<ApiResponse<NextOfKinResponse>> addNextOfKin(
             @PathVariable String patientId,
             @Valid @RequestBody AddNextOfKinRequest request) {
@@ -39,6 +43,7 @@ public class NextOfKinController {
     }
 
     @GetMapping
+    @Operation(summary = "List next of kin", description = "Returns next-of-kin contacts for a patient.")
     public ResponseEntity<ApiResponse<List<NextOfKinResponse>>> getNextOfKin(
             @PathVariable String patientId) {
         return ResponseEntity.ok(ApiResponse.ok(nextOfKinService.getNextOfKin(patientId)));
@@ -46,6 +51,7 @@ public class NextOfKinController {
 
     @PutMapping("/{nokId}")
     @PreAuthorize("hasAnyRole('ADMIN', 'NURSE', 'WARD_SUPERVISOR', 'CONSULTANT', 'REGISTRAR')")
+    @Operation(summary = "Update next of kin", description = "Updates a patient next-of-kin contact.")
     public ResponseEntity<ApiResponse<NextOfKinResponse>> updateNextOfKin(
             @PathVariable String patientId,
             @PathVariable String nokId,
@@ -56,6 +62,7 @@ public class NextOfKinController {
 
     @DeleteMapping("/{nokId}")
     @PreAuthorize("hasAnyRole('ADMIN', 'WARD_SUPERVISOR', 'CONSULTANT')")
+    @Operation(summary = "Remove next of kin", description = "Removes a next-of-kin contact from a patient.")
     public ResponseEntity<ApiResponse<Void>> removeNextOfKin(
             @PathVariable String patientId,
             @PathVariable String nokId) {
@@ -65,6 +72,7 @@ public class NextOfKinController {
 
     @PatchMapping("/{nokId}/consent")
     @PreAuthorize("hasAnyRole('ADMIN', 'NURSE', 'WARD_SUPERVISOR')")
+    @Operation(summary = "Update notification consent", description = "Updates next-of-kin notification consent.")
     public ResponseEntity<ApiResponse<NextOfKinResponse>> updateNotificationConsent(
             @PathVariable String patientId,
             @PathVariable String nokId,

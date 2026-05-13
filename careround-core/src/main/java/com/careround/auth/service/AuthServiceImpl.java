@@ -1,12 +1,17 @@
 package com.careround.auth.service;
 
 import com.careround.auth.dto.ChangePasswordRequest;
+import com.careround.auth.dto.ForgotPasswordRequest;
+import com.careround.auth.dto.ForgotPasswordResponse;
 import com.careround.auth.dto.JwtResponse;
 import com.careround.auth.dto.LoginRequest;
 import com.careround.auth.dto.RefreshTokenRequest;
 import com.careround.auth.dto.ActivateAccountRequest;
+import com.careround.auth.dto.ResetPasswordRequest;
+import com.careround.auth.entity.PasswordResetToken;
 import com.careround.auth.entity.RefreshToken;
 import com.careround.auth.entity.User;
+import com.careround.auth.repository.PasswordResetTokenRepository;
 import com.careround.auth.repository.RefreshTokenRepository;
 import com.careround.auth.repository.UserRepository;
 import com.careround.shared.exception.AccessDeniedException;
@@ -21,6 +26,11 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.Duration;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
+import java.security.SecureRandom;
+import java.util.HexFormat;
 import java.util.UUID;
 
 @Service
@@ -29,9 +39,11 @@ public class AuthServiceImpl implements AuthService {
 
     private final UserRepository userRepository;
     private final RefreshTokenRepository refreshTokenRepository;
+    private final PasswordResetTokenRepository passwordResetTokenRepository;
     private final JwtService jwtService;
     private final PasswordEncoder passwordEncoder;
     private final AccountActivationService accountActivationService;
+    private final SecureRandom secureRandom = new SecureRandom();
 
     @Value("${jwt.refresh-token-expiry-ms}")
     private long refreshTokenExpiryMs;
@@ -83,6 +95,7 @@ public class AuthServiceImpl implements AuthService {
     }
 
     @Override
+    @Transactional
     public void changePassword(String userId, ChangePasswordRequest request) {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new ResourceNotFoundException("User not found"));
@@ -100,6 +113,45 @@ public class AuthServiceImpl implements AuthService {
     @Transactional
     public void activateAccount(ActivateAccountRequest request) {
         accountActivationService.activate(request.getToken(), request.getPassword());
+    }
+
+    @Override
+    @Transactional
+    public ForgotPasswordResponse forgotPassword(ForgotPasswordRequest request) {
+        return userRepository.findByHospitalIdAndEmailAndIsActiveTrue(request.hospitalId(), request.email())
+                .map(user -> {
+                    String token = randomToken();
+                    LocalDateTime expiresAt = LocalDateTime.now(ZoneOffset.UTC).plusMinutes(30);
+
+                    PasswordResetToken resetToken = new PasswordResetToken();
+                    resetToken.setHospitalId(user.getHospitalId());
+                    resetToken.setUserId(user.getId());
+                    resetToken.setTokenHash(hash(token));
+                    resetToken.setExpiresAt(expiresAt);
+                    passwordResetTokenRepository.save(resetToken);
+
+                    return new ForgotPasswordResponse(token, expiresAt);
+                })
+                .orElseGet(() -> new ForgotPasswordResponse(null, null));
+    }
+
+    @Override
+    @Transactional
+    public void resetPassword(ResetPasswordRequest request) {
+        PasswordResetToken token = passwordResetTokenRepository.findByTokenHashAndUsedAtIsNull(hash(request.token()))
+                .orElseThrow(() -> new AccessDeniedException("Invalid or expired password reset token"));
+
+        LocalDateTime now = LocalDateTime.now(ZoneOffset.UTC);
+        if (token.getExpiresAt().isBefore(now)) {
+            throw new AccessDeniedException("Invalid or expired password reset token");
+        }
+
+        User user = userRepository.findByIdAndHospitalId(token.getUserId(), token.getHospitalId())
+                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
+
+        user.setPasswordHash(passwordEncoder.encode(request.newPassword()));
+        token.setUsedAt(now);
+        refreshTokenRepository.revokeAllByUserId(user.getId());
     }
 
     private JwtResponse toJwtResponse(String accessToken, String refreshToken, User user) {
@@ -124,5 +176,20 @@ public class AuthServiceImpl implements AuthService {
                 .plus(Duration.ofMillis(refreshTokenExpiryMs)));
         refreshTokenRepository.save(token);
         return tokenValue;
+    }
+
+    private String randomToken() {
+        byte[] bytes = new byte[32];
+        secureRandom.nextBytes(bytes);
+        return HexFormat.of().formatHex(bytes);
+    }
+
+    private String hash(String token) {
+        try {
+            MessageDigest digest = MessageDigest.getInstance("SHA-256");
+            return HexFormat.of().formatHex(digest.digest(token.getBytes(StandardCharsets.UTF_8)));
+        } catch (NoSuchAlgorithmException ex) {
+            throw new IllegalStateException("SHA-256 digest is not available", ex);
+        }
     }
 }

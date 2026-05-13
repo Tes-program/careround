@@ -32,4 +32,18 @@ public interface PatientRepository extends JpaRepository<Patient, String> {
     @Query("SELECT p FROM Patient p WHERE p.hospitalId = :hospitalId AND " +
            "(p.hospitalNumber LIKE %:q% OR p.firstName LIKE %:q% OR p.lastName LIKE %:q%)")
     List<Patient> searchByHospitalId(@Param("hospitalId") String hospitalId, @Param("q") String q);
+
+    @Query("""
+            select p
+            from Patient p
+            where p.hospitalId = :hospitalId
+              and (:wardId is null or p.wardId = :wardId)
+              and p.admissionDate between :from and :to
+            order by p.admissionDate asc
+            """)
+    List<Patient> findAdmissionsForReport(
+            @Param("hospitalId") String hospitalId,
+            @Param("wardId") String wardId,
+            @Param("from") java.time.LocalDateTime from,
+            @Param("to") java.time.LocalDateTime to);
 }

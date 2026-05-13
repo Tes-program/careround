@@ -26,6 +26,9 @@ public class ClinicalNote extends BaseEntity {
     @Column(name = "patient_round_review_id", length = 36)
     private String patientRoundReviewId;
 
+    @Column(name = "vitals_id", length = 36)
+    private String vitalsId;
+
     @Column(name = "author_id", nullable = false, length = 36)
     private String authorId;
 

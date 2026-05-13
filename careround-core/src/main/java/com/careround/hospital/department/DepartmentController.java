@@ -5,6 +5,8 @@ import com.careround.hospital.department.dto.DepartmentResponse;
 import com.careround.hospital.department.dto.UpdateDepartmentRequest;
 import com.careround.shared.dto.ApiResponse;
 import com.careround.shared.security.HospitalContextHolder;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -24,12 +26,14 @@ import java.util.List;
 @RestController
 @RequestMapping("/api/v1/departments")
 @RequiredArgsConstructor
+@Tag(name = "Departments", description = "Hospital department management")
 public class DepartmentController {
 
     private final DepartmentService departmentService;
 
     @PostMapping
     @PreAuthorize("hasRole('ADMIN')")
+    @Operation(summary = "Create department", description = "Creates a department for the authenticated hospital.")
     public ResponseEntity<ApiResponse<DepartmentResponse>> create(
             @Valid @RequestBody CreateDepartmentRequest request) {
         DepartmentResponse response = departmentService.create(HospitalContextHolder.getHospitalId(), request);
@@ -37,12 +41,14 @@ public class DepartmentController {
     }
 
     @GetMapping
+    @Operation(summary = "List departments", description = "Returns departments for the authenticated hospital.")
     public ResponseEntity<ApiResponse<List<DepartmentResponse>>> list() {
         List<DepartmentResponse> response = departmentService.listByHospital(HospitalContextHolder.getHospitalId());
         return ResponseEntity.ok(ApiResponse.ok(response));
     }
 
     @GetMapping("/{id}")
+    @Operation(summary = "Get department", description = "Returns a department by id.")
     public ResponseEntity<ApiResponse<DepartmentResponse>> getById(@PathVariable String id) {
         DepartmentResponse response = departmentService.getById(HospitalContextHolder.getHospitalId(), id);
         return ResponseEntity.ok(ApiResponse.ok(response));
@@ -50,6 +56,7 @@ public class DepartmentController {
 
     @PutMapping("/{id}")
     @PreAuthorize("hasRole('ADMIN')")
+    @Operation(summary = "Update department", description = "Updates a department by id.")
     public ResponseEntity<ApiResponse<DepartmentResponse>> update(
             @PathVariable String id, @RequestBody UpdateDepartmentRequest request) {
         DepartmentResponse response = departmentService.update(HospitalContextHolder.getHospitalId(), id, request);
@@ -58,6 +65,7 @@ public class DepartmentController {
 
     @DeleteMapping("/{id}")
     @PreAuthorize("hasRole('ADMIN')")
+    @Operation(summary = "Delete department", description = "Deletes a department by id.")
     public ResponseEntity<ApiResponse<Void>> delete(@PathVariable String id) {
         departmentService.delete(HospitalContextHolder.getHospitalId(), id);
         return ResponseEntity.ok(ApiResponse.ok("Department deleted", null));

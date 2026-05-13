@@ -1,5 +1,8 @@
 package com.careround.hospital.shift;
 
+import com.careround.auth.entity.User;
+import com.careround.auth.enums.UserRole;
+import com.careround.auth.repository.UserRepository;
 import com.careround.hospital.entity.Shift;
 import com.careround.hospital.enums.ShiftStatus;
 import com.careround.hospital.repository.ShiftRepository;
@@ -18,6 +21,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
+import java.util.List;
 
 @Service
 @RequiredArgsConstructor
@@ -25,6 +29,7 @@ public class ShiftServiceImpl implements ShiftService {
 
     private final ShiftRepository shiftRepository;
     private final WardRepository wardRepository;
+    private final UserRepository userRepository;
     private final OutboxService outboxService;
 
     @Override
@@ -40,6 +45,7 @@ public class ShiftServiceImpl implements ShiftService {
             throw new BusinessRuleException(
                     "Shift cannot be assigned; current status is " + shift.getStatus());
         }
+        validateNurseInCharge(hospitalId, request.nurseInChargeId());
 
         shift.setLeadDoctorId(request.leadDoctorId());
         shift.setNurseInChargeId(request.nurseInChargeId());
@@ -70,6 +76,31 @@ public class ShiftServiceImpl implements ShiftService {
         return shiftRepository.findFirstByWardIdAndStatusOrderByStartTimeDesc(wardId, ShiftStatus.ACTIVE)
                 .map(this::toResponse)
                 .orElseThrow(() -> new ResourceNotFoundException("No active shift found for ward"));
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<ShiftResponse> listShifts(String hospitalId, String wardId, ShiftStatus status, LocalDateTime from, LocalDateTime to) {
+        wardRepository.findByIdAndHospitalId(wardId, hospitalId)
+                .orElseThrow(() -> new AccessDeniedException("Ward does not belong to this hospital"));
+
+        LocalDateTime effectiveFrom = from == null ? LocalDateTime.now(ZoneOffset.UTC).minusDays(1) : from;
+        LocalDateTime effectiveTo = to == null ? effectiveFrom.plusDays(14) : to;
+
+        return shiftRepository.findAllByWardIdAndStartTimeLessThanEqualAndEndTimeGreaterThanEqualOrderByStartTimeAsc(
+                        wardId, effectiveTo, effectiveFrom)
+                .stream()
+                .filter(shift -> status == null || shift.getStatus() == status)
+                .map(this::toResponse)
+                .toList();
+    }
+
+    private void validateNurseInCharge(String hospitalId, String nurseInChargeId) {
+        User nurse = userRepository.findByIdAndHospitalId(nurseInChargeId, hospitalId)
+                .orElseThrow(() -> new ResourceNotFoundException("Nurse in charge not found"));
+        if (nurse.getRole() != UserRole.NURSE || !nurse.isActive()) {
+            throw new BusinessRuleException("Nurse in charge must be an active nurse");
+        }
     }
 
     private ShiftResponse toResponse(Shift s) {

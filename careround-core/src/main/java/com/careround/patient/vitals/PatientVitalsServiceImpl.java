@@ -1,7 +1,10 @@
 package com.careround.patient.vitals;
 
 import com.careround.patient.entity.Patient;
+import com.careround.patient.entity.ClinicalNote;
 import com.careround.patient.entity.PatientVitals;
+import com.careround.patient.enums.NoteType;
+import com.careround.patient.repository.ClinicalNoteRepository;
 import com.careround.patient.repository.PatientRepository;
 import com.careround.patient.repository.PatientVitalsRepository;
 import com.careround.patient.vitals.dto.RecordVitalsRequest;
@@ -25,6 +28,7 @@ public class PatientVitalsServiceImpl implements PatientVitalsService {
 
     private final PatientVitalsRepository patientVitalsRepository;
     private final PatientRepository patientRepository;
+    private final ClinicalNoteRepository clinicalNoteRepository;
     private final NewsScoreService newsScoreService;
 
     @Override
@@ -47,6 +51,7 @@ public class PatientVitalsServiceImpl implements PatientVitalsService {
         newsScoreService.computeAndUpdate(patient, vitals);
 
         PatientVitals saved = patientVitalsRepository.save(vitals);
+        createVitalsNoteIfPresent(patientId, saved.getId(), request.note());
         log.info("action=recordVitals patientId={} hospitalId={} newsScore={}", patientId, hospitalId, saved.getNewsScore());
         return toResponse(saved);
     }
@@ -90,5 +95,18 @@ public class PatientVitalsServiceImpl implements PatientVitalsService {
                 v.getHeartRate(), v.getRespiratoryRate(), v.getSystolicBP(),
                 v.getOxygenSaturation(), v.getTemperature(), v.getConsciousnessLevel(),
                 v.getNewsScore(), v.getRecordedAt());
+    }
+
+    private void createVitalsNoteIfPresent(String patientId, String vitalsId, String noteText) {
+        if (noteText == null || noteText.isBlank()) {
+            return;
+        }
+        ClinicalNote note = new ClinicalNote();
+        note.setPatientId(patientId);
+        note.setVitalsId(vitalsId);
+        note.setAuthorId(HospitalContextHolder.getUserId());
+        note.setNoteType(NoteType.PROGRESS_NOTE);
+        note.setContent(noteText.trim());
+        clinicalNoteRepository.save(note);
     }
 }

@@ -5,6 +5,8 @@ import com.careround.hospital.ward.dto.UpdateWardRequest;
 import com.careround.hospital.ward.dto.WardResponse;
 import com.careround.shared.dto.ApiResponse;
 import com.careround.shared.security.HospitalContextHolder;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -24,12 +26,14 @@ import java.util.List;
 @RestController
 @RequestMapping("/api/v1/wards")
 @RequiredArgsConstructor
+@Tag(name = "Wards", description = "Hospital ward management")
 public class WardController {
 
     private final WardService wardService;
 
     @PostMapping
     @PreAuthorize("hasRole('ADMIN')")
+    @Operation(summary = "Create ward", description = "Creates a ward for the authenticated hospital.")
     public ResponseEntity<ApiResponse<WardResponse>> create(
             @Valid @RequestBody CreateWardRequest request) {
         WardResponse response = wardService.create(HospitalContextHolder.getHospitalId(), request);
@@ -37,12 +41,14 @@ public class WardController {
     }
 
     @GetMapping
+    @Operation(summary = "List wards", description = "Returns wards for the authenticated hospital.")
     public ResponseEntity<ApiResponse<List<WardResponse>>> list() {
         List<WardResponse> response = wardService.listByHospital(HospitalContextHolder.getHospitalId());
         return ResponseEntity.ok(ApiResponse.ok(response));
     }
 
     @GetMapping("/{id}")
+    @Operation(summary = "Get ward", description = "Returns a ward by id.")
     public ResponseEntity<ApiResponse<WardResponse>> getById(@PathVariable String id) {
         WardResponse response = wardService.getById(HospitalContextHolder.getHospitalId(), id);
         return ResponseEntity.ok(ApiResponse.ok(response));
@@ -50,6 +56,7 @@ public class WardController {
 
     @PutMapping("/{id}")
     @PreAuthorize("hasAnyRole('ADMIN', 'WARD_SUPERVISOR')")
+    @Operation(summary = "Update ward", description = "Updates a ward by id.")
     public ResponseEntity<ApiResponse<WardResponse>> update(
             @PathVariable String id, @RequestBody UpdateWardRequest request) {
         WardResponse response = wardService.update(HospitalContextHolder.getHospitalId(), id, request);
@@ -58,6 +65,7 @@ public class WardController {
 
     @DeleteMapping("/{id}")
     @PreAuthorize("hasRole('ADMIN')")
+    @Operation(summary = "Delete ward", description = "Deletes a ward by id.")
     public ResponseEntity<ApiResponse<Void>> delete(@PathVariable String id) {
         wardService.delete(HospitalContextHolder.getHospitalId(), id);
         return ResponseEntity.ok(ApiResponse.ok("Ward deleted", null));

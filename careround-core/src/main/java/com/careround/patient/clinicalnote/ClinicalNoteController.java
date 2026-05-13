@@ -4,6 +4,8 @@ import com.careround.patient.clinicalnote.dto.AmendNoteRequest;
 import com.careround.patient.clinicalnote.dto.ClinicalNoteResponse;
 import com.careround.patient.clinicalnote.dto.CreateClinicalNoteRequest;
 import com.careround.shared.dto.ApiResponse;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -22,12 +24,14 @@ import java.util.List;
 @RestController
 @RequestMapping("/api/v1/clinical-notes")
 @RequiredArgsConstructor
+@Tag(name = "Clinical Notes", description = "Clinical note creation, amendment, and patient note history")
 public class ClinicalNoteController {
 
     private final ClinicalNoteService clinicalNoteService;
 
     @PostMapping
     @PreAuthorize("hasAnyRole('CONSULTANT', 'REGISTRAR', 'JUNIOR_DOCTOR', 'NURSE', 'WARD_SUPERVISOR')")
+    @Operation(summary = "Create clinical note", description = "Creates a clinical note for a patient or round review.")
     public ResponseEntity<ApiResponse<ClinicalNoteResponse>> createNote(
             @Valid @RequestBody CreateClinicalNoteRequest request) {
         return ResponseEntity.status(HttpStatus.CREATED)
@@ -36,6 +40,7 @@ public class ClinicalNoteController {
 
     @PatchMapping("/{noteId}/amend")
     @PreAuthorize("hasAnyRole('CONSULTANT', 'REGISTRAR', 'JUNIOR_DOCTOR', 'NURSE', 'WARD_SUPERVISOR')")
+    @Operation(summary = "Amend clinical note", description = "Amends an existing clinical note.")
     public ResponseEntity<ApiResponse<ClinicalNoteResponse>> amendNote(
             @PathVariable String noteId,
             @Valid @RequestBody AmendNoteRequest request) {
@@ -44,6 +49,7 @@ public class ClinicalNoteController {
     }
 
     @GetMapping("/patient/{patientId}")
+    @Operation(summary = "List patient clinical notes", description = "Returns clinical notes for a patient.")
     public ResponseEntity<ApiResponse<List<ClinicalNoteResponse>>> getPatientNotes(@PathVariable String patientId) {
         return ResponseEntity.ok(ApiResponse.ok(clinicalNoteService.getPatientNotes(patientId)));
     }

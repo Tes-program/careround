@@ -1282,6 +1282,8 @@ All endpoints are prefixed `/api/v1`. All require JWT Bearer token except public
 | POST | `/auth/login` | Public |
 | POST | `/auth/refresh` | Public |
 | POST | `/auth/activate-account` | Public activation token |
+| POST | `/auth/forgot-password` | Public |
+| POST | `/auth/reset-password` | Public reset token |
 | POST | `/auth/logout` | Authenticated |
 | POST | `/auth/change-password` | Authenticated |
 
@@ -1307,6 +1309,7 @@ All endpoints are prefixed `/api/v1`. All require JWT Bearer token except public
 |---|---|---|
 | GET | `/hospitals` | PLATFORM_ADMIN |
 | GET | `/hospitals/me` | Authenticated |
+| PUT | `/hospitals/me` | ADMIN |
 | GET | `/system-config` | ADMIN |
 | PUT | `/system-config` | ADMIN |
 
@@ -1394,6 +1397,8 @@ Medical-team endpoints use `/teams` in the implemented API.
 | GET | `/patients/:patientId/vitals?limit=10` | Authenticated clinical tenant user |
 | GET | `/patients/:patientId/vitals/latest` | Authenticated clinical tenant user |
 
+`POST /patients/:patientId/vitals` accepts an optional `note` field. When present, the core service records a linked `PROGRESS_NOTE` with `vitalsId` for traceability.
+
 ### On-Call Rotation and Shift Schedules — careround-core
 
 | Method | Endpoint | Access |
@@ -1412,6 +1417,7 @@ Medical-team endpoints use `/teams` in the implemented API.
 
 | Method | Endpoint | Access |
 |---|---|---|
+| GET | `/shifts?wardId=...&status=ACTIVE&from=2026-05-13T08:00:00&to=2026-05-13T20:00:00` | Authenticated clinical tenant user |
 | PUT | `/shifts/:id/assign` | ADMIN, WARD_SUPERVISOR |
 | GET | `/shifts/current/:wardId` | Authenticated clinical tenant user |
 | POST | `/handovers` | CONSULTANT, REGISTRAR, NURSE, WARD_SUPERVISOR |
@@ -1449,6 +1455,23 @@ Medical-team endpoints use `/teams` in the implemented API.
 | GET | `/escalations/patient/:patientId` | Authenticated clinical tenant user |
 | PATCH | `/escalations/:escalationId/acknowledge` | REGISTRAR, CONSULTANT |
 | PATCH | `/escalations/:escalationId/resolve` | REGISTRAR, CONSULTANT |
+
+### Notifications, Search, and Reports - careround-core
+
+These endpoints support the frontend shell: notification bell state, global navigation search, and operational chart views. They are tenant-scoped from the authenticated JWT.
+Dashboard endpoints include `unreadNotifications` and `recentNotifications` for the authenticated user. These notification items include persisted delivery records from `careround_notification.notifications`, so a user who receives an email/SMS alert also sees the same alert in their role dashboard.
+
+| Method | Endpoint | Access |
+|---|---|---|
+| GET | `/notifications` | Authenticated clinical tenant user |
+| GET | `/notifications/unread-count` | Authenticated clinical tenant user |
+| PATCH | `/notifications/:id/read` | Authenticated clinical tenant user |
+| PATCH | `/notifications/read-all` | Authenticated clinical tenant user |
+| GET | `/search?q=...` | Authenticated tenant user |
+| GET | `/reports/task-completion?wardId=...&from=2026-05-01&to=2026-05-13` | Authenticated clinical tenant user |
+| GET | `/reports/overdue-tasks?wardId=...&from=2026-05-01&to=2026-05-13` | Authenticated clinical tenant user |
+| GET | `/reports/patient-flow?wardId=...&from=2026-05-01&to=2026-05-13` | Authenticated clinical tenant user |
+| GET | `/reports/round-history?wardId=...&from=2026-05-01&to=2026-05-13` | Authenticated clinical tenant user |
 
 ---
 

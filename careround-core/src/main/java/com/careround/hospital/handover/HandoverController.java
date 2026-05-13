@@ -6,6 +6,8 @@ import com.careround.hospital.handover.dto.HandoverResponse;
 import com.careround.hospital.handover.dto.InitiateHandoverRequest;
 import com.careround.hospital.handover.dto.PatientHandoverNoteResponse;
 import com.careround.shared.dto.ApiResponse;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -23,12 +25,14 @@ import java.util.List;
 @RestController
 @RequestMapping("/api/v1/handovers")
 @RequiredArgsConstructor
+@Tag(name = "Handovers", description = "Shift handover initiation, completion, and patient handover notes")
 public class HandoverController {
 
     private final HandoverService handoverService;
 
     @PostMapping
     @PreAuthorize("hasAnyRole('CONSULTANT', 'REGISTRAR', 'NURSE', 'WARD_SUPERVISOR')")
+    @Operation(summary = "Initiate handover", description = "Starts a handover between outgoing and incoming shifts.")
     public ResponseEntity<ApiResponse<HandoverResponse>> initiateHandover(
             @Valid @RequestBody InitiateHandoverRequest request) {
         return ResponseEntity.status(HttpStatus.CREATED)
@@ -37,6 +41,7 @@ public class HandoverController {
 
     @PostMapping("/{handoverId}/patient-notes")
     @PreAuthorize("hasAnyRole('CONSULTANT', 'REGISTRAR', 'NURSE', 'WARD_SUPERVISOR')")
+    @Operation(summary = "Add patient handover note", description = "Adds a patient-specific note to a handover.")
     public ResponseEntity<ApiResponse<PatientHandoverNoteResponse>> addPatientHandoverNote(
             @PathVariable String handoverId,
             @Valid @RequestBody AddPatientHandoverNoteRequest request) {
@@ -47,6 +52,7 @@ public class HandoverController {
 
     @PostMapping("/{handoverId}/complete")
     @PreAuthorize("hasAnyRole('CONSULTANT', 'REGISTRAR', 'NURSE', 'WARD_SUPERVISOR')")
+    @Operation(summary = "Complete handover", description = "Completes an in-progress handover.")
     public ResponseEntity<ApiResponse<HandoverResponse>> completeHandover(
             @PathVariable String handoverId,
             @RequestBody(required = false) CompleteHandoverRequest request) {
@@ -56,11 +62,13 @@ public class HandoverController {
     }
 
     @GetMapping("/ward/{wardId}")
+    @Operation(summary = "List ward handovers", description = "Returns handovers for a ward.")
     public ResponseEntity<ApiResponse<List<HandoverResponse>>> getHandoversByWard(@PathVariable String wardId) {
         return ResponseEntity.ok(ApiResponse.ok(handoverService.getHandoversByWard(wardId)));
     }
 
     @GetMapping("/{handoverId}/patient-notes")
+    @Operation(summary = "List handover notes", description = "Returns patient notes attached to a handover.")
     public ResponseEntity<ApiResponse<List<PatientHandoverNoteResponse>>> getHandoverNotes(
             @PathVariable String handoverId) {
         return ResponseEntity.ok(ApiResponse.ok(handoverService.getHandoverNotes(handoverId)));

@@ -5,6 +5,8 @@ import com.careround.patient.round.dto.PatientRoundReviewResponse;
 import com.careround.patient.round.dto.ReviewPatientRequest;
 import com.careround.patient.round.dto.RoundResponse;
 import com.careround.shared.dto.ApiResponse;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -24,12 +26,14 @@ import java.util.List;
 @RestController
 @RequestMapping("/api/v1/rounds")
 @RequiredArgsConstructor
+@Tag(name = "Rounds", description = "Clinical ward round creation, review, and completion")
 public class RoundController {
 
     private final RoundService roundService;
 
     @PostMapping
     @PreAuthorize("hasAnyRole('CONSULTANT', 'REGISTRAR')")
+    @Operation(summary = "Create round", description = "Creates a clinical round for a ward and medical team.")
     public ResponseEntity<ApiResponse<RoundResponse>> createRound(@Valid @RequestBody CreateRoundRequest request) {
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(ApiResponse.ok("Round created", roundService.createRound(request)));
@@ -37,12 +41,14 @@ public class RoundController {
 
     @PostMapping("/{roundId}/start")
     @PreAuthorize("hasAnyRole('CONSULTANT', 'REGISTRAR')")
+    @Operation(summary = "Start round", description = "Starts a scheduled clinical round.")
     public ResponseEntity<ApiResponse<RoundResponse>> startRound(@PathVariable String roundId) {
         return ResponseEntity.ok(ApiResponse.ok("Round started", roundService.startRound(roundId)));
     }
 
     @PatchMapping("/{roundId}/patients/{patientId}")
     @PreAuthorize("hasAnyRole('CONSULTANT', 'REGISTRAR', 'JUNIOR_DOCTOR')")
+    @Operation(summary = "Review round patient", description = "Records a patient review during a clinical round.")
     public ResponseEntity<ApiResponse<PatientRoundReviewResponse>> reviewPatient(
             @PathVariable String roundId,
             @PathVariable String patientId,
@@ -53,11 +59,13 @@ public class RoundController {
 
     @PostMapping("/{roundId}/complete")
     @PreAuthorize("hasAnyRole('CONSULTANT', 'REGISTRAR')")
+    @Operation(summary = "Complete round", description = "Completes an active clinical round.")
     public ResponseEntity<ApiResponse<RoundResponse>> completeRound(@PathVariable String roundId) {
         return ResponseEntity.ok(ApiResponse.ok("Round completed", roundService.completeRound(roundId)));
     }
 
     @GetMapping
+    @Operation(summary = "List rounds", description = "Returns clinical rounds for a ward and medical team.")
     public ResponseEntity<ApiResponse<List<RoundResponse>>> getRounds(
             @RequestParam String wardId,
             @RequestParam String teamId) {
@@ -65,6 +73,7 @@ public class RoundController {
     }
 
     @GetMapping("/{roundId}/reviews")
+    @Operation(summary = "List round reviews", description = "Returns patient reviews recorded for a clinical round.")
     public ResponseEntity<ApiResponse<List<PatientRoundReviewResponse>>> getReviews(@PathVariable String roundId) {
         return ResponseEntity.ok(ApiResponse.ok(roundService.getReviews(roundId)));
     }

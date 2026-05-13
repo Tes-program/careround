@@ -43,7 +43,7 @@ class AuthControllerTest {
             "access.token.value",
             "refresh-uuid-value",
             "Bearer",
-            900_000L,
+            1_500_000L,
             "user-123",
             "hospital-456",
             "CONSULTANT"
@@ -151,6 +151,22 @@ class AuthControllerTest {
                         .content(objectMapper.writeValueAsString(
                                 new ChangePasswordRequest("oldPass123", "newPass456"))))
                 .andExpect(status().isOk());
+    }
+
+    @Test
+    void changePassword_withPlatformToken_shouldReturn403() throws Exception {
+        String fakeToken = "fake.platform.jwt.access.token";
+        when(jwtService.isTokenValid(fakeToken)).thenReturn(true);
+        when(jwtService.extractUserId(fakeToken)).thenReturn("platform-user-123");
+        when(jwtService.extractHospitalId(fakeToken)).thenReturn("PLATFORM");
+        when(jwtService.extractRole(fakeToken)).thenReturn("PLATFORM_ADMIN");
+
+        mockMvc.perform(post("/api/v1/auth/change-password")
+                        .header("Authorization", "Bearer " + fakeToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(
+                                new ChangePasswordRequest("oldPass123", "newPass456"))))
+                .andExpect(status().isForbidden());
     }
 
     @Test

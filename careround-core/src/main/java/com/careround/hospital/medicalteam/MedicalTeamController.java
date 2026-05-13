@@ -7,6 +7,8 @@ import com.careround.hospital.medicalteam.dto.MedicalTeamResponse;
 import com.careround.hospital.medicalteam.dto.SendInviteRequest;
 import com.careround.shared.dto.ApiResponse;
 import com.careround.shared.security.HospitalContextHolder;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -25,12 +27,14 @@ import java.util.List;
 @RestController
 @RequestMapping("/api/v1/teams")
 @RequiredArgsConstructor
+@Tag(name = "Medical Teams", description = "Medical team creation, ward assignment, membership, and invites")
 public class MedicalTeamController {
 
     private final MedicalTeamService medicalTeamService;
 
     @PostMapping
     @PreAuthorize("hasAnyRole('ADMIN', 'CONSULTANT')")
+    @Operation(summary = "Create medical team", description = "Creates a consultant-led medical team.")
     public ResponseEntity<ApiResponse<MedicalTeamResponse>> create(
             @Valid @RequestBody CreateMedicalTeamRequest request) {
         MedicalTeamResponse response = medicalTeamService.create(
@@ -39,6 +43,7 @@ public class MedicalTeamController {
     }
 
     @GetMapping
+    @Operation(summary = "List medical teams", description = "Returns medical teams for the authenticated hospital.")
     public ResponseEntity<ApiResponse<List<MedicalTeamResponse>>> list() {
         List<MedicalTeamResponse> response = medicalTeamService
                 .listByHospital(HospitalContextHolder.getHospitalId());
@@ -46,6 +51,7 @@ public class MedicalTeamController {
     }
 
     @GetMapping("/{id}")
+    @Operation(summary = "Get medical team", description = "Returns a medical team by id.")
     public ResponseEntity<ApiResponse<MedicalTeamResponse>> getById(@PathVariable String id) {
         MedicalTeamResponse response = medicalTeamService
                 .getById(HospitalContextHolder.getHospitalId(), id);
@@ -54,6 +60,7 @@ public class MedicalTeamController {
 
     @PostMapping("/{teamId}/invites")
     @PreAuthorize("hasRole('CONSULTANT')")
+    @Operation(summary = "Send team invite", description = "Invites a user to join a medical team.")
     public ResponseEntity<ApiResponse<InviteResponse>> sendInvite(
             @PathVariable String teamId,
             @Valid @RequestBody SendInviteRequest request) {
@@ -65,6 +72,7 @@ public class MedicalTeamController {
 
     @PostMapping("/{teamId}/wards")
     @PreAuthorize("hasAnyRole('ADMIN', 'CONSULTANT')")
+    @Operation(summary = "Assign ward to team", description = "Assigns a ward to a medical team.")
     public ResponseEntity<ApiResponse<MedicalTeamResponse>> assignWard(
             @PathVariable String teamId,
             @Valid @RequestBody AssignWardRequest request) {
@@ -76,6 +84,7 @@ public class MedicalTeamController {
 
     @DeleteMapping("/{teamId}/wards/{wardId}")
     @PreAuthorize("hasAnyRole('ADMIN', 'CONSULTANT')")
+    @Operation(summary = "Remove ward from team", description = "Removes a ward assignment from a medical team.")
     public ResponseEntity<ApiResponse<Void>> removeWard(
             @PathVariable String teamId,
             @PathVariable String wardId) {
@@ -86,6 +95,7 @@ public class MedicalTeamController {
 
     @DeleteMapping("/{teamId}/members/{userId}")
     @PreAuthorize("hasRole('CONSULTANT')")
+    @Operation(summary = "Remove team member", description = "Removes a user from a medical team.")
     public ResponseEntity<ApiResponse<Void>> removeMember(
             @PathVariable String teamId, @PathVariable String userId) {
         medicalTeamService.removeMember(HospitalContextHolder.getHospitalId(), teamId,
@@ -94,6 +104,7 @@ public class MedicalTeamController {
     }
 
     @GetMapping("/invites/pending")
+    @Operation(summary = "List pending invites", description = "Returns pending medical-team invites for the current user.")
     public ResponseEntity<ApiResponse<List<InviteResponse>>> listPendingInvites() {
         List<InviteResponse> response = medicalTeamService
                 .listPendingInvites(HospitalContextHolder.getUserId());
@@ -101,6 +112,7 @@ public class MedicalTeamController {
     }
 
     @PostMapping("/invites/{inviteId}/accept")
+    @Operation(summary = "Accept team invite", description = "Accepts a pending medical-team invite.")
     public ResponseEntity<ApiResponse<Void>> acceptInvite(@PathVariable String inviteId) {
         medicalTeamService.acceptInvite(HospitalContextHolder.getHospitalId(),
                 inviteId, HospitalContextHolder.getUserId());
@@ -108,6 +120,7 @@ public class MedicalTeamController {
     }
 
     @PostMapping("/invites/{inviteId}/decline")
+    @Operation(summary = "Decline team invite", description = "Declines a pending medical-team invite.")
     public ResponseEntity<ApiResponse<Void>> declineInvite(@PathVariable String inviteId) {
         medicalTeamService.declineInvite(HospitalContextHolder.getHospitalId(),
                 inviteId, HospitalContextHolder.getUserId());

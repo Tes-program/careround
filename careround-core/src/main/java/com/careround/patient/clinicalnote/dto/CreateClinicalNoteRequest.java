@@ -8,5 +8,10 @@ public record CreateClinicalNoteRequest(
         @NotBlank String patientId,
         @NotNull NoteType noteType,
         @NotBlank String content,
-        String patientRoundReviewId
-) {}
+        String patientRoundReviewId,
+        String vitalsId
+) {
+    public CreateClinicalNoteRequest(String patientId, NoteType noteType, String content, String patientRoundReviewId) {
+        this(patientId, noteType, content, patientRoundReviewId, null);
+    }
+}

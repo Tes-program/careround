@@ -4,8 +4,10 @@ import com.careround.hospital.entity.Hospital;
 import com.careround.hospital.entity.SystemConfiguration;
 import com.careround.hospital.hospital.dto.CreateHospitalRequest;
 import com.careround.hospital.hospital.dto.HospitalResponse;
+import com.careround.hospital.hospital.dto.UpdateHospitalRequest;
 import com.careround.hospital.repository.HospitalRepository;
 import com.careround.hospital.repository.SystemConfigurationRepository;
+import com.careround.shared.exception.ConflictException;
 import com.careround.shared.exception.ResourceNotFoundException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -42,6 +44,24 @@ public class HospitalServiceImpl implements HospitalService {
     public HospitalResponse getById(String hospitalId) {
         Hospital hospital = hospitalRepository.findById(hospitalId)
                 .orElseThrow(() -> new ResourceNotFoundException("Hospital not found"));
+        return toResponse(hospital);
+    }
+
+    @Override
+    @Transactional
+    public HospitalResponse update(String hospitalId, UpdateHospitalRequest request) {
+        Hospital hospital = hospitalRepository.findById(hospitalId)
+                .orElseThrow(() -> new ResourceNotFoundException("Hospital not found"));
+
+        if (!hospital.getContactEmail().equalsIgnoreCase(request.contactEmail())
+                && hospitalRepository.existsByContactEmail(request.contactEmail())) {
+            throw new ConflictException("Hospital contact email already exists");
+        }
+
+        hospital.setName(request.name());
+        hospital.setAddress(request.address());
+        hospital.setContactEmail(request.contactEmail());
+        hospital.setContactPhone(request.contactPhone());
         return toResponse(hospital);
     }
 

@@ -6,6 +6,7 @@ import com.careround.patient.clinicalnote.dto.CreateClinicalNoteRequest;
 import com.careround.patient.entity.ClinicalNote;
 import com.careround.patient.repository.ClinicalNoteRepository;
 import com.careround.patient.repository.PatientRepository;
+import com.careround.patient.repository.PatientVitalsRepository;
 import com.careround.shared.exception.AccessDeniedException;
 import com.careround.shared.exception.ResourceNotFoundException;
 import com.careround.shared.security.HospitalContextHolder;
@@ -25,6 +26,7 @@ public class ClinicalNoteServiceImpl implements ClinicalNoteService {
 
     private final ClinicalNoteRepository clinicalNoteRepository;
     private final PatientRepository patientRepository;
+    private final PatientVitalsRepository patientVitalsRepository;
 
     @Override
     @Transactional
@@ -34,10 +36,12 @@ public class ClinicalNoteServiceImpl implements ClinicalNoteService {
 
         patientRepository.findByIdAndHospitalId(request.patientId(), hospitalId)
                 .orElseThrow(() -> new ResourceNotFoundException("Patient not found"));
+        validateVitalsLink(request.patientId(), request.vitalsId());
 
         ClinicalNote note = new ClinicalNote();
         note.setPatientId(request.patientId());
         note.setPatientRoundReviewId(request.patientRoundReviewId());
+        note.setVitalsId(request.vitalsId());
         note.setAuthorId(userId);
         note.setNoteType(request.noteType());
         note.setContent(request.content());
@@ -83,7 +87,16 @@ public class ClinicalNoteServiceImpl implements ClinicalNoteService {
 
     private ClinicalNoteResponse toResponse(ClinicalNote n) {
         return new ClinicalNoteResponse(n.getId(), n.getPatientId(), n.getPatientRoundReviewId(),
-                n.getAuthorId(), n.getNoteType(), n.getContent(), n.isAmended(),
+                n.getVitalsId(), n.getAuthorId(), n.getNoteType(), n.getContent(), n.isAmended(),
                 n.getAmendedById(), n.getAmendedAt(), n.getCreatedAt(), n.getUpdatedAt());
+    }
+
+    private void validateVitalsLink(String patientId, String vitalsId) {
+        if (vitalsId == null || vitalsId.isBlank()) {
+            return;
+        }
+        patientVitalsRepository.findById(vitalsId)
+                .filter(vitals -> vitals.getPatientId().equals(patientId))
+                .orElseThrow(() -> new ResourceNotFoundException("Vitals record not found for patient"));
     }
 }

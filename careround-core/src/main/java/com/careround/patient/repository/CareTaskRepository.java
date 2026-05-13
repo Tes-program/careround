@@ -16,6 +16,8 @@ public interface CareTaskRepository extends JpaRepository<CareTask, String> {
 
     List<CareTask> findAllByPatientId(String patientId);
 
+    List<CareTask> findAllByHospitalIdAndStatusInOrderByWindowEndAsc(String hospitalId, List<TaskStatus> statuses);
+
     List<CareTask> findAllByStatusInAndWindowEndBefore(List<TaskStatus> statuses, LocalDateTime now);
 
     List<CareTask> findAllByStatusInAndEscalatedAtIsNullAndWindowEndBefore(
@@ -56,4 +58,51 @@ public interface CareTaskRepository extends JpaRepository<CareTask, String> {
             @Param("statuses") List<TaskStatus> statuses,
             @Param("windowStart") LocalDateTime windowStart,
             @Param("windowEnd") LocalDateTime windowEnd);
+
+    @Query("""
+            select t
+            from CareTask t
+            where t.hospitalId = :hospitalId
+              and (
+                    lower(t.title) like lower(concat('%', :q, '%'))
+                 or lower(t.description) like lower(concat('%', :q, '%'))
+                 or lower(t.taskType) like lower(concat('%', :q, '%'))
+              )
+            order by t.createdAt desc
+            """)
+    List<CareTask> searchByHospitalId(@Param("hospitalId") String hospitalId, @Param("q") String q);
+
+    @Query("""
+            select t
+            from CareTask t
+            where t.hospitalId = :hospitalId
+              and (:wardId is null or t.wardId = :wardId)
+              and t.status = :status
+              and t.completedAt between :from and :to
+            order by t.completedAt asc
+            """)
+    List<CareTask> findReportTasks(
+            @Param("hospitalId") String hospitalId,
+            @Param("wardId") String wardId,
+            @Param("status") TaskStatus status,
+            @Param("from") LocalDateTime from,
+            @Param("to") LocalDateTime to);
+
+    @Query("""
+            select t
+            from CareTask t
+            where t.hospitalId = :hospitalId
+              and (:wardId is null or t.wardId = :wardId)
+              and (t.status = :overdueStatus
+                   or (t.status in :activeStatuses and t.windowEnd < CURRENT_TIMESTAMP))
+              and t.windowEnd between :from and :to
+            order by t.windowEnd asc
+            """)
+    List<CareTask> findOverdueReportTasks(
+            @Param("hospitalId") String hospitalId,
+            @Param("wardId") String wardId,
+            @Param("overdueStatus") TaskStatus overdueStatus,
+            @Param("activeStatuses") List<TaskStatus> activeStatuses,
+            @Param("from") LocalDateTime from,
+            @Param("to") LocalDateTime to);
 }

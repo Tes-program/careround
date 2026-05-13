@@ -8,6 +8,7 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -53,6 +54,7 @@ public class AuthController {
     }
 
     @PostMapping("/change-password")
+    @PreAuthorize("hasAnyRole('ADMIN', 'CONSULTANT', 'REGISTRAR', 'JUNIOR_DOCTOR', 'NURSE', 'WARD_SUPERVISOR')")
     @Operation(
             summary = "Change the current user's password",
             description = "Changes the authenticated user's password and revokes all of their existing refresh tokens."
@@ -72,5 +74,27 @@ public class AuthController {
             @Valid @RequestBody ActivateAccountRequest request) {
         authService.activateAccount(request);
         return ResponseEntity.ok(ApiResponse.ok("Account activated. Please log in.", null));
+    }
+
+    @PostMapping("/forgot-password")
+    @Operation(
+            summary = "Request a password reset token",
+            description = "Creates a short-lived reset token for an active tenant user. The token is returned for local testing until email delivery is wired in."
+    )
+    public ResponseEntity<ApiResponse<ForgotPasswordResponse>> forgotPassword(
+            @Valid @RequestBody ForgotPasswordRequest request) {
+        ForgotPasswordResponse response = authService.forgotPassword(request);
+        return ResponseEntity.ok(ApiResponse.ok("If the account exists, a reset token has been generated.", response));
+    }
+
+    @PostMapping("/reset-password")
+    @Operation(
+            summary = "Reset password with token",
+            description = "Consumes a valid password reset token, sets a new password, and revokes the user's refresh tokens."
+    )
+    public ResponseEntity<ApiResponse<Void>> resetPassword(
+            @Valid @RequestBody ResetPasswordRequest request) {
+        authService.resetPassword(request);
+        return ResponseEntity.ok(ApiResponse.ok("Password reset successfully", null));
     }
 }

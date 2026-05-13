@@ -8,6 +8,7 @@ public record ClinicalNoteResponse(
         String id,
         String patientId,
         String patientRoundReviewId,
+        String vitalsId,
         String authorId,
         NoteType noteType,
         String content,
@@ -16,4 +17,20 @@ public record ClinicalNoteResponse(
         LocalDateTime amendedAt,
         LocalDateTime createdAt,
         LocalDateTime updatedAt
-) {}
+) {
+    public ClinicalNoteResponse(
+            String id,
+            String patientId,
+            String patientRoundReviewId,
+            String authorId,
+            NoteType noteType,
+            String content,
+            boolean isAmended,
+            String amendedById,
+            LocalDateTime amendedAt,
+            LocalDateTime createdAt,
+            LocalDateTime updatedAt) {
+        this(id, patientId, patientRoundReviewId, null, authorId, noteType, content,
+                isAmended, amendedById, amendedAt, createdAt, updatedAt);
+    }
+}

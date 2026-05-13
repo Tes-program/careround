@@ -5,6 +5,8 @@ import com.careround.hospital.oncall.dto.CreateOnCallRotationRequest;
 import com.careround.hospital.oncall.dto.OnCallRotationResponse;
 import com.careround.shared.dto.ApiResponse;
 import com.careround.shared.security.HospitalContextHolder;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -24,12 +26,14 @@ import java.util.List;
 @RestController
 @RequestMapping("/api/v1/oncall")
 @RequiredArgsConstructor
+@Tag(name = "On-Call Rotations", description = "Registrar and consultant on-call rotation management")
 public class OnCallRotationController {
 
     private final OnCallRotationService onCallRotationService;
 
     @PostMapping
     @PreAuthorize("hasRole('ADMIN')")
+    @Operation(summary = "Create on-call rotation", description = "Creates an on-call rotation for a doctor.")
     public ResponseEntity<ApiResponse<OnCallRotationResponse>> create(
             @Valid @RequestBody CreateOnCallRotationRequest request) {
         OnCallRotationResponse response = onCallRotationService
@@ -39,6 +43,7 @@ public class OnCallRotationController {
     }
 
     @GetMapping
+    @Operation(summary = "List on-call rotations", description = "Returns on-call rotations for the authenticated hospital.")
     public ResponseEntity<ApiResponse<List<OnCallRotationResponse>>> list() {
         List<OnCallRotationResponse> response = onCallRotationService
                 .listByHospital(HospitalContextHolder.getHospitalId());
@@ -46,6 +51,7 @@ public class OnCallRotationController {
     }
 
     @GetMapping("/{id}")
+    @Operation(summary = "Get on-call rotation", description = "Returns an on-call rotation by id.")
     public ResponseEntity<ApiResponse<OnCallRotationResponse>> getById(@PathVariable String id) {
         OnCallRotationResponse response = onCallRotationService
                 .getById(HospitalContextHolder.getHospitalId(), id);
@@ -53,6 +59,7 @@ public class OnCallRotationController {
     }
 
     @GetMapping("/current")
+    @Operation(summary = "Get current on-call doctor", description = "Returns the current on-call rotation for a department and role.")
     public ResponseEntity<ApiResponse<OnCallRotationResponse>> getCurrent(
             @RequestParam String departmentId,
             @RequestParam OnCallRole role) {
@@ -64,6 +71,7 @@ public class OnCallRotationController {
 
     @DeleteMapping("/{id}")
     @PreAuthorize("hasRole('ADMIN')")
+    @Operation(summary = "Delete on-call rotation", description = "Deletes an on-call rotation by id.")
     public ResponseEntity<ApiResponse<Void>> delete(@PathVariable String id) {
         onCallRotationService.delete(HospitalContextHolder.getHospitalId(), id);
         return ResponseEntity.ok(ApiResponse.ok("On-call rotation deleted", null));

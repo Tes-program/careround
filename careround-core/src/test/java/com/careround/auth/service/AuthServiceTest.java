@@ -21,7 +21,9 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.util.ReflectionTestUtils;
+import org.springframework.transaction.annotation.Transactional;
 
+import java.lang.reflect.Method;
 import java.time.LocalDateTime;
 import java.util.Optional;
 
@@ -70,7 +72,7 @@ class AuthServiceTest {
                 .thenReturn(Optional.of(testUser));
         when(passwordEncoder.matches("password123", "$2a$10$encodedPassword")).thenReturn(true);
         when(jwtService.generateAccessToken(testUser)).thenReturn("access.token");
-        when(jwtService.getAccessTokenExpiryMs()).thenReturn(900_000L);
+        when(jwtService.getAccessTokenExpiryMs()).thenReturn(1_500_000L);
         when(refreshTokenRepository.save(any())).thenAnswer(i -> i.getArgument(0));
 
         JwtResponse response = authService.login(request);
@@ -115,7 +117,7 @@ class AuthServiceTest {
                 .thenReturn(Optional.of(stored));
         when(userRepository.findById("user-123")).thenReturn(Optional.of(testUser));
         when(jwtService.generateAccessToken(testUser)).thenReturn("new.access.token");
-        when(jwtService.getAccessTokenExpiryMs()).thenReturn(900_000L);
+        when(jwtService.getAccessTokenExpiryMs()).thenReturn(1_500_000L);
         when(refreshTokenRepository.save(any())).thenAnswer(i -> i.getArgument(0));
 
         JwtResponse response = authService.refresh(new RefreshTokenRequest("valid-refresh-token"));
@@ -182,6 +184,14 @@ class AuthServiceTest {
 
         assertThat(testUser.getPasswordHash()).isEqualTo("$2a$10$newHash");
         verify(refreshTokenRepository).revokeAllByUserId("user-123");
+    }
+
+    @Test
+    void changePassword_shouldRunInTransaction() throws Exception {
+        Method method = AuthServiceImpl.class.getMethod(
+                "changePassword", String.class, ChangePasswordRequest.class);
+
+        assertThat(method.isAnnotationPresent(Transactional.class)).isTrue();
     }
 
     @Test

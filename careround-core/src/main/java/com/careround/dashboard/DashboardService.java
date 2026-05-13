@@ -16,6 +16,7 @@ import com.careround.patient.repository.CareTaskRepository;
 import com.careround.patient.repository.EscalationRepository;
 import com.careround.patient.repository.PatientRepository;
 import com.careround.patient.repository.RoundRepository;
+import com.careround.notification.service.NotificationService;
 import com.careround.shared.security.HospitalContextHolder;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -45,6 +46,7 @@ public class DashboardService {
     private final CareTaskRepository careTaskRepository;
     private final EscalationRepository escalationRepository;
     private final RoundRepository roundRepository;
+    private final NotificationService notificationService;
 
     @Transactional(readOnly = true)
     public Map<String, Object> currentUserDashboard() {
@@ -83,6 +85,9 @@ public class DashboardService {
         dashboard.put("activeShifts", wardIds.isEmpty() ? 0 : shiftRepository.countByWardIdInAndStatus(
                 wardIds, com.careround.hospital.enums.ShiftStatus.ACTIVE));
         dashboard.put("roundsInProgress", roundRepository.countByHospitalIdAndStatus(hospitalId, RoundStatus.IN_PROGRESS));
+        var notifications = notificationService.listNotifications();
+        dashboard.put("unreadNotifications", notifications.stream().filter(notification -> !notification.read()).count());
+        dashboard.put("recentNotifications", notifications.stream().limit(5).toList());
         return dashboard;
     }
 

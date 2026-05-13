@@ -21,7 +21,7 @@ class JwtServiceTest {
     void setUp() {
         jwtService = new JwtService();
         ReflectionTestUtils.setField(jwtService, "secret", TEST_SECRET);
-        ReflectionTestUtils.setField(jwtService, "accessTokenExpiryMs", 900_000L);
+        ReflectionTestUtils.setField(jwtService, "accessTokenExpiryMs", 1_500_000L);
 
         testUser = new User();
         testUser.setId("user-123");
@@ -85,7 +85,7 @@ class JwtServiceTest {
 
     @Test
     void getAccessTokenExpiryMs_shouldReturnConfiguredValue() {
-        assertThat(jwtService.getAccessTokenExpiryMs()).isEqualTo(900_000L);
+        assertThat(jwtService.getAccessTokenExpiryMs()).isEqualTo(1_500_000L);
     }
 }
 

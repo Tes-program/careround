@@ -40,6 +40,7 @@ class CorrelationIdFilterTest {
         filter.doFilterInternal(request, response, chain);
 
         assertThat(correlationIdSeenByChain[0]).isNotBlank();
+        assertThat(request.getAttribute("correlationId")).isEqualTo(correlationIdSeenByChain[0]);
         assertThat(response.getHeader(CorrelationIdFilter.CORRELATION_ID_HEADER))
                 .isEqualTo(correlationIdSeenByChain[0]);
     }
@@ -53,6 +54,7 @@ class CorrelationIdFilterTest {
         filter.doFilterInternal(request, response, chain);
 
         assertThat(correlationIdSeenByChain[0]).isEqualTo("corr-123");
+        assertThat(request.getAttribute("correlationId")).isEqualTo("corr-123");
         assertThat(response.getHeader(CorrelationIdFilter.CORRELATION_ID_HEADER)).isEqualTo("corr-123");
     }
 

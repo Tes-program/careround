@@ -15,5 +15,16 @@ public record RecordVitalsRequest(
         @NotNull @DecimalMin("50.0") @DecimalMax("100.0") BigDecimal oxygenSaturation,
         @NotNull @Min(50) @Max(300) Integer systolicBP,
         @NotNull @DecimalMin("25.0") @DecimalMax("45.0") BigDecimal temperature,
-        @NotNull ConsciousnessLevel consciousnessLevel
-) {}
+        @NotNull ConsciousnessLevel consciousnessLevel,
+        String note
+) {
+    public RecordVitalsRequest(
+            Integer heartRate,
+            Integer respiratoryRate,
+            BigDecimal oxygenSaturation,
+            Integer systolicBP,
+            BigDecimal temperature,
+            ConsciousnessLevel consciousnessLevel) {
+        this(heartRate, respiratoryRate, oxygenSaturation, systolicBP, temperature, consciousnessLevel, null);
+    }
+}

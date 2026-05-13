@@ -1,6 +1,7 @@
 package com.careround.shared.config;
 
 import com.careround.shared.filter.CorrelationIdFilter;
+import com.careround.shared.filter.ApiRequestLoggingFilter;
 import com.careround.shared.filter.RateLimitingFilter;
 import com.careround.shared.security.JwtAuthFilter;
 import lombok.RequiredArgsConstructor;
@@ -33,6 +34,7 @@ import java.util.List;
 public class SecurityConfig {
 
     private final CorrelationIdFilter correlationIdFilter;
+    private final ObjectProvider<ApiRequestLoggingFilter> apiRequestLoggingFilterProvider;
     private final ObjectProvider<RateLimitingFilter> rateLimitingFilterProvider;
     private final JwtAuthFilter jwtAuthFilter;
 
@@ -69,6 +71,7 @@ public class SecurityConfig {
         } else {
             security.addFilterAfter(jwtAuthFilter, CorrelationIdFilter.class);
         }
+        apiRequestLoggingFilterProvider.ifAvailable(filter -> security.addFilterAfter(filter, JwtAuthFilter.class));
 
         return security.build();
     }
@@ -85,6 +88,15 @@ public class SecurityConfig {
             ObjectProvider<RateLimitingFilter> rateLimitingFilterProvider) {
         FilterRegistrationBean<RateLimitingFilter> registration = new FilterRegistrationBean<>();
         rateLimitingFilterProvider.ifAvailable(registration::setFilter);
+        registration.setEnabled(false);
+        return registration;
+    }
+
+    @Bean
+    public FilterRegistrationBean<ApiRequestLoggingFilter> apiRequestLoggingFilterRegistration(
+            ObjectProvider<ApiRequestLoggingFilter> apiRequestLoggingFilterProvider) {
+        FilterRegistrationBean<ApiRequestLoggingFilter> registration = new FilterRegistrationBean<>();
+        apiRequestLoggingFilterProvider.ifAvailable(registration::setFilter);
         registration.setEnabled(false);
         return registration;
     }

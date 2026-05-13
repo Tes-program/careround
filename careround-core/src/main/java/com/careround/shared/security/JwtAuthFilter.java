@@ -10,6 +10,7 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.slf4j.MDC;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.context.SecurityContext;
@@ -50,6 +51,7 @@ public class JwtAuthFilter extends OncePerRequestFilter {
                 SecurityContext context = SecurityContextHolder.createEmptyContext();
                 context.setAuthentication(auth);
                 SecurityContextHolder.setContext(context);
+                setLoggingContext(hospitalId, userId, role);
                 setHospitalContextIfTenantUser(hospitalId, userId, role);
             }
         } catch (JwtException ex) {
@@ -59,8 +61,27 @@ public class JwtAuthFilter extends OncePerRequestFilter {
         try {
             filterChain.doFilter(request, response);
         }finally {
+            clearLoggingContext();
             HospitalContextHolder.clear();
         }
+    }
+
+    private void setLoggingContext(String hospitalId, String userId, String role) {
+        if (StringUtils.hasText(hospitalId)) {
+            MDC.put("hospitalId", hospitalId);
+        }
+        if (StringUtils.hasText(userId)) {
+            MDC.put("userId", userId);
+        }
+        if (StringUtils.hasText(role)) {
+            MDC.put("role", role);
+        }
+    }
+
+    private void clearLoggingContext() {
+        MDC.remove("hospitalId");
+        MDC.remove("userId");
+        MDC.remove("role");
     }
 
     private void setHospitalContextIfTenantUser(String hospitalId, String userId, String role) {

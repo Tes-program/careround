@@ -43,6 +43,7 @@ services:
   kafka:
     image: apache/kafka:3.7.0
     container_name: careround-kafka
+    hostname: kafka
     restart: unless-stopped
     environment:
       KAFKA_NODE_ID: 1
@@ -52,10 +53,11 @@ services:
       KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,CONTROLLER:PLAINTEXT,EXTERNAL:PLAINTEXT
       KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
       KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
-      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:9093
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@localhost:9093
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
       KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
       KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
       KAFKA_LOG_DIRS: /var/lib/kafka/data
       CLUSTER_ID: MkU3OEVBNTcwNTJENDM2Qk
       KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
@@ -66,19 +68,62 @@ services:
     networks:
       - careround-net
     healthcheck:
-      test: [ "CMD", "/opt/kafka/bin/kafka-broker-api-versions.sh", "--bootstrap-server", "localhost:9092" ]
+      test: [ "CMD", "/opt/kafka/bin/kafka-topics.sh", "--bootstrap-server", "kafka:9092", "--list" ]
       interval: 15s
-      timeout: 10s
+      timeout: 30s
       retries: 10
 
   # ── Kafka UI ───────────────────────────────────────────────────────────────
+  kafka-init:
+    image: apache/kafka:3.7.0
+    container_name: careround-kafka-init
+    depends_on:
+      kafka:
+        condition: service_healthy
+    networks:
+      - careround-net
+    command:
+      - /bin/bash
+      - -c
+      - |
+        set -e
+        topics=(
+          careround.patient.admitted
+          careround.shift.created
+          careround.shift.activated
+          careround.round.completed
+          careround.handover.completed
+          careround.task.overdue
+          careround.patient.deterioration
+          careround.escalation.unacknowledged
+          careround.patient.discharge-ready
+          careround.patient.discharged
+          careround.team.invite-sent
+          careround.team.member-added
+          careround.invite.expired
+          careround.hospital.onboarding_requested
+          careround.hospital.onboarding_reviewed
+          careround.hospital.provisioned
+          careround.user.activation_requested
+          careround.care_task.workload_conflict
+        )
+        for topic in "$${topics[@]}"; do
+          /opt/kafka/bin/kafka-topics.sh \
+            --bootstrap-server kafka:9092 \
+            --create \
+            --if-not-exists \
+            --topic "$${topic}" \
+            --partitions 3 \
+            --replication-factor 1
+        done
+
   kafka-ui:
     image: provectuslabs/kafka-ui:latest
     container_name: careround-kafka-ui
     restart: unless-stopped
     depends_on:
-      kafka:
-        condition: service_healthy
+      kafka-init:
+        condition: service_completed_successfully
     environment:
       KAFKA_CLUSTERS_0_NAME: careround
       KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:9092

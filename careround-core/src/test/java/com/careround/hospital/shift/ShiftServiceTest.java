@@ -1,5 +1,8 @@
 package com.careround.hospital.shift;
 
+import com.careround.auth.entity.User;
+import com.careround.auth.enums.UserRole;
+import com.careround.auth.repository.UserRepository;
 import com.careround.hospital.entity.Shift;
 import com.careround.hospital.entity.Ward;
 import com.careround.hospital.enums.ShiftStatus;
@@ -34,6 +37,7 @@ class ShiftServiceTest {
 
     @Mock private ShiftRepository shiftRepository;
     @Mock private WardRepository wardRepository;
+    @Mock private UserRepository userRepository;
     @Mock private OutboxService outboxService;
 
     @InjectMocks private ShiftServiceImpl shiftService;
@@ -75,6 +79,7 @@ class ShiftServiceTest {
     void assignStaff_happyPath_shouldTransitionToActiveAndPublishEvent() {
         when(shiftRepository.findById(SHIFT_ID)).thenReturn(Optional.of(pendingShift));
         when(wardRepository.findByIdAndHospitalId(WARD_ID, HOSPITAL_ID)).thenReturn(Optional.of(ward));
+        when(userRepository.findByIdAndHospitalId("nurse-1", HOSPITAL_ID)).thenReturn(Optional.of(user("nurse-1", UserRole.NURSE, true)));
 
         ShiftResponse result = shiftService.assignStaff(HOSPITAL_ID, SHIFT_ID,
                 new AssignStaffRequest("doctor-1", "nurse-1"));
@@ -84,6 +89,45 @@ class ShiftServiceTest {
         assertThat(result.nurseInChargeId()).isEqualTo("nurse-1");
         assertThat(result.assignedAt()).isNotNull();
         verify(outboxService).publish(eq("SHIFT_ACTIVATED"), any(), eq(HOSPITAL_ID));
+    }
+
+    @Test
+    void assignStaff_whenNurseInChargeIsNotNurse_shouldThrowBusinessRuleException() {
+        when(shiftRepository.findById(SHIFT_ID)).thenReturn(Optional.of(pendingShift));
+        when(wardRepository.findByIdAndHospitalId(WARD_ID, HOSPITAL_ID)).thenReturn(Optional.of(ward));
+        when(userRepository.findByIdAndHospitalId("consultant-1", HOSPITAL_ID))
+                .thenReturn(Optional.of(user("consultant-1", UserRole.CONSULTANT, true)));
+
+        assertThatThrownBy(() -> shiftService.assignStaff(HOSPITAL_ID, SHIFT_ID,
+                new AssignStaffRequest("doctor-1", "consultant-1")))
+                .isInstanceOf(BusinessRuleException.class)
+                .hasMessageContaining("active nurse");
+    }
+
+    @Test
+    void assignStaff_whenNurseInChargeIsInactive_shouldThrowBusinessRuleException() {
+        when(shiftRepository.findById(SHIFT_ID)).thenReturn(Optional.of(pendingShift));
+        when(wardRepository.findByIdAndHospitalId(WARD_ID, HOSPITAL_ID)).thenReturn(Optional.of(ward));
+        when(userRepository.findByIdAndHospitalId("nurse-1", HOSPITAL_ID))
+                .thenReturn(Optional.of(user("nurse-1", UserRole.NURSE, false)));
+
+        assertThatThrownBy(() -> shiftService.assignStaff(HOSPITAL_ID, SHIFT_ID,
+                new AssignStaffRequest("doctor-1", "nurse-1")))
+                .isInstanceOf(BusinessRuleException.class)
+                .hasMessageContaining("active nurse");
+    }
+
+    @Test
+    void assignStaff_allowsNurseInChargeOnMultipleOverlappingWardShifts() {
+        when(shiftRepository.findById(SHIFT_ID)).thenReturn(Optional.of(pendingShift));
+        when(wardRepository.findByIdAndHospitalId(WARD_ID, HOSPITAL_ID)).thenReturn(Optional.of(ward));
+        when(userRepository.findByIdAndHospitalId("nurse-1", HOSPITAL_ID)).thenReturn(Optional.of(user("nurse-1", UserRole.NURSE, true)));
+
+        ShiftResponse result = shiftService.assignStaff(HOSPITAL_ID, SHIFT_ID,
+                new AssignStaffRequest("doctor-1", "nurse-1"));
+
+        assertThat(result.status()).isEqualTo(ShiftStatus.ACTIVE);
+        assertThat(result.nurseInChargeId()).isEqualTo("nurse-1");
     }
 
     @Test
@@ -145,5 +189,14 @@ class ShiftServiceTest {
 
         assertThatThrownBy(() -> shiftService.getCurrentShift("other-hosp", WARD_ID))
                 .isInstanceOf(AccessDeniedException.class);
+    }
+
+    private User user(String id, UserRole role, boolean active) {
+        User user = new User();
+        user.setId(id);
+        user.setHospitalId(HOSPITAL_ID);
+        user.setRole(role);
+        user.setActive(active);
+        return user;
     }
 }
