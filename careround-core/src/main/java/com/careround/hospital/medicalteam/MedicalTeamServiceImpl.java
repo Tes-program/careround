@@ -250,8 +250,11 @@ public class MedicalTeamServiceImpl implements MedicalTeamService {
     }
 
     private MedicalTeamResponse toResponse(MedicalTeam t) {
+        List<String> wardIds = teamWardRepository.findAllByIdMedicalTeamId(t.getId()).stream()
+                .map(assignment -> assignment.getId().getWardId())
+                .toList();
         return new MedicalTeamResponse(t.getId(), t.getHospitalId(), t.getName(),
-                t.getConsultantId(), t.getDepartmentId(), t.getCreatedAt());
+                t.getConsultantId(), t.getDepartmentId(), t.getCreatedAt(), wardIds);
     }
 
     private InviteResponse toInviteResponse(MedicalTeamInvite i) {

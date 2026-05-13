@@ -6,6 +6,7 @@ import com.careround.auth.repository.UserRepository;
 import com.careround.hospital.entity.MedicalTeam;
 import com.careround.hospital.entity.MedicalTeamInvite;
 import com.careround.hospital.entity.MedicalTeamMemberId;
+import com.careround.hospital.entity.MedicalTeamWard;
 import com.careround.hospital.entity.MedicalTeamWardId;
 import com.careround.hospital.entity.Ward;
 import com.careround.hospital.enums.InviteStatus;
@@ -225,11 +226,15 @@ class MedicalTeamServiceTest {
                 .thenReturn(Optional.of(ward));
         when(teamWardRepository.existsById(new MedicalTeamWardId(TEAM_ID, "ward-1")))
                 .thenReturn(false);
+        MedicalTeamWard assignment = new MedicalTeamWard();
+        assignment.setId(new MedicalTeamWardId(TEAM_ID, "ward-1"));
+        when(teamWardRepository.findAllByIdMedicalTeamId(TEAM_ID)).thenReturn(List.of(assignment));
 
         MedicalTeamResponse result = medicalTeamService.assignWard(
                 HOSPITAL_ID, TEAM_ID, CONSULTANT_ID, new AssignWardRequest("ward-1"));
 
         assertThat(result.id()).isEqualTo(TEAM_ID);
+        assertThat(result.wardIds()).containsExactly("ward-1");
         verify(teamWardRepository).save(any());
     }
 

@@ -5,14 +5,12 @@ import com.careround.hospital.hospital.dto.SystemConfigResponse;
 import com.careround.hospital.hospital.dto.UpdateSystemConfigRequest;
 import com.careround.hospital.repository.SystemConfigurationRepository;
 import com.careround.shared.exception.ResourceNotFoundException;
-import tools.jackson.core.JacksonException;
 import tools.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-
 import java.time.Duration;
 
 @Service
@@ -31,11 +29,11 @@ public class SystemConfigurationServiceImpl implements SystemConfigurationServic
     @Transactional(readOnly = true)
     public SystemConfigResponse getByHospitalId(String hospitalId) {
         String cacheKey = CACHE_PREFIX + hospitalId;
-        String cached = redisTemplate.opsForValue().get(cacheKey);
+        String cached = getCache(cacheKey);
         if (cached != null) {
             try {
                 return objectMapper.readValue(cached, SystemConfigResponse.class);
-            } catch (JacksonException e) {
+            } catch (RuntimeException e) {
                 log.warn("Failed to deserialize cached config for hospital {}: {}", hospitalId, e.getMessage());
             }
         }
@@ -59,14 +57,31 @@ public class SystemConfigurationServiceImpl implements SystemConfigurationServic
         config.setRoundNotificationsEnabled(request.roundNotificationsEnabled());
         config.setNokNotificationEnabled(request.nokNotificationEnabled());
 
-        redisTemplate.delete(CACHE_PREFIX + hospitalId);
+        evictCache(CACHE_PREFIX + hospitalId);
         return toResponse(config);
+    }
+
+    private String getCache(String key) {
+        try {
+            return redisTemplate.opsForValue().get(key);
+        } catch (RuntimeException e) {
+            log.warn("Failed to read system config cache [key={}]: {}", key, e.getMessage());
+            return null;
+        }
+    }
+
+    private void evictCache(String key) {
+        try {
+            redisTemplate.delete(key);
+        } catch (RuntimeException e) {
+            log.warn("Failed to evict system config cache [key={}]: {}", key, e.getMessage());
+        }
     }
 
     private void putCache(String key, SystemConfigResponse response) {
         try {
             redisTemplate.opsForValue().set(key, objectMapper.writeValueAsString(response), CACHE_TTL);
-        } catch (JacksonException e) {
+        } catch (RuntimeException e) {
             log.warn("Failed to cache system config [key={}]: {}", key, e.getMessage());
         }
     }

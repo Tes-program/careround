@@ -1354,6 +1354,7 @@ Role dashboards expose operational summaries for the authenticated tenant: activ
 ### Medical Team Management — careround-core
 
 Medical-team endpoints use `/teams` in the implemented API.
+`MedicalTeamResponse` includes `wardIds[]`, so list/detail/assignment responses expose persisted ward assignments after reload.
 
 | Method | Endpoint | Access |
 |---|---|---|

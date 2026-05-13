@@ -17,6 +17,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import static org.mockito.Mockito.lenient;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.data.redis.core.ValueOperations;
+import org.springframework.data.redis.RedisConnectionFailureException;
 
 import java.util.Optional;
 
@@ -104,6 +105,21 @@ class SystemConfigurationServiceTest {
         assertThat(config.getTaskOverdueGraceMinutes()).isEqualTo(45);
         assertThat(config.isRoundNotificationsEnabled()).isFalse();
         verify(redisTemplate).delete("sysconfig:hosp-1");
+    }
+
+    @Test
+    void update_whenRedisEvictFails_shouldStillReturnUpdatedConfig() {
+        when(systemConfigurationRepository.findByHospitalId("hosp-1")).thenReturn(Optional.of(config));
+        when(redisTemplate.delete("sysconfig:hosp-1"))
+                .thenThrow(new RedisConnectionFailureException("redis unavailable"));
+
+        SystemConfigResponse result = service.update(
+                "hosp-1", new UpdateSystemConfigRequest(6, 8, 45, false, false));
+
+        assertThat(result.newsAmberThreshold()).isEqualTo(6);
+        assertThat(result.newsRedThreshold()).isEqualTo(8);
+        assertThat(result.taskOverdueGraceMinutes()).isEqualTo(45);
+        assertThat(result.roundNotificationsEnabled()).isFalse();
     }
 
     @Test

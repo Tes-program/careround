@@ -48,7 +48,7 @@ class MedicalTeamControllerTest {
     void setUp() {
         HospitalContextHolder.set("hosp-1", "consultant-1", UserRole.CONSULTANT);
         sampleTeam = new MedicalTeamResponse("team-1", "hosp-1", "Alpha Team",
-                "consultant-1", "dept-1", LocalDateTime.now());
+                "consultant-1", "dept-1", LocalDateTime.now(), List.of("ward-1"));
         sampleInvite = new InviteResponse("invite-1", "hosp-1", "team-1",
                 "user-target", "consultant-1", InviteStatus.PENDING,
                 LocalDateTime.now().plusHours(48), LocalDateTime.now());
@@ -89,7 +89,8 @@ class MedicalTeamControllerTest {
         mockMvc.perform(get("/api/v1/teams")
                         .with(user("registrar").roles("REGISTRAR")))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data[0].name").value("Alpha Team"));
+                .andExpect(jsonPath("$.data[0].name").value("Alpha Team"))
+                .andExpect(jsonPath("$.data[0].wardIds[0]").value("ward-1"));
     }
 
     @Test

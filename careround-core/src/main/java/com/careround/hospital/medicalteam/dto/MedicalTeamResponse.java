@@ -1,6 +1,7 @@
 package com.careround.hospital.medicalteam.dto;
 
 import java.time.LocalDateTime;
+import java.util.List;
 
 public record MedicalTeamResponse(
         String id,
@@ -8,5 +9,6 @@ public record MedicalTeamResponse(
         String name,
         String consultantId,
         String departmentId,
-        LocalDateTime createdAt
+        LocalDateTime createdAt,
+        List<String> wardIds
 ) {}
