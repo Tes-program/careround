@@ -116,7 +116,7 @@ services:
     build:
       context: .
       dockerfile: careround-core/Dockerfile
-    image: careround/core:${IMAGE_TAG:-latest}
+    image: mathsprodigy1/careround/core:${IMAGE_TAG:-latest}
     restart: unless-stopped
     depends_on:
       mysql:
@@ -165,7 +165,7 @@ services:
     build:
       context: .
       dockerfile: careround-notification/Dockerfile
-    image: careround/notification:${IMAGE_TAG:-latest}
+    image: mathsprodigy1/careround/notification:${IMAGE_TAG:-latest}
     restart: unless-stopped
     depends_on:
       mysql:
@@ -204,7 +204,7 @@ services:
     build:
       context: .
       dockerfile: careround-audit/Dockerfile
-    image: careround/audit:${IMAGE_TAG:-latest}
+    image: mathsprodigy1/careround/audit:${IMAGE_TAG:-latest}
     restart: unless-stopped
     depends_on:
       mysql:
