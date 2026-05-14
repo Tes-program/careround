@@ -120,7 +120,8 @@ services:
   # ── Application Services ───────────────────────────────────────────────────
   careround-core:
     build:
-      context: ./careround-core
+      context: .
+      dockerfile: careround-core/Dockerfile
     container_name: careround-core
     restart: unless-stopped
     ports:
@@ -146,7 +147,8 @@ services:
 
   careround-notification:
     build:
-      context: ./careround-notification
+      context: .
+      dockerfile: careround-notification/Dockerfile
     container_name: careround-notification
     restart: unless-stopped
     ports:
@@ -170,7 +172,8 @@ services:
 
   careround-audit:
     build:
-      context: ./careround-audit
+      context: .
+      dockerfile: careround-audit/Dockerfile
     container_name: careround-audit
     restart: unless-stopped
     ports:

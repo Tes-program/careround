@@ -101,25 +101,22 @@ jobs:
     needs: build-and-push-images
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout
+        uses: actions/checkout@v4
 
-      # secrets.ENV_FILE — full contents of production .env file
       - name: Write .env file
         run: |
           echo "${{ secrets.ENV_FILE }}" > .env
           echo "IMAGE_TAG=${{ needs.build-and-push-images.outputs.image_tag }}" >> .env
 
-      # secrets.EC2_HOST — EC2 public IP or DNS
-      # secrets.EC2_USER — SSH user (ec2-user or ubuntu)
-      # secrets.EC2_SSH_KEY — PEM private key (multiline secret)
-      - name: Copy compose files to EC2
+      - name: Copy files to EC2
         uses: appleboy/scp-action@v0.1.7
         with:
           host: ${{ secrets.EC2_HOST }}
           username: ${{ secrets.EC2_USER }}
           key: ${{ secrets.EC2_SSH_KEY }}
           source: "docker-compose.prod.yml,.env,infra/"
-          target: "/home/${{ secrets.EC2_USER }}/careround"
+          target: "/home/ubuntu/careround"
 
       - name: Deploy on EC2
         uses: appleboy/ssh-action@v1.0.3
@@ -128,15 +125,13 @@ jobs:
           username: ${{ secrets.EC2_USER }}
           key: ${{ secrets.EC2_SSH_KEY }}
           script: |
-            cd /home/${{ secrets.EC2_USER }}/careround
+            cd /home/ubuntu/careround
             docker compose -f docker-compose.prod.yml pull
             docker compose -f docker-compose.prod.yml up -d --remove-orphans
             docker system prune -f
-            echo "Waiting for core to be healthy..."
-            sleep 30
-            docker compose -f docker-compose.prod.yml ps
 
       - name: Smoke test
         run: |
-          curl --fail --retry 5 --retry-delay 10 \
-            https://${{ secrets.EC2_HOST }}/api/actuator/health || exit 1
+          sleep 60
+          curl --fail --retry 5 --retry-delay 15 \
+            http://${{ secrets.EC2_HOST }}:8080/actuator/health || exit 1

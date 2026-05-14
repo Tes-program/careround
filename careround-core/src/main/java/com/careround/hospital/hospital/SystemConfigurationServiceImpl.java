@@ -5,7 +5,7 @@ import com.careround.hospital.hospital.dto.SystemConfigResponse;
 import com.careround.hospital.hospital.dto.UpdateSystemConfigRequest;
 import com.careround.hospital.repository.SystemConfigurationRepository;
 import com.careround.shared.exception.ResourceNotFoundException;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.redis.core.RedisTemplate;
