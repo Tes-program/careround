@@ -5,7 +5,7 @@ import com.careround.hospital.hospital.dto.SystemConfigResponse;
 import com.careround.hospital.hospital.dto.UpdateSystemConfigRequest;
 import com.careround.hospital.repository.SystemConfigurationRepository;
 import com.careround.shared.exception.ResourceNotFoundException;
-import tools.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.redis.core.RedisTemplate;
@@ -33,7 +33,7 @@ public class SystemConfigurationServiceImpl implements SystemConfigurationServic
         if (cached != null) {
             try {
                 return objectMapper.readValue(cached, SystemConfigResponse.class);
-            } catch (RuntimeException e) {
+            } catch (Exception e) {
                 log.warn("Failed to deserialize cached config for hospital {}: {}", hospitalId, e.getMessage());
             }
         }
@@ -81,7 +81,7 @@ public class SystemConfigurationServiceImpl implements SystemConfigurationServic
     private void putCache(String key, SystemConfigResponse response) {
         try {
             redisTemplate.opsForValue().set(key, objectMapper.writeValueAsString(response), CACHE_TTL);
-        } catch (RuntimeException e) {
+        } catch (Exception e) {
             log.warn("Failed to cache system config [key={}]: {}", key, e.getMessage());
         }
     }

@@ -20,6 +20,8 @@ import com.careround.shared.exception.BusinessRuleException;
 import com.careround.shared.exception.ResourceNotFoundException;
 import com.careround.shared.security.HospitalContextHolder;
 import com.careround.shared.service.OutboxService;
+import io.micrometer.core.instrument.Counter;
+import io.micrometer.core.instrument.MeterRegistry;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.slf4j.MDC;
@@ -40,6 +42,7 @@ public class CareTaskServiceImpl implements CareTaskService {
     private final WardRepository wardRepository;
     private final CareTaskAssignmentService careTaskAssignmentService;
     private final OutboxService outboxService;
+    private final MeterRegistry meterRegistry;
 
     @Override
     @Transactional
@@ -78,6 +81,10 @@ public class CareTaskServiceImpl implements CareTaskService {
         task.setWorkloadConflictReason(assignment.workloadConflictReason());
 
         CareTask saved = careTaskRepository.save(task);
+        Counter.builder("careround.caretask.created")
+                .tag("hospitalId", saved.getHospitalId())
+                .register(meterRegistry)
+                .increment();
         publishWorkloadConflictIfNeeded(saved);
         log.info("action=createTask taskId={} patientId={} hospitalId={}", saved.getId(), request.patientId(), hospitalId);
         return toResponse(saved);
