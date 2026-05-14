@@ -4,6 +4,8 @@ import com.careround.shared.filter.CorrelationIdFilter;
 import com.careround.shared.filter.ApiRequestLoggingFilter;
 import com.careround.shared.filter.RateLimitingFilter;
 import com.careround.shared.security.JwtAuthFilter;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
 import org.springframework.boot.web.servlet.FilterRegistrationBean;
 import org.springframework.beans.factory.ObjectProvider;
@@ -17,6 +19,7 @@ import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
 import org.springframework.security.config.http.SessionCreationPolicy;
+import org.springframework.security.core.AuthenticationException;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
@@ -25,6 +28,8 @@ import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 
+import java.io.IOException;
+import java.time.Instant;
 import java.util.List;
 
 @Configuration
@@ -44,6 +49,7 @@ public class SecurityConfig {
                 .csrf(AbstractHttpConfigurer::disable)
                 .cors(cors -> cors.configurationSource(corsConfigurationSource()))
                 .sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+                .exceptionHandling(ex -> ex.authenticationEntryPoint(this::writeUnauthorizedResponse))
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers("/actuator/**").permitAll()
                         .requestMatchers(
@@ -74,6 +80,34 @@ public class SecurityConfig {
         apiRequestLoggingFilterProvider.ifAvailable(filter -> security.addFilterAfter(filter, JwtAuthFilter.class));
 
         return security.build();
+    }
+
+    private void writeUnauthorizedResponse(
+            HttpServletRequest request,
+            HttpServletResponse response,
+            AuthenticationException authException) throws IOException {
+        response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
+        response.setContentType("application/json");
+        response.setCharacterEncoding("UTF-8");
+        response.setHeader("WWW-Authenticate", "Bearer");
+
+        Object authError = request.getAttribute(JwtAuthFilter.AUTH_ERROR_ATTRIBUTE);
+        String message = authError instanceof String ? (String) authError : "Authentication required";
+        String correlationId = (String) request.getAttribute("correlationId");
+        String body = """
+                {"status":401,"error":"Unauthorized","message":"%s","path":"%s","correlationId":%s,"timestamp":"%s"}""".formatted(
+                escapeJson(message),
+                escapeJson(request.getRequestURI()),
+                correlationId == null ? "null" : "\"" + escapeJson(correlationId) + "\"",
+                Instant.now()
+        );
+        response.getWriter().write(body);
+    }
+
+    private String escapeJson(String value) {
+        return value == null ? "" : value
+                .replace("\\", "\\\\")
+                .replace("\"", "\\\"");
     }
 
     @Bean

@@ -354,6 +354,392 @@ INSERT INTO care_task (id, hospital_id, patient_id, ward_id, round_id, created_b
 ('task-uk-001', 'hosp-uk-stmary', 'pt-uk-001', 'ward-uk-acute', NULL, 'user-uk-cons-smith', 'user-uk-jd-patel', 'JUNIOR_DOCTOR', 'Pharmacy Liaison', 'POST_ROUND_JOB', 'Confirm take-home medications', 'Needed before discharge can be finalized.', 'URGENT', DATE_SUB(NOW(), INTERVAL 2 HOUR), DATE_ADD(NOW(), INTERVAL 45 MINUTE), 'PENDING', NULL, NULL, NULL, FALSE, NULL, DATE_SUB(NOW(), INTERVAL 2 HOUR), NOW()),
 ('task-uk-002', 'hosp-uk-stmary', 'pt-uk-002', 'ward-uk-acute', 'round-uk-evening-active', 'user-uk-cons-smith', 'user-uk-nurse-evans', 'NURSE', 'Oxygen Wean', 'NURSING_CARE_PLAN', 'Trial reduction in oxygen support', 'Review saturation after 30 minutes.', 'URGENT', DATE_SUB(NOW(), INTERVAL 40 MINUTE), DATE_ADD(NOW(), INTERVAL 1 HOUR), 'IN_PROGRESS', NULL, NULL, NULL, FALSE, NULL, DATE_SUB(NOW(), INTERVAL 40 MINUTE), NOW());
 
+-- Expanded LUTH demo coverage: 5 departments with at least 3 wards each,
+-- distinct patient cohorts, teams, nurse assignments, priorities, and task states.
+INSERT INTO department (id, hospital_id, name, head_of_department_id, created_at, updated_at) VALUES
+('dept-luth-surgery', 'hosp-ng-luth', 'General Surgery', 'user-luth-cons-okeke', NOW(), NOW()),
+('dept-luth-obgyn', 'hosp-ng-luth', 'Obstetrics and Gynaecology', 'user-luth-cons-adesina', NOW(), NOW()),
+('dept-luth-paeds', 'hosp-ng-luth', 'Paediatrics', 'user-luth-cons-olaniyi', NOW(), NOW());
+
+INSERT INTO users (id, hospital_id, first_name, last_name, email, password_hash, role, department_id, is_active, created_at, updated_at) VALUES
+('user-luth-cons-okeke', 'hosp-ng-luth', 'Chinedu', 'Okeke', 'chinedu.okeke@luth.example.ng', @password_hash, 'CONSULTANT', 'dept-luth-surgery', TRUE, NOW(), NOW()),
+('user-luth-reg-adeoye', 'hosp-ng-luth', 'Seyi', 'Adeoye', 'seyi.adeoye@luth.example.ng', @password_hash, 'REGISTRAR', 'dept-luth-surgery', TRUE, NOW(), NOW()),
+('user-luth-jd-tari', 'hosp-ng-luth', 'Tari', 'Douglas', 'tari.douglas@luth.example.ng', @password_hash, 'JUNIOR_DOCTOR', 'dept-luth-surgery', TRUE, NOW(), NOW()),
+('user-luth-nurse-bisi', 'hosp-ng-luth', 'Bisi', 'Adebayo', 'bisi.adebayo@luth.example.ng', @password_hash, 'NURSE', 'dept-luth-surgery', TRUE, NOW(), NOW()),
+('user-luth-nurse-esther', 'hosp-ng-luth', 'Esther', 'Etim', 'esther.etim@luth.example.ng', @password_hash, 'NURSE', 'dept-luth-surgery', TRUE, NOW(), NOW()),
+('user-luth-ws-uche', 'hosp-ng-luth', 'Uche', 'Nnamani', 'uche.nnamani@luth.example.ng', @password_hash, 'WARD_SUPERVISOR', 'dept-luth-surgery', TRUE, NOW(), NOW()),
+('user-luth-cons-adesina', 'hosp-ng-luth', 'Folake', 'Adesina', 'folake.adesina@luth.example.ng', @password_hash, 'CONSULTANT', 'dept-luth-obgyn', TRUE, NOW(), NOW()),
+('user-luth-reg-ene', 'hosp-ng-luth', 'Ene', 'Ojo', 'ene.ojo@luth.example.ng', @password_hash, 'REGISTRAR', 'dept-luth-obgyn', TRUE, NOW(), NOW()),
+('user-luth-jd-bolanle', 'hosp-ng-luth', 'Bolanle', 'Akinola', 'bolanle.akinola@luth.example.ng', @password_hash, 'JUNIOR_DOCTOR', 'dept-luth-obgyn', TRUE, NOW(), NOW()),
+('user-luth-nurse-zainab', 'hosp-ng-luth', 'Zainab', 'Adeleke', 'zainab.adeleke@luth.example.ng', @password_hash, 'NURSE', 'dept-luth-obgyn', TRUE, NOW(), NOW()),
+('user-luth-nurse-rita', 'hosp-ng-luth', 'Rita', 'Omoregie', 'rita.omoregie@luth.example.ng', @password_hash, 'NURSE', 'dept-luth-obgyn', TRUE, NOW(), NOW()),
+('user-luth-ws-yetunde', 'hosp-ng-luth', 'Yetunde', 'Salami', 'yetunde.salami@luth.example.ng', @password_hash, 'WARD_SUPERVISOR', 'dept-luth-obgyn', TRUE, NOW(), NOW()),
+('user-luth-cons-olaniyi', 'hosp-ng-luth', 'Kayode', 'Olaniyi', 'kayode.olaniyi@luth.example.ng', @password_hash, 'CONSULTANT', 'dept-luth-paeds', TRUE, NOW(), NOW()),
+('user-luth-reg-chiagozie', 'hosp-ng-luth', 'Chiagozie', 'Nwankwo', 'chiagozie.nwankwo@luth.example.ng', @password_hash, 'REGISTRAR', 'dept-luth-paeds', TRUE, NOW(), NOW()),
+('user-luth-jd-mariam', 'hosp-ng-luth', 'Mariam', 'Bature', 'mariam.bature@luth.example.ng', @password_hash, 'JUNIOR_DOCTOR', 'dept-luth-paeds', TRUE, NOW(), NOW()),
+('user-luth-nurse-ngozi', 'hosp-ng-luth', 'Ngozi', 'Onyeka', 'ngozi.onyeka@luth.example.ng', @password_hash, 'NURSE', 'dept-luth-paeds', TRUE, NOW(), NOW()),
+('user-luth-nurse-janet', 'hosp-ng-luth', 'Janet', 'Aminu', 'janet.aminu@luth.example.ng', @password_hash, 'NURSE', 'dept-luth-paeds', TRUE, NOW(), NOW()),
+('user-luth-ws-seun', 'hosp-ng-luth', 'Seun', 'Lawanson', 'seun.lawanson@luth.example.ng', @password_hash, 'WARD_SUPERVISOR', 'dept-luth-paeds', TRUE, NOW(), NOW());
+
+INSERT INTO ward (id, hospital_id, name, specialty, total_beds, supervisor_id, created_at, updated_at) VALUES
+('ward-luth-med-isolation', 'hosp-ng-luth', 'Medical Isolation Bay', 'Internal Medicine', 12, 'user-luth-ws-femi', NOW(), NOW()),
+('ward-luth-ccu', 'hosp-ng-luth', 'Coronary Care Unit', 'Cardiology', 12, 'user-luth-ws-femi', NOW(), NOW()),
+('ward-luth-cath-recovery', 'hosp-ng-luth', 'Cath Lab Recovery Ward', 'Cardiology', 10, 'user-luth-ws-femi', NOW(), NOW()),
+('ward-luth-surg-male', 'hosp-ng-luth', 'Male Surgical Ward', 'General Surgery', 32, 'user-luth-ws-uche', NOW(), NOW()),
+('ward-luth-surg-female', 'hosp-ng-luth', 'Female Surgical Ward', 'General Surgery', 30, 'user-luth-ws-uche', NOW(), NOW()),
+('ward-luth-theatre-recovery', 'hosp-ng-luth', 'Theatre Recovery Unit', 'General Surgery', 14, 'user-luth-ws-uche', NOW(), NOW()),
+('ward-luth-antenatal', 'hosp-ng-luth', 'Antenatal Ward', 'Obstetrics and Gynaecology', 28, 'user-luth-ws-yetunde', NOW(), NOW()),
+('ward-luth-postnatal', 'hosp-ng-luth', 'Postnatal Ward', 'Obstetrics and Gynaecology', 26, 'user-luth-ws-yetunde', NOW(), NOW()),
+('ward-luth-gynae', 'hosp-ng-luth', 'Gynaecology Ward', 'Obstetrics and Gynaecology', 24, 'user-luth-ws-yetunde', NOW(), NOW()),
+('ward-luth-paeds-med', 'hosp-ng-luth', 'Paediatric Medical Ward', 'Paediatrics', 30, 'user-luth-ws-seun', NOW(), NOW()),
+('ward-luth-paeds-emergency', 'hosp-ng-luth', 'Paediatric Emergency Bay', 'Paediatrics', 16, 'user-luth-ws-seun', NOW(), NOW()),
+('ward-luth-nicu', 'hosp-ng-luth', 'Neonatal Intensive Care Unit', 'Paediatrics', 18, 'user-luth-ws-seun', NOW(), NOW());
+
+INSERT INTO medical_team (id, hospital_id, name, consultant_id, department_id, created_at, updated_at) VALUES
+('team-luth-med-b', 'hosp-ng-luth', 'LUTH Medicine Team B', 'user-luth-cons-ade', 'dept-luth-medicine', NOW(), NOW()),
+('team-luth-cardio-acute', 'hosp-ng-luth', 'LUTH Acute Cardiology Team', 'user-luth-cons-bello', 'dept-luth-cardiology', NOW(), NOW()),
+('team-luth-surgery-a', 'hosp-ng-luth', 'LUTH Surgery Team A', 'user-luth-cons-okeke', 'dept-luth-surgery', NOW(), NOW()),
+('team-luth-obgyn-a', 'hosp-ng-luth', 'LUTH OBGYN Team A', 'user-luth-cons-adesina', 'dept-luth-obgyn', NOW(), NOW()),
+('team-luth-paeds-a', 'hosp-ng-luth', 'LUTH Paediatrics Team A', 'user-luth-cons-olaniyi', 'dept-luth-paeds', NOW(), NOW());
+
+INSERT INTO medical_team_ward (medical_team_id, ward_id, assigned_at) VALUES
+('team-luth-med-b', 'ward-luth-med-isolation', NOW()),
+('team-luth-cardio-acute', 'ward-luth-ccu', NOW()),
+('team-luth-cardio-acute', 'ward-luth-cath-recovery', NOW()),
+('team-luth-surgery-a', 'ward-luth-surg-male', NOW()),
+('team-luth-surgery-a', 'ward-luth-surg-female', NOW()),
+('team-luth-surgery-a', 'ward-luth-theatre-recovery', NOW()),
+('team-luth-obgyn-a', 'ward-luth-antenatal', NOW()),
+('team-luth-obgyn-a', 'ward-luth-postnatal', NOW()),
+('team-luth-obgyn-a', 'ward-luth-gynae', NOW()),
+('team-luth-paeds-a', 'ward-luth-paeds-med', NOW()),
+('team-luth-paeds-a', 'ward-luth-paeds-emergency', NOW()),
+('team-luth-paeds-a', 'ward-luth-nicu', NOW());
+
+INSERT INTO medical_team_member (medical_team_id, user_id, joined_at) VALUES
+('team-luth-med-b', 'user-luth-cons-ade', NOW()),
+('team-luth-med-b', 'user-luth-reg-nwosu', NOW()),
+('team-luth-med-b', 'user-luth-nurse-kemi', NOW()),
+('team-luth-cardio-acute', 'user-luth-cons-bello', NOW()),
+('team-luth-cardio-acute', 'user-luth-nurse-grace', NOW()),
+('team-luth-surgery-a', 'user-luth-cons-okeke', NOW()),
+('team-luth-surgery-a', 'user-luth-reg-adeoye', NOW()),
+('team-luth-surgery-a', 'user-luth-jd-tari', NOW()),
+('team-luth-surgery-a', 'user-luth-nurse-bisi', NOW()),
+('team-luth-surgery-a', 'user-luth-nurse-esther', NOW()),
+('team-luth-obgyn-a', 'user-luth-cons-adesina', NOW()),
+('team-luth-obgyn-a', 'user-luth-reg-ene', NOW()),
+('team-luth-obgyn-a', 'user-luth-jd-bolanle', NOW()),
+('team-luth-obgyn-a', 'user-luth-nurse-zainab', NOW()),
+('team-luth-obgyn-a', 'user-luth-nurse-rita', NOW()),
+('team-luth-paeds-a', 'user-luth-cons-olaniyi', NOW()),
+('team-luth-paeds-a', 'user-luth-reg-chiagozie', NOW()),
+('team-luth-paeds-a', 'user-luth-jd-mariam', NOW()),
+('team-luth-paeds-a', 'user-luth-nurse-ngozi', NOW()),
+('team-luth-paeds-a', 'user-luth-nurse-janet', NOW());
+
+INSERT INTO on_call_rotation (id, hospital_id, department_id, ward_id, doctor_id, role, start_time, end_time, created_at, updated_at) VALUES
+('oncall-luth-cardio-acute-cons', 'hosp-ng-luth', 'dept-luth-cardiology', 'ward-luth-ccu', 'user-luth-cons-bello', 'CONSULTANT_ON_CALL', DATE_SUB(NOW(), INTERVAL 2 HOUR), DATE_ADD(NOW(), INTERVAL 22 HOUR), NOW(), NOW()),
+('oncall-luth-surgery-cons', 'hosp-ng-luth', 'dept-luth-surgery', NULL, 'user-luth-cons-okeke', 'CONSULTANT_ON_CALL', DATE_SUB(NOW(), INTERVAL 4 HOUR), DATE_ADD(NOW(), INTERVAL 20 HOUR), NOW(), NOW()),
+('oncall-luth-surgery-reg', 'hosp-ng-luth', 'dept-luth-surgery', NULL, 'user-luth-reg-adeoye', 'REGISTRAR_ON_CALL', DATE_SUB(NOW(), INTERVAL 4 HOUR), DATE_ADD(NOW(), INTERVAL 20 HOUR), NOW(), NOW()),
+('oncall-luth-obgyn-cons', 'hosp-ng-luth', 'dept-luth-obgyn', NULL, 'user-luth-cons-adesina', 'CONSULTANT_ON_CALL', DATE_SUB(NOW(), INTERVAL 3 HOUR), DATE_ADD(NOW(), INTERVAL 21 HOUR), NOW(), NOW()),
+('oncall-luth-obgyn-reg', 'hosp-ng-luth', 'dept-luth-obgyn', 'ward-luth-antenatal', 'user-luth-reg-ene', 'REGISTRAR_ON_CALL', DATE_SUB(NOW(), INTERVAL 3 HOUR), DATE_ADD(NOW(), INTERVAL 21 HOUR), NOW(), NOW()),
+('oncall-luth-paeds-cons', 'hosp-ng-luth', 'dept-luth-paeds', NULL, 'user-luth-cons-olaniyi', 'CONSULTANT_ON_CALL', DATE_SUB(NOW(), INTERVAL 1 HOUR), DATE_ADD(NOW(), INTERVAL 23 HOUR), NOW(), NOW()),
+('oncall-luth-paeds-reg', 'hosp-ng-luth', 'dept-luth-paeds', 'ward-luth-paeds-emergency', 'user-luth-reg-chiagozie', 'REGISTRAR_ON_CALL', DATE_SUB(NOW(), INTERVAL 1 HOUR), DATE_ADD(NOW(), INTERVAL 23 HOUR), NOW(), NOW());
+
+INSERT INTO shift (id, ward_id, shift_schedule_id, type, start_time, end_time, lead_doctor_id, nurse_in_charge_id, status, assigned_at, created_at, updated_at) VALUES
+('shift-luth-med-isolation-day', 'ward-luth-med-isolation', 'sched-luth-day-all', 'DAY', TIMESTAMP(CURDATE(), '07:00:00'), TIMESTAMP(CURDATE(), '19:00:00'), 'user-luth-reg-nwosu', 'user-luth-nurse-kemi', 'ACTIVE', DATE_SUB(NOW(), INTERVAL 2 HOUR), NOW(), NOW()),
+('shift-luth-ccu-day', 'ward-luth-ccu', 'sched-luth-day-all', 'DAY', TIMESTAMP(CURDATE(), '07:00:00'), TIMESTAMP(CURDATE(), '19:00:00'), 'user-luth-cons-bello', 'user-luth-nurse-grace', 'ACTIVE', DATE_SUB(NOW(), INTERVAL 2 HOUR), NOW(), NOW()),
+('shift-luth-cath-recovery-night', 'ward-luth-cath-recovery', 'sched-luth-night-all', 'NIGHT', TIMESTAMP(CURDATE(), '19:00:00'), TIMESTAMP(DATE_ADD(CURDATE(), INTERVAL 1 DAY), '07:00:00'), NULL, NULL, 'PENDING_ASSIGNMENT', NULL, NOW(), NOW()),
+('shift-luth-surg-male-day', 'ward-luth-surg-male', 'sched-luth-day-all', 'DAY', TIMESTAMP(CURDATE(), '07:00:00'), TIMESTAMP(CURDATE(), '19:00:00'), 'user-luth-cons-okeke', 'user-luth-nurse-bisi', 'ACTIVE', DATE_SUB(NOW(), INTERVAL 90 MINUTE), NOW(), NOW()),
+('shift-luth-surg-male-night', 'ward-luth-surg-male', 'sched-luth-night-all', 'NIGHT', TIMESTAMP(CURDATE(), '19:00:00'), TIMESTAMP(DATE_ADD(CURDATE(), INTERVAL 1 DAY), '07:00:00'), NULL, NULL, 'PENDING_ASSIGNMENT', NULL, NOW(), NOW()),
+('shift-luth-surg-female-day', 'ward-luth-surg-female', 'sched-luth-day-all', 'DAY', TIMESTAMP(CURDATE(), '07:00:00'), TIMESTAMP(CURDATE(), '19:00:00'), 'user-luth-reg-adeoye', 'user-luth-nurse-esther', 'ACTIVE', DATE_SUB(NOW(), INTERVAL 90 MINUTE), NOW(), NOW()),
+('shift-luth-theatre-recovery-night', 'ward-luth-theatre-recovery', 'sched-luth-night-all', 'NIGHT', TIMESTAMP(CURDATE(), '19:00:00'), TIMESTAMP(DATE_ADD(CURDATE(), INTERVAL 1 DAY), '07:00:00'), NULL, NULL, 'PENDING_ASSIGNMENT', NULL, NOW(), NOW()),
+('shift-luth-antenatal-day', 'ward-luth-antenatal', 'sched-luth-day-all', 'DAY', TIMESTAMP(CURDATE(), '07:00:00'), TIMESTAMP(CURDATE(), '19:00:00'), 'user-luth-cons-adesina', 'user-luth-nurse-zainab', 'ACTIVE', DATE_SUB(NOW(), INTERVAL 80 MINUTE), NOW(), NOW()),
+('shift-luth-antenatal-night', 'ward-luth-antenatal', 'sched-luth-night-all', 'NIGHT', TIMESTAMP(CURDATE(), '19:00:00'), TIMESTAMP(DATE_ADD(CURDATE(), INTERVAL 1 DAY), '07:00:00'), NULL, NULL, 'PENDING_ASSIGNMENT', NULL, NOW(), NOW()),
+('shift-luth-postnatal-day', 'ward-luth-postnatal', 'sched-luth-day-all', 'DAY', TIMESTAMP(CURDATE(), '07:00:00'), TIMESTAMP(CURDATE(), '19:00:00'), 'user-luth-reg-ene', 'user-luth-nurse-rita', 'ACTIVE', DATE_SUB(NOW(), INTERVAL 80 MINUTE), NOW(), NOW()),
+('shift-luth-gynae-night', 'ward-luth-gynae', 'sched-luth-night-all', 'NIGHT', TIMESTAMP(CURDATE(), '19:00:00'), TIMESTAMP(DATE_ADD(CURDATE(), INTERVAL 1 DAY), '07:00:00'), NULL, NULL, 'PENDING_ASSIGNMENT', NULL, NOW(), NOW()),
+('shift-luth-paeds-med-day', 'ward-luth-paeds-med', 'sched-luth-day-all', 'DAY', TIMESTAMP(CURDATE(), '07:00:00'), TIMESTAMP(CURDATE(), '19:00:00'), 'user-luth-cons-olaniyi', 'user-luth-nurse-ngozi', 'ACTIVE', DATE_SUB(NOW(), INTERVAL 75 MINUTE), NOW(), NOW()),
+('shift-luth-paeds-emergency-day', 'ward-luth-paeds-emergency', 'sched-luth-day-all', 'DAY', TIMESTAMP(CURDATE(), '07:00:00'), TIMESTAMP(CURDATE(), '19:00:00'), 'user-luth-reg-chiagozie', 'user-luth-nurse-janet', 'ACTIVE', DATE_SUB(NOW(), INTERVAL 75 MINUTE), NOW(), NOW()),
+('shift-luth-paeds-emergency-night', 'ward-luth-paeds-emergency', 'sched-luth-night-all', 'NIGHT', TIMESTAMP(CURDATE(), '19:00:00'), TIMESTAMP(DATE_ADD(CURDATE(), INTERVAL 1 DAY), '07:00:00'), NULL, NULL, 'PENDING_ASSIGNMENT', NULL, NOW(), NOW()),
+('shift-luth-nicu-night', 'ward-luth-nicu', 'sched-luth-night-all', 'NIGHT', TIMESTAMP(CURDATE(), '19:00:00'), TIMESTAMP(DATE_ADD(CURDATE(), INTERVAL 1 DAY), '07:00:00'), NULL, NULL, 'PENDING_ASSIGNMENT', NULL, NOW(), NOW());
+
+INSERT INTO patient (id, hospital_id, ward_id, bed_number, medical_team_id, admitting_consultant_id, first_name, last_name, date_of_birth, gender, hospital_number, admission_date, admission_type, primary_diagnosis, specialty_required, acuity_level, news_score, is_discharge_ready, estimated_discharge_date, status, created_at, updated_at) VALUES
+('pt-luth-006', 'hosp-ng-luth', 'ward-luth-med-isolation', 'I02', 'team-luth-med-b', 'user-luth-cons-ade', 'Abiola', 'Soyinka', '1984-04-09', 'F', 'LUTH-0006', DATE_SUB(NOW(), INTERVAL 12 HOUR), 'EMERGENCY', 'Pulmonary tuberculosis rule-out with fever and cough', 'Internal Medicine', 'MEDIUM', 4, FALSE, NULL, 'ADMITTED', NOW(), NOW()),
+('pt-luth-007', 'hosp-ng-luth', 'ward-luth-ccu', 'CC04', 'team-luth-cardio-acute', 'user-luth-cons-bello', 'Musa', 'Salisu', '1961-09-16', 'M', 'LUTH-0007', DATE_SUB(NOW(), INTERVAL 8 HOUR), 'EMERGENCY', 'Acute coronary syndrome awaiting serial troponin', 'Cardiology', 'HIGH', 8, FALSE, NULL, 'DETERIORATING', NOW(), NOW()),
+('pt-luth-008', 'hosp-ng-luth', 'ward-luth-cath-recovery', 'CR02', 'team-luth-cardio-acute', 'user-luth-cons-bello', 'Ijeoma', 'Onu', '1970-06-27', 'F', 'LUTH-0008', DATE_SUB(NOW(), INTERVAL 1 DAY), 'ELECTIVE', 'Post angiography radial access monitoring', 'Cardiology', 'LOW', 1, TRUE, DATE_ADD(CURDATE(), INTERVAL 1 DAY), 'DISCHARGE_READY', NOW(), NOW()),
+('pt-luth-009', 'hosp-ng-luth', 'ward-luth-surg-male', 'SM06', 'team-luth-surgery-a', 'user-luth-cons-okeke', 'Peter', 'Danjuma', '1975-02-05', 'M', 'LUTH-0009', DATE_SUB(NOW(), INTERVAL 2 DAY), 'EMERGENCY', 'Perforated appendicitis after emergency laparotomy', 'General Surgery', 'HIGH', 6, FALSE, NULL, 'ADMITTED', NOW(), NOW()),
+('pt-luth-010', 'hosp-ng-luth', 'ward-luth-surg-female', 'SF09', 'team-luth-surgery-a', 'user-luth-cons-okeke', 'Rukayat', 'Aremu', '1992-12-01', 'F', 'LUTH-0010', DATE_SUB(NOW(), INTERVAL 3 DAY), 'TRANSFER', 'Post-operative wound infection after caesarean section', 'General Surgery', 'MEDIUM', 5, FALSE, NULL, 'STABLE', NOW(), NOW()),
+('pt-luth-011', 'hosp-ng-luth', 'ward-luth-theatre-recovery', 'TR03', 'team-luth-surgery-a', 'user-luth-cons-okeke', 'Samuel', 'Ibitoye', '1966-08-11', 'M', 'LUTH-0011', DATE_SUB(NOW(), INTERVAL 4 HOUR), 'ELECTIVE', 'Immediate recovery after hernia repair', 'General Surgery', 'LOW', 2, FALSE, NULL, 'ADMITTED', NOW(), NOW()),
+('pt-luth-012', 'hosp-ng-luth', 'ward-luth-antenatal', 'AN14', 'team-luth-obgyn-a', 'user-luth-cons-adesina', 'Hadiza', 'Bello', '1995-03-19', 'F', 'LUTH-0012', DATE_SUB(NOW(), INTERVAL 16 HOUR), 'EMERGENCY', 'Severe pre-eclampsia at 34 weeks gestation', 'Obstetrics and Gynaecology', 'HIGH', 7, FALSE, NULL, 'DETERIORATING', NOW(), NOW()),
+('pt-luth-013', 'hosp-ng-luth', 'ward-luth-postnatal', 'PN07', 'team-luth-obgyn-a', 'user-luth-cons-adesina', 'Amaka', 'Nwabueze', '1990-10-03', 'F', 'LUTH-0013', DATE_SUB(NOW(), INTERVAL 2 DAY), 'ELECTIVE', 'Postnatal observation after uncomplicated delivery', 'Obstetrics and Gynaecology', 'LOW', 1, TRUE, DATE_ADD(CURDATE(), INTERVAL 1 DAY), 'DISCHARGE_READY', NOW(), NOW()),
+('pt-luth-014', 'hosp-ng-luth', 'ward-luth-gynae', 'GY05', 'team-luth-obgyn-a', 'user-luth-cons-adesina', 'Blessing', 'Udoh', '1987-07-22', 'F', 'LUTH-0014', DATE_SUB(NOW(), INTERVAL 1 DAY), 'TRANSFER', 'Symptomatic fibroid with severe anaemia', 'Obstetrics and Gynaecology', 'MEDIUM', 4, FALSE, NULL, 'ADMITTED', NOW(), NOW()),
+('pt-luth-015', 'hosp-ng-luth', 'ward-luth-paeds-med', 'PM11', 'team-luth-paeds-a', 'user-luth-cons-olaniyi', 'David', 'Akinyele', '2017-01-12', 'M', 'LUTH-0015', DATE_SUB(NOW(), INTERVAL 18 HOUR), 'EMERGENCY', 'Severe malaria with anaemia', 'Paediatrics', 'MEDIUM', 5, FALSE, NULL, 'ADMITTED', NOW(), NOW()),
+('pt-luth-016', 'hosp-ng-luth', 'ward-luth-paeds-emergency', 'PE03', 'team-luth-paeds-a', 'user-luth-cons-olaniyi', 'Amina', 'Kabir', '2021-05-30', 'F', 'LUTH-0016', DATE_SUB(NOW(), INTERVAL 5 HOUR), 'EMERGENCY', 'Acute asthma exacerbation requiring nebulisation', 'Paediatrics', 'HIGH', 8, FALSE, NULL, 'DETERIORATING', NOW(), NOW()),
+('pt-luth-017', 'hosp-ng-luth', 'ward-luth-nicu', 'N06', 'team-luth-paeds-a', 'user-luth-cons-olaniyi', 'Baby', 'Ekanem', '2026-05-01', 'F', 'LUTH-0017', DATE_SUB(NOW(), INTERVAL 10 DAY), 'TRANSFER', 'Preterm neonate feeding and temperature support', 'Paediatrics', 'CRITICAL', 10, FALSE, NULL, 'ADMITTED', NOW(), NOW());
+
+INSERT INTO patient_vitals (id, patient_id, recorded_by_id, heart_rate, respiratory_rate, oxygen_saturation, systolic_bp, temperature, consciousness_level, news_score, recorded_at, created_at, updated_at) VALUES
+('vitals-luth-006', 'pt-luth-006', 'user-luth-nurse-kemi', 98, 22, 96.00, 124, 38.1, 'ALERT', 4, DATE_SUB(NOW(), INTERVAL 35 MINUTE), NOW(), NOW()),
+('vitals-luth-007', 'pt-luth-007', 'user-luth-nurse-grace', 118, 27, 90.00, 102, 37.2, 'ALERT', 8, DATE_SUB(NOW(), INTERVAL 18 MINUTE), NOW(), NOW()),
+('vitals-luth-008', 'pt-luth-008', 'user-luth-nurse-grace', 78, 16, 98.00, 126, 36.6, 'ALERT', 1, DATE_SUB(NOW(), INTERVAL 50 MINUTE), NOW(), NOW()),
+('vitals-luth-009', 'pt-luth-009', 'user-luth-nurse-bisi', 112, 24, 95.00, 110, 38.4, 'ALERT', 6, DATE_SUB(NOW(), INTERVAL 30 MINUTE), NOW(), NOW()),
+('vitals-luth-010', 'pt-luth-010', 'user-luth-nurse-esther', 94, 20, 97.00, 132, 37.6, 'ALERT', 3, DATE_SUB(NOW(), INTERVAL 45 MINUTE), NOW(), NOW()),
+('vitals-luth-011', 'pt-luth-011', 'user-luth-nurse-bisi', 82, 18, 99.00, 128, 36.5, 'ALERT', 2, DATE_SUB(NOW(), INTERVAL 20 MINUTE), NOW(), NOW()),
+('vitals-luth-012', 'pt-luth-012', 'user-luth-nurse-zainab', 110, 24, 94.00, 178, 37.8, 'ALERT', 7, DATE_SUB(NOW(), INTERVAL 22 MINUTE), NOW(), NOW()),
+('vitals-luth-013', 'pt-luth-013', 'user-luth-nurse-rita', 76, 15, 99.00, 118, 36.7, 'ALERT', 1, DATE_SUB(NOW(), INTERVAL 65 MINUTE), NOW(), NOW()),
+('vitals-luth-014', 'pt-luth-014', 'user-luth-nurse-zainab', 96, 19, 97.00, 116, 37.1, 'ALERT', 4, DATE_SUB(NOW(), INTERVAL 48 MINUTE), NOW(), NOW()),
+('vitals-luth-015', 'pt-luth-015', 'user-luth-nurse-ngozi', 122, 26, 95.00, 98, 38.6, 'ALERT', 5, DATE_SUB(NOW(), INTERVAL 28 MINUTE), NOW(), NOW()),
+('vitals-luth-016', 'pt-luth-016', 'user-luth-nurse-janet', 136, 34, 89.00, 96, 37.9, 'VOICE', 9, DATE_SUB(NOW(), INTERVAL 14 MINUTE), NOW(), NOW()),
+('vitals-luth-017', 'pt-luth-017', 'user-luth-nurse-janet', 158, 46, 91.00, 70, 35.8, 'PAIN', 10, DATE_SUB(NOW(), INTERVAL 12 MINUTE), NOW(), NOW());
+
+INSERT INTO next_of_kin (id, patient_id, name, relationship, phone, email, preferred_contact_method, is_emergency_contact, notification_consent, created_at, updated_at) VALUES
+('nok-luth-006', 'pt-luth-006', 'Kunbi Soyinka', 'Spouse', '+2348021111007', 'kunbi.soyinka@example.ng', 'BOTH', TRUE, TRUE, NOW(), NOW()),
+('nok-luth-007', 'pt-luth-007', 'Aisha Salisu', 'Daughter', '+2348021111008', 'aisha.salisu@example.ng', 'SMS', TRUE, TRUE, NOW(), NOW()),
+('nok-luth-008', 'pt-luth-008', 'Chika Onu', 'Son', '+2348021111009', 'chika.onu@example.ng', 'EMAIL', FALSE, FALSE, NOW(), NOW()),
+('nok-luth-009', 'pt-luth-009', 'Grace Danjuma', 'Wife', '+2348021111010', 'grace.danjuma@example.ng', 'BOTH', TRUE, TRUE, NOW(), NOW()),
+('nok-luth-010', 'pt-luth-010', 'Sola Aremu', 'Brother', '+2348021111011', NULL, 'SMS', TRUE, TRUE, NOW(), NOW()),
+('nok-luth-011', 'pt-luth-011', 'Bimpe Ibitoye', 'Daughter', '+2348021111012', 'bimpe.ibitoye@example.ng', 'EMAIL', FALSE, TRUE, NOW(), NOW()),
+('nok-luth-012', 'pt-luth-012', 'Ibrahim Bello', 'Husband', '+2348021111013', 'ibrahim.bello@example.ng', 'BOTH', TRUE, TRUE, NOW(), NOW()),
+('nok-luth-013', 'pt-luth-013', 'Nnamdi Nwabueze', 'Husband', '+2348021111014', 'nnamdi.nwabueze@example.ng', 'EMAIL', TRUE, TRUE, NOW(), NOW()),
+('nok-luth-014', 'pt-luth-014', 'Mfon Udoh', 'Sister', '+2348021111015', NULL, 'SMS', FALSE, FALSE, NOW(), NOW()),
+('nok-luth-015', 'pt-luth-015', 'Toyin Akinyele', 'Mother', '+2348021111016', 'toyin.akinyele@example.ng', 'BOTH', TRUE, TRUE, NOW(), NOW()),
+('nok-luth-016', 'pt-luth-016', 'Fatima Kabir', 'Mother', '+2348021111017', 'fatima.kabir@example.ng', 'SMS', TRUE, TRUE, NOW(), NOW()),
+('nok-luth-017', 'pt-luth-017', 'Mercy Ekanem', 'Mother', '+2348021111018', 'mercy.ekanem@example.ng', 'BOTH', TRUE, TRUE, NOW(), NOW());
+
+INSERT INTO escalation (id, hospital_id, patient_id, triggered_by_id, trigger_type, severity, assigned_to_id, status, notes, resolved_at, created_at, updated_at) VALUES
+('esc-luth-cardio-red-002', 'hosp-ng-luth', 'pt-luth-007', 'user-luth-nurse-grace', 'HIGH_NEWS_SCORE', 'RED', 'user-luth-cons-bello', 'OPEN', 'Chest pain patient with rising NEWS and borderline blood pressure.', NULL, DATE_SUB(NOW(), INTERVAL 15 MINUTE), NOW()),
+('esc-luth-obgyn-red-001', 'hosp-ng-luth', 'pt-luth-012', 'user-luth-nurse-zainab', 'DETERIORATION', 'RED', 'user-luth-cons-adesina', 'ACKNOWLEDGED', 'Severe pre-eclampsia with persistent severe range blood pressure.', NULL, DATE_SUB(NOW(), INTERVAL 20 MINUTE), NOW()),
+('esc-luth-paeds-red-001', 'hosp-ng-luth', 'pt-luth-016', 'user-luth-nurse-janet', 'NURSE_CONCERN', 'RED', 'user-luth-reg-chiagozie', 'OPEN', 'Child remains wheezy with low saturation after initial nebulisation.', NULL, DATE_SUB(NOW(), INTERVAL 10 MINUTE), NOW()),
+('esc-luth-surg-amber-001', 'hosp-ng-luth', 'pt-luth-009', 'user-luth-nurse-bisi', 'HIGH_NEWS_SCORE', 'AMBER', 'user-luth-reg-adeoye', 'RESOLVED', 'Post-operative fever reviewed; antibiotics adjusted.', DATE_SUB(NOW(), INTERVAL 35 MINUTE), DATE_SUB(NOW(), INTERVAL 90 MINUTE), NOW());
+
+INSERT INTO handover (id, ward_id, outgoing_shift_id, incoming_shift_id, conducted_by_id, status, general_notes, completed_at, created_at, updated_at) VALUES
+('handover-luth-surg-male-progress', 'ward-luth-surg-male', 'shift-luth-surg-male-day', 'shift-luth-surg-male-night', 'user-luth-reg-adeoye', 'IN_PROGRESS', 'Surgical admissions need wound checks and post-operative antibiotic review.', NULL, NOW(), NOW()),
+('handover-luth-obgyn-complete', 'ward-luth-antenatal', 'shift-luth-antenatal-day', 'shift-luth-antenatal-night', 'user-luth-reg-ene', 'COMPLETED', 'High-risk antenatal patients escalated before night cover.', DATE_SUB(NOW(), INTERVAL 30 MINUTE), DATE_SUB(NOW(), INTERVAL 90 MINUTE), NOW()),
+('handover-luth-paeds-pending', 'ward-luth-paeds-emergency', 'shift-luth-paeds-emergency-day', 'shift-luth-paeds-emergency-night', 'user-luth-reg-chiagozie', 'PENDING', 'Prepare asthma and neonatal transfer updates for evening team.', NULL, NOW(), NOW());
+
+INSERT INTO patient_handover_note (id, handover_id, patient_id, status_summary, outstanding_task_ids, urgency_flag, added_by_id, created_at, updated_at) VALUES
+('hnote-luth-surg-001', 'handover-luth-surg-male-progress', 'pt-luth-009', 'Post-operative fever improved after fluids; wound review still pending.', 'task-luth-009,task-luth-010', TRUE, 'user-luth-jd-tari', NOW(), NOW()),
+('hnote-luth-obgyn-001', 'handover-luth-obgyn-complete', 'pt-luth-012', 'BP remains high; magnesium sulphate checks and fetal monitoring continue.', 'task-luth-014,task-luth-015', TRUE, 'user-luth-reg-ene', DATE_SUB(NOW(), INTERVAL 45 MINUTE), NOW()),
+('hnote-luth-paeds-001', 'handover-luth-paeds-pending', 'pt-luth-016', 'Repeat bronchodilator response and consider HDU transfer if saturation falls.', 'task-luth-018,task-luth-019', TRUE, 'user-luth-jd-mariam', NOW(), NOW());
+
+INSERT INTO round (id, hospital_id, ward_id, medical_team_id, shift_id, round_type, lead_doctor_id, status, scheduled_time, started_at, completed_at, team_members, created_at, updated_at) VALUES
+('round-luth-isolation-scheduled', 'hosp-ng-luth', 'ward-luth-med-isolation', 'team-luth-med-b', 'shift-luth-med-isolation-day', 'BOARD', 'user-luth-reg-nwosu', 'SCHEDULED', DATE_ADD(NOW(), INTERVAL 90 MINUTE), NULL, NULL, 'user-luth-reg-nwosu,user-luth-jd-ibrahim,user-luth-nurse-kemi', NOW(), NOW()),
+('round-luth-ccu-active', 'hosp-ng-luth', 'ward-luth-ccu', 'team-luth-cardio-acute', 'shift-luth-ccu-day', 'POST_TAKE', 'user-luth-cons-bello', 'IN_PROGRESS', DATE_SUB(NOW(), INTERVAL 1 HOUR), DATE_SUB(NOW(), INTERVAL 45 MINUTE), NULL, 'user-luth-cons-bello,user-luth-nurse-grace', NOW(), NOW()),
+('round-luth-surg-complete', 'hosp-ng-luth', 'ward-luth-surg-male', 'team-luth-surgery-a', 'shift-luth-surg-male-day', 'MORNING', 'user-luth-cons-okeke', 'COMPLETED', DATE_SUB(NOW(), INTERVAL 3 HOUR), DATE_SUB(NOW(), INTERVAL 3 HOUR), DATE_SUB(NOW(), INTERVAL 2 HOUR), 'user-luth-cons-okeke,user-luth-reg-adeoye,user-luth-jd-tari,user-luth-nurse-bisi', DATE_SUB(NOW(), INTERVAL 4 HOUR), NOW()),
+('round-luth-obgyn-active', 'hosp-ng-luth', 'ward-luth-antenatal', 'team-luth-obgyn-a', 'shift-luth-antenatal-day', 'MORNING', 'user-luth-cons-adesina', 'IN_PROGRESS', DATE_SUB(NOW(), INTERVAL 70 MINUTE), DATE_SUB(NOW(), INTERVAL 50 MINUTE), NULL, 'user-luth-cons-adesina,user-luth-reg-ene,user-luth-jd-bolanle,user-luth-nurse-zainab', NOW(), NOW()),
+('round-luth-paeds-complete', 'hosp-ng-luth', 'ward-luth-paeds-med', 'team-luth-paeds-a', 'shift-luth-paeds-med-day', 'BOARD', 'user-luth-cons-olaniyi', 'COMPLETED', DATE_SUB(NOW(), INTERVAL 4 HOUR), DATE_SUB(NOW(), INTERVAL 4 HOUR), DATE_SUB(NOW(), INTERVAL 3 HOUR), 'user-luth-cons-olaniyi,user-luth-reg-chiagozie,user-luth-jd-mariam,user-luth-nurse-ngozi', DATE_SUB(NOW(), INTERVAL 4 HOUR), NOW());
+
+INSERT INTO patient_round_review (id, round_id, patient_id, reviewed_by_id, review_order, news_score_at_review, clinical_status, was_examined, management_plan, discharge_assessment, notified_next_of_kin, reviewed_at, created_at, updated_at) VALUES
+('review-luth-004', 'round-luth-ccu-active', 'pt-luth-007', 'user-luth-cons-bello', 1, 8, 'DETERIORATING', TRUE, 'Continue ACS protocol, repeat ECG, keep cardiology registrar at bedside until pain settles.', 'BLOCKED_MEDICAL', TRUE, DATE_SUB(NOW(), INTERVAL 25 MINUTE), NOW(), NOW()),
+('review-luth-005', 'round-luth-surg-complete', 'pt-luth-009', 'user-luth-cons-okeke', 1, 6, 'STABLE', TRUE, 'Continue IV antibiotics, inspect wound this evening, remove drain if output remains low.', 'NONE', FALSE, DATE_SUB(NOW(), INTERVAL 2 HOUR), DATE_SUB(NOW(), INTERVAL 2 HOUR), NOW()),
+('review-luth-006', 'round-luth-obgyn-active', 'pt-luth-012', 'user-luth-cons-adesina', 1, 7, 'DETERIORATING', TRUE, 'Continue magnesium sulphate, strict fluid balance, prepare theatre if maternal or fetal status worsens.', 'BLOCKED_MEDICAL', TRUE, DATE_SUB(NOW(), INTERVAL 35 MINUTE), NOW(), NOW()),
+('review-luth-007', 'round-luth-paeds-complete', 'pt-luth-015', 'user-luth-cons-olaniyi', 1, 5, 'IMPROVING', TRUE, 'Continue antimalarial therapy and repeat packed cell volume tomorrow morning.', 'POSSIBLE', TRUE, DATE_SUB(NOW(), INTERVAL 3 HOUR), DATE_SUB(NOW(), INTERVAL 3 HOUR), NOW()),
+('review-luth-008', 'round-luth-paeds-complete', 'pt-luth-016', 'user-luth-reg-chiagozie', 2, 9, 'DETERIORATING', TRUE, 'Repeat nebulisation and review for paediatric HDU transfer if oxygen need persists.', 'NONE', TRUE, DATE_SUB(NOW(), INTERVAL 3 HOUR), DATE_SUB(NOW(), INTERVAL 3 HOUR), NOW());
+
+INSERT INTO clinical_note (id, patient_id, patient_round_review_id, vitals_id, author_id, note_type, content, is_amended, amended_by_id, amended_at, created_at, updated_at) VALUES
+('note-luth-004', 'pt-luth-007', 'review-luth-004', 'vitals-luth-007', 'user-luth-cons-bello', 'ROUND_NOTE', 'Ongoing chest pain with dynamic ECG concern. ACS pathway and senior monitoring continued.', FALSE, NULL, NULL, NOW(), NOW()),
+('note-luth-005', 'pt-luth-009', 'review-luth-005', 'vitals-luth-009', 'user-luth-jd-tari', 'PROGRESS_NOTE', 'Wound dressing intact, drain output reducing, pain controlled on current regimen.', FALSE, NULL, NULL, DATE_SUB(NOW(), INTERVAL 2 HOUR), NOW()),
+('note-luth-006', 'pt-luth-012', 'review-luth-006', 'vitals-luth-012', 'user-luth-reg-ene', 'ESCALATION_NOTE', 'Severe pre-eclampsia escalation acknowledged. Consultant reviewed and delivery plan discussed.', FALSE, NULL, NULL, NOW(), NOW()),
+('note-luth-007', 'pt-luth-013', NULL, 'vitals-luth-013', 'user-luth-jd-bolanle', 'DISCHARGE_NOTE', 'Mother and baby well. Discharge pending medication counselling and postnatal advice.', FALSE, NULL, NULL, DATE_SUB(NOW(), INTERVAL 1 HOUR), NOW()),
+('note-luth-008', 'pt-luth-016', 'review-luth-008', 'vitals-luth-016', 'user-luth-jd-mariam', 'PROGRESS_NOTE', 'Persistent wheeze after initial nebulisation; registrar informed and repeat treatment started.', TRUE, 'user-luth-reg-chiagozie', DATE_SUB(NOW(), INTERVAL 20 MINUTE), DATE_SUB(NOW(), INTERVAL 3 HOUR), NOW());
+
+INSERT INTO care_task (id, hospital_id, patient_id, ward_id, round_id, created_by_id, assigned_to_id, assigned_to_role, task_type, source, title, description, priority, window_start, window_end, status, completed_by_id, completed_at, escalated_at, workload_conflict, workload_conflict_reason, created_at, updated_at) VALUES
+('task-luth-006', 'hosp-ng-luth', 'pt-luth-006', 'ward-luth-med-isolation', 'round-luth-isolation-scheduled', 'user-luth-reg-nwosu', 'user-luth-nurse-kemi', 'NURSE', 'Isolation Monitoring', 'NURSING_CARE_PLAN', 'Confirm isolation precautions and sputum sample', 'Check PPE signage and send first morning sputum sample.', 'ROUTINE', DATE_ADD(NOW(), INTERVAL 1 HOUR), DATE_ADD(NOW(), INTERVAL 4 HOUR), 'PENDING', NULL, NULL, NULL, FALSE, NULL, NOW(), NOW()),
+('task-luth-007', 'hosp-ng-luth', 'pt-luth-007', 'ward-luth-ccu', 'round-luth-ccu-active', 'user-luth-cons-bello', 'user-luth-nurse-grace', 'NURSE', 'ACS Monitoring', 'NURSING_CARE_PLAN', 'Repeat ECG and pain score', 'Repeat ECG within 30 minutes and document pain score trend.', 'EMERGENCY', DATE_SUB(NOW(), INTERVAL 20 MINUTE), DATE_ADD(NOW(), INTERVAL 20 MINUTE), 'IN_PROGRESS', NULL, NULL, NULL, FALSE, NULL, DATE_SUB(NOW(), INTERVAL 20 MINUTE), NOW()),
+('task-luth-008', 'hosp-ng-luth', 'pt-luth-008', 'ward-luth-cath-recovery', NULL, 'user-luth-cons-bello', 'user-luth-nurse-grace', 'NURSE', 'Discharge Observation', 'POST_ROUND_JOB', 'Complete radial access discharge checks', 'Confirm pulse, bleeding check, and post-procedure advice before discharge.', 'URGENT', DATE_SUB(NOW(), INTERVAL 90 MINUTE), DATE_ADD(NOW(), INTERVAL 30 MINUTE), 'PENDING', NULL, NULL, NULL, FALSE, NULL, DATE_SUB(NOW(), INTERVAL 90 MINUTE), NOW()),
+('task-luth-009', 'hosp-ng-luth', 'pt-luth-009', 'ward-luth-surg-male', 'round-luth-surg-complete', 'user-luth-cons-okeke', 'user-luth-nurse-bisi', 'NURSE', 'Wound Care', 'NURSING_CARE_PLAN', 'Inspect laparotomy wound and change dressing', 'Photograph wound if discharge increases or erythema spreads.', 'URGENT', DATE_SUB(NOW(), INTERVAL 1 HOUR), DATE_ADD(NOW(), INTERVAL 1 HOUR), 'PENDING', NULL, NULL, NULL, FALSE, NULL, DATE_SUB(NOW(), INTERVAL 1 HOUR), NOW()),
+('task-luth-010', 'hosp-ng-luth', 'pt-luth-009', 'ward-luth-surg-male', 'round-luth-surg-complete', 'user-luth-reg-adeoye', 'user-luth-jd-tari', 'JUNIOR_DOCTOR', 'Lab Review', 'POST_ROUND_JOB', 'Review FBC and CRP trend', 'Escalate to registrar if white cell count rises.', 'ROUTINE', DATE_SUB(NOW(), INTERVAL 4 HOUR), DATE_SUB(NOW(), INTERVAL 2 HOUR), 'COMPLETED', 'user-luth-jd-tari', DATE_SUB(NOW(), INTERVAL 90 MINUTE), NULL, FALSE, NULL, DATE_SUB(NOW(), INTERVAL 4 HOUR), NOW()),
+('task-luth-011', 'hosp-ng-luth', 'pt-luth-010', 'ward-luth-surg-female', NULL, 'user-luth-nurse-esther', 'user-luth-nurse-esther', 'NURSE', 'Antibiotic Administration', 'NURSING_CARE_PLAN', 'Give scheduled IV antibiotics', 'Dose was delayed because IV access failed and cannulation was requested.', 'URGENT', DATE_SUB(NOW(), INTERVAL 3 HOUR), DATE_SUB(NOW(), INTERVAL 45 MINUTE), 'OVERDUE', NULL, NULL, DATE_SUB(NOW(), INTERVAL 30 MINUTE), TRUE, 'Only surgical nurse on active same-specialty ward had overlapping post-op tasks.', DATE_SUB(NOW(), INTERVAL 3 HOUR), NOW()),
+('task-luth-012', 'hosp-ng-luth', 'pt-luth-011', 'ward-luth-theatre-recovery', NULL, 'user-luth-cons-okeke', 'user-luth-nurse-bisi', 'NURSE', 'Recovery Observation', 'NURSING_CARE_PLAN', 'Record post-anaesthetic observations', 'Cancelled after patient met recovery criteria and moved to stepdown plan.', 'ROUTINE', DATE_SUB(NOW(), INTERVAL 2 HOUR), DATE_SUB(NOW(), INTERVAL 1 HOUR), 'CANCELLED', NULL, NULL, NULL, FALSE, NULL, DATE_SUB(NOW(), INTERVAL 2 HOUR), NOW()),
+('task-luth-013', 'hosp-ng-luth', 'pt-luth-012', 'ward-luth-antenatal', 'round-luth-obgyn-active', 'user-luth-cons-adesina', 'user-luth-nurse-zainab', 'NURSE', 'Magnesium Sulphate Checks', 'NURSING_CARE_PLAN', 'Record reflexes and respiratory rate', 'High-risk pre-eclampsia monitoring every 15 minutes.', 'EMERGENCY', DATE_SUB(NOW(), INTERVAL 30 MINUTE), DATE_ADD(NOW(), INTERVAL 15 MINUTE), 'IN_PROGRESS', NULL, NULL, NULL, FALSE, NULL, DATE_SUB(NOW(), INTERVAL 30 MINUTE), NOW()),
+('task-luth-014', 'hosp-ng-luth', 'pt-luth-012', 'ward-luth-antenatal', 'round-luth-obgyn-active', 'user-luth-reg-ene', 'user-luth-jd-bolanle', 'JUNIOR_DOCTOR', 'Fetal Monitoring', 'POST_ROUND_JOB', 'Arrange CTG review', 'Document fetal tracing and update registrar immediately.', 'URGENT', DATE_SUB(NOW(), INTERVAL 50 MINUTE), DATE_ADD(NOW(), INTERVAL 40 MINUTE), 'PENDING', NULL, NULL, NULL, FALSE, NULL, DATE_SUB(NOW(), INTERVAL 50 MINUTE), NOW()),
+('task-luth-015', 'hosp-ng-luth', 'pt-luth-013', 'ward-luth-postnatal', NULL, 'user-luth-cons-adesina', 'user-luth-nurse-rita', 'NURSE', 'Postnatal Counselling', 'POST_ROUND_JOB', 'Complete breastfeeding and danger-sign counselling', 'Required before final discharge.', 'ROUTINE', DATE_SUB(NOW(), INTERVAL 2 HOUR), DATE_ADD(NOW(), INTERVAL 2 HOUR), 'PENDING', NULL, NULL, NULL, FALSE, NULL, DATE_SUB(NOW(), INTERVAL 2 HOUR), NOW()),
+('task-luth-016', 'hosp-ng-luth', 'pt-luth-014', 'ward-luth-gynae', NULL, 'user-luth-reg-ene', 'user-luth-jd-bolanle', 'JUNIOR_DOCTOR', 'Blood Transfusion Prep', 'POST_ROUND_JOB', 'Confirm group and crossmatch', 'Completed after blood bank confirmed two compatible units.', 'URGENT', DATE_SUB(NOW(), INTERVAL 5 HOUR), DATE_SUB(NOW(), INTERVAL 2 HOUR), 'COMPLETED', 'user-luth-jd-bolanle', DATE_SUB(NOW(), INTERVAL 110 MINUTE), NULL, FALSE, NULL, DATE_SUB(NOW(), INTERVAL 5 HOUR), NOW()),
+('task-luth-017', 'hosp-ng-luth', 'pt-luth-015', 'ward-luth-paeds-med', 'round-luth-paeds-complete', 'user-luth-cons-olaniyi', 'user-luth-nurse-ngozi', 'NURSE', 'Antimalarial Dose', 'NURSING_CARE_PLAN', 'Administer IV artesunate dose', 'Dose due after board round.', 'URGENT', DATE_SUB(NOW(), INTERVAL 2 HOUR), DATE_SUB(NOW(), INTERVAL 30 MINUTE), 'COMPLETED', 'user-luth-nurse-ngozi', DATE_SUB(NOW(), INTERVAL 25 MINUTE), NULL, FALSE, NULL, DATE_SUB(NOW(), INTERVAL 2 HOUR), NOW()),
+('task-luth-018', 'hosp-ng-luth', 'pt-luth-016', 'ward-luth-paeds-emergency', 'round-luth-paeds-complete', 'user-luth-reg-chiagozie', 'user-luth-nurse-janet', 'NURSE', 'Nebulisation', 'NURSING_CARE_PLAN', 'Repeat salbutamol nebulisation', 'Repeat treatment and document respiratory score.', 'EMERGENCY', DATE_SUB(NOW(), INTERVAL 20 MINUTE), DATE_ADD(NOW(), INTERVAL 10 MINUTE), 'PENDING', NULL, NULL, NULL, FALSE, NULL, DATE_SUB(NOW(), INTERVAL 20 MINUTE), NOW()),
+('task-luth-019', 'hosp-ng-luth', 'pt-luth-017', 'ward-luth-nicu', NULL, 'user-luth-cons-olaniyi', 'user-luth-nurse-janet', 'NURSE', 'Neonatal Observations', 'NURSING_CARE_PLAN', 'Record incubator temperature and feed tolerance', 'Task intentionally conflicts with emergency paediatric task to test workload warning.', 'URGENT', DATE_SUB(NOW(), INTERVAL 25 MINUTE), DATE_ADD(NOW(), INTERVAL 35 MINUTE), 'PENDING', NULL, NULL, NULL, TRUE, 'Paediatric emergency and NICU nurse coverage overlap during the same observation window.', DATE_SUB(NOW(), INTERVAL 25 MINUTE), NOW()),
+('task-luth-020', 'hosp-ng-luth', 'pt-luth-013', 'ward-luth-postnatal', NULL, 'user-luth-jd-bolanle', 'user-luth-jd-bolanle', 'JUNIOR_DOCTOR', 'Discharge Summary', 'POST_ROUND_JOB', 'Write postnatal discharge summary', 'Summary prepared; awaiting consultant final discharge action.', 'ROUTINE', DATE_SUB(NOW(), INTERVAL 3 HOUR), DATE_SUB(NOW(), INTERVAL 1 HOUR), 'COMPLETED', 'user-luth-jd-bolanle', DATE_SUB(NOW(), INTERVAL 55 MINUTE), NULL, FALSE, NULL, DATE_SUB(NOW(), INTERVAL 3 HOUR), NOW());
+
+-- Additional LUTH consultant-led teams for broader team/member/patient testing.
+INSERT INTO department (id, hospital_id, name, head_of_department_id, created_at, updated_at) VALUES
+('dept-luth-neurology', 'hosp-ng-luth', 'Neurology', 'user-luth-cons-eke', NOW(), NOW()),
+('dept-luth-nephrology', 'hosp-ng-luth', 'Nephrology', 'user-luth-cons-oyebanjo', NOW(), NOW()),
+('dept-luth-respiratory', 'hosp-ng-luth', 'Respiratory Medicine', 'user-luth-cons-adamu', NOW(), NOW()),
+('dept-luth-orthopaedics', 'hosp-ng-luth', 'Orthopaedics', 'user-luth-cons-nwachukwu', NOW(), NOW());
+
+INSERT INTO users (id, hospital_id, first_name, last_name, email, password_hash, role, department_id, is_active, created_at, updated_at) VALUES
+('user-luth-cons-eke', 'hosp-ng-luth', 'Nkiru', 'Eke', 'nkiru.eke@luth.example.ng', @password_hash, 'CONSULTANT', 'dept-luth-neurology', TRUE, NOW(), NOW()),
+('user-luth-reg-dada', 'hosp-ng-luth', 'Kunle', 'Dada', 'kunle.dada@luth.example.ng', @password_hash, 'REGISTRAR', 'dept-luth-neurology', TRUE, NOW(), NOW()),
+('user-luth-jd-oluchi', 'hosp-ng-luth', 'Oluchi', 'Mba', 'oluchi.mba@luth.example.ng', @password_hash, 'JUNIOR_DOCTOR', 'dept-luth-neurology', TRUE, NOW(), NOW()),
+('user-luth-nurse-tosin', 'hosp-ng-luth', 'Tosin', 'Ogunleye', 'tosin.ogunleye@luth.example.ng', @password_hash, 'NURSE', 'dept-luth-neurology', TRUE, NOW(), NOW()),
+('user-luth-cons-oyebanjo', 'hosp-ng-luth', 'Dele', 'Oyebanjo', 'dele.oyebanjo@luth.example.ng', @password_hash, 'CONSULTANT', 'dept-luth-nephrology', TRUE, NOW(), NOW()),
+('user-luth-reg-lydia', 'hosp-ng-luth', 'Lydia', 'Akpan', 'lydia.akpan@luth.example.ng', @password_hash, 'REGISTRAR', 'dept-luth-nephrology', TRUE, NOW(), NOW()),
+('user-luth-jd-hassan', 'hosp-ng-luth', 'Hassan', 'Bukar', 'hassan.bukar@luth.example.ng', @password_hash, 'JUNIOR_DOCTOR', 'dept-luth-nephrology', TRUE, NOW(), NOW()),
+('user-luth-nurse-moji', 'hosp-ng-luth', 'Moji', 'Falana', 'moji.falana@luth.example.ng', @password_hash, 'NURSE', 'dept-luth-nephrology', TRUE, NOW(), NOW()),
+('user-luth-cons-adamu', 'hosp-ng-luth', 'Yakubu', 'Adamu', 'yakubu.adamu@luth.example.ng', @password_hash, 'CONSULTANT', 'dept-luth-respiratory', TRUE, NOW(), NOW()),
+('user-luth-reg-kelechi', 'hosp-ng-luth', 'Kelechi', 'Okoro', 'kelechi.okoro@luth.example.ng', @password_hash, 'REGISTRAR', 'dept-luth-respiratory', TRUE, NOW(), NOW()),
+('user-luth-jd-safiya', 'hosp-ng-luth', 'Safiya', 'Bashir', 'safiya.bashir@luth.example.ng', @password_hash, 'JUNIOR_DOCTOR', 'dept-luth-respiratory', TRUE, NOW(), NOW()),
+('user-luth-nurse-mabel', 'hosp-ng-luth', 'Mabel', 'Iroha', 'mabel.iroha@luth.example.ng', @password_hash, 'NURSE', 'dept-luth-respiratory', TRUE, NOW(), NOW()),
+('user-luth-cons-nwachukwu', 'hosp-ng-luth', 'Obinna', 'Nwachukwu', 'obinna.nwachukwu@luth.example.ng', @password_hash, 'CONSULTANT', 'dept-luth-orthopaedics', TRUE, NOW(), NOW()),
+('user-luth-reg-teni', 'hosp-ng-luth', 'Teni', 'Adebisi', 'teni.adebisi@luth.example.ng', @password_hash, 'REGISTRAR', 'dept-luth-orthopaedics', TRUE, NOW(), NOW()),
+('user-luth-jd-victor', 'hosp-ng-luth', 'Victor', 'Okonkwo', 'victor.okonkwo@luth.example.ng', @password_hash, 'JUNIOR_DOCTOR', 'dept-luth-orthopaedics', TRUE, NOW(), NOW()),
+('user-luth-nurse-damilola', 'hosp-ng-luth', 'Damilola', 'Soneye', 'damilola.soneye@luth.example.ng', @password_hash, 'NURSE', 'dept-luth-orthopaedics', TRUE, NOW(), NOW()),
+('user-luth-ws-kingsley', 'hosp-ng-luth', 'Kingsley', 'Udo', 'kingsley.udo@luth.example.ng', @password_hash, 'WARD_SUPERVISOR', 'dept-luth-neurology', TRUE, NOW(), NOW());
+
+INSERT INTO ward (id, hospital_id, name, specialty, total_beds, supervisor_id, created_at, updated_at) VALUES
+('ward-luth-neuro-acute', 'hosp-ng-luth', 'Neurology Acute Ward', 'Neurology', 22, 'user-luth-ws-kingsley', NOW(), NOW()),
+('ward-luth-stroke-unit', 'hosp-ng-luth', 'Stroke Unit', 'Neurology', 18, 'user-luth-ws-kingsley', NOW(), NOW()),
+('ward-luth-renal', 'hosp-ng-luth', 'Renal Ward', 'Nephrology', 24, 'user-luth-ws-kingsley', NOW(), NOW()),
+('ward-luth-dialysis-stepdown', 'hosp-ng-luth', 'Dialysis Stepdown Ward', 'Nephrology', 14, 'user-luth-ws-kingsley', NOW(), NOW()),
+('ward-luth-respiratory', 'hosp-ng-luth', 'Respiratory Ward', 'Respiratory Medicine', 28, 'user-luth-ws-kingsley', NOW(), NOW()),
+('ward-luth-orthotrauma', 'hosp-ng-luth', 'Orthopaedic Trauma Ward', 'Orthopaedics', 30, 'user-luth-ws-kingsley', NOW(), NOW());
+
+INSERT INTO medical_team (id, hospital_id, name, consultant_id, department_id, created_at, updated_at) VALUES
+('team-luth-neuro-eke', 'hosp-ng-luth', 'LUTH Neurology Team Eke', 'user-luth-cons-eke', 'dept-luth-neurology', NOW(), NOW()),
+('team-luth-nephro-oyebanjo', 'hosp-ng-luth', 'LUTH Nephrology Team Oyebanjo', 'user-luth-cons-oyebanjo', 'dept-luth-nephrology', NOW(), NOW()),
+('team-luth-resp-adamu', 'hosp-ng-luth', 'LUTH Respiratory Team Adamu', 'user-luth-cons-adamu', 'dept-luth-respiratory', NOW(), NOW()),
+('team-luth-ortho-nwachukwu', 'hosp-ng-luth', 'LUTH Orthopaedics Team Nwachukwu', 'user-luth-cons-nwachukwu', 'dept-luth-orthopaedics', NOW(), NOW());
+
+INSERT INTO medical_team_ward (medical_team_id, ward_id, assigned_at) VALUES
+('team-luth-neuro-eke', 'ward-luth-neuro-acute', NOW()),
+('team-luth-neuro-eke', 'ward-luth-stroke-unit', NOW()),
+('team-luth-nephro-oyebanjo', 'ward-luth-renal', NOW()),
+('team-luth-nephro-oyebanjo', 'ward-luth-dialysis-stepdown', NOW()),
+('team-luth-resp-adamu', 'ward-luth-respiratory', NOW()),
+('team-luth-ortho-nwachukwu', 'ward-luth-orthotrauma', NOW());
+
+INSERT INTO medical_team_member (medical_team_id, user_id, joined_at) VALUES
+('team-luth-neuro-eke', 'user-luth-cons-eke', NOW()),
+('team-luth-neuro-eke', 'user-luth-reg-dada', NOW()),
+('team-luth-neuro-eke', 'user-luth-jd-oluchi', NOW()),
+('team-luth-neuro-eke', 'user-luth-nurse-tosin', NOW()),
+('team-luth-nephro-oyebanjo', 'user-luth-cons-oyebanjo', NOW()),
+('team-luth-nephro-oyebanjo', 'user-luth-reg-lydia', NOW()),
+('team-luth-nephro-oyebanjo', 'user-luth-jd-hassan', NOW()),
+('team-luth-nephro-oyebanjo', 'user-luth-nurse-moji', NOW()),
+('team-luth-resp-adamu', 'user-luth-cons-adamu', NOW()),
+('team-luth-resp-adamu', 'user-luth-reg-kelechi', NOW()),
+('team-luth-resp-adamu', 'user-luth-jd-safiya', NOW()),
+('team-luth-resp-adamu', 'user-luth-nurse-mabel', NOW()),
+('team-luth-ortho-nwachukwu', 'user-luth-cons-nwachukwu', NOW()),
+('team-luth-ortho-nwachukwu', 'user-luth-reg-teni', NOW()),
+('team-luth-ortho-nwachukwu', 'user-luth-jd-victor', NOW()),
+('team-luth-ortho-nwachukwu', 'user-luth-nurse-damilola', NOW());
+
+INSERT INTO shift (id, ward_id, shift_schedule_id, type, start_time, end_time, lead_doctor_id, nurse_in_charge_id, status, assigned_at, created_at, updated_at) VALUES
+('shift-luth-neuro-acute-day', 'ward-luth-neuro-acute', 'sched-luth-day-all', 'DAY', TIMESTAMP(CURDATE(), '07:00:00'), TIMESTAMP(CURDATE(), '19:00:00'), 'user-luth-cons-eke', 'user-luth-nurse-tosin', 'ACTIVE', DATE_SUB(NOW(), INTERVAL 1 HOUR), NOW(), NOW()),
+('shift-luth-stroke-day', 'ward-luth-stroke-unit', 'sched-luth-day-all', 'DAY', TIMESTAMP(CURDATE(), '07:00:00'), TIMESTAMP(CURDATE(), '19:00:00'), 'user-luth-reg-dada', 'user-luth-nurse-tosin', 'ACTIVE', DATE_SUB(NOW(), INTERVAL 1 HOUR), NOW(), NOW()),
+('shift-luth-renal-day', 'ward-luth-renal', 'sched-luth-day-all', 'DAY', TIMESTAMP(CURDATE(), '07:00:00'), TIMESTAMP(CURDATE(), '19:00:00'), 'user-luth-cons-oyebanjo', 'user-luth-nurse-moji', 'ACTIVE', DATE_SUB(NOW(), INTERVAL 1 HOUR), NOW(), NOW()),
+('shift-luth-dialysis-stepdown-day', 'ward-luth-dialysis-stepdown', 'sched-luth-day-all', 'DAY', TIMESTAMP(CURDATE(), '07:00:00'), TIMESTAMP(CURDATE(), '19:00:00'), 'user-luth-reg-lydia', 'user-luth-nurse-moji', 'ACTIVE', DATE_SUB(NOW(), INTERVAL 1 HOUR), NOW(), NOW()),
+('shift-luth-respiratory-day', 'ward-luth-respiratory', 'sched-luth-day-all', 'DAY', TIMESTAMP(CURDATE(), '07:00:00'), TIMESTAMP(CURDATE(), '19:00:00'), 'user-luth-cons-adamu', 'user-luth-nurse-mabel', 'ACTIVE', DATE_SUB(NOW(), INTERVAL 1 HOUR), NOW(), NOW()),
+('shift-luth-orthotrauma-day', 'ward-luth-orthotrauma', 'sched-luth-day-all', 'DAY', TIMESTAMP(CURDATE(), '07:00:00'), TIMESTAMP(CURDATE(), '19:00:00'), 'user-luth-cons-nwachukwu', 'user-luth-nurse-damilola', 'ACTIVE', DATE_SUB(NOW(), INTERVAL 1 HOUR), NOW(), NOW());
+
+INSERT INTO patient (id, hospital_id, ward_id, bed_number, medical_team_id, admitting_consultant_id, first_name, last_name, date_of_birth, gender, hospital_number, admission_date, admission_type, primary_diagnosis, specialty_required, acuity_level, news_score, is_discharge_ready, estimated_discharge_date, status, created_at, updated_at) VALUES
+('pt-luth-018', 'hosp-ng-luth', 'ward-luth-neuro-acute', 'NA04', 'team-luth-neuro-eke', 'user-luth-cons-eke', 'Chiamaka', 'Anyanwu', '1969-01-18', 'F', 'LUTH-0018', DATE_SUB(NOW(), INTERVAL 20 HOUR), 'EMERGENCY', 'New onset seizures under neurology observation', 'Neurology', 'HIGH', 7, FALSE, NULL, 'ADMITTED', NOW(), NOW()),
+('pt-luth-019', 'hosp-ng-luth', 'ward-luth-stroke-unit', 'ST02', 'team-luth-neuro-eke', 'user-luth-cons-eke', 'Kabiru', 'Aliyu', '1958-04-24', 'M', 'LUTH-0019', DATE_SUB(NOW(), INTERVAL 1 DAY), 'TRANSFER', 'Ischaemic stroke after thrombolysis window assessment', 'Neurology', 'CRITICAL', 9, FALSE, NULL, 'DETERIORATING', NOW(), NOW()),
+('pt-luth-020', 'hosp-ng-luth', 'ward-luth-renal', 'R12', 'team-luth-nephro-oyebanjo', 'user-luth-cons-oyebanjo', 'Ebele', 'Iroegbu', '1978-09-13', 'F', 'LUTH-0020', DATE_SUB(NOW(), INTERVAL 3 DAY), 'TRANSFER', 'Chronic kidney disease with fluid overload', 'Nephrology', 'MEDIUM', 5, FALSE, NULL, 'ADMITTED', NOW(), NOW()),
+('pt-luth-021', 'hosp-ng-luth', 'ward-luth-dialysis-stepdown', 'DS03', 'team-luth-nephro-oyebanjo', 'user-luth-cons-oyebanjo', 'Sani', 'Garba', '1963-11-02', 'M', 'LUTH-0021', DATE_SUB(NOW(), INTERVAL 8 HOUR), 'ELECTIVE', 'Post dialysis access procedure observation', 'Nephrology', 'LOW', 2, TRUE, DATE_ADD(CURDATE(), INTERVAL 1 DAY), 'DISCHARGE_READY', NOW(), NOW()),
+('pt-luth-022', 'hosp-ng-luth', 'ward-luth-respiratory', 'RS08', 'team-luth-resp-adamu', 'user-luth-cons-adamu', 'Omolola', 'Fashola', '1982-02-28', 'F', 'LUTH-0022', DATE_SUB(NOW(), INTERVAL 16 HOUR), 'EMERGENCY', 'Severe asthma exacerbation requiring oxygen', 'Respiratory Medicine', 'HIGH', 8, FALSE, NULL, 'DETERIORATING', NOW(), NOW()),
+('pt-luth-023', 'hosp-ng-luth', 'ward-luth-orthotrauma', 'OT10', 'team-luth-ortho-nwachukwu', 'user-luth-cons-nwachukwu', 'Ibrahim', 'Yakubu', '1998-06-15', 'M', 'LUTH-0023', DATE_SUB(NOW(), INTERVAL 2 DAY), 'EMERGENCY', 'Open tibial fracture after road traffic accident', 'Orthopaedics', 'MEDIUM', 4, FALSE, NULL, 'ADMITTED', NOW(), NOW());
+
+INSERT INTO patient_vitals (id, patient_id, recorded_by_id, heart_rate, respiratory_rate, oxygen_saturation, systolic_bp, temperature, consciousness_level, news_score, recorded_at, created_at, updated_at) VALUES
+('vitals-luth-018', 'pt-luth-018', 'user-luth-nurse-tosin', 108, 22, 96.00, 138, 37.4, 'ALERT', 7, DATE_SUB(NOW(), INTERVAL 20 MINUTE), NOW(), NOW()),
+('vitals-luth-019', 'pt-luth-019', 'user-luth-nurse-tosin', 118, 28, 92.00, 182, 37.6, 'VOICE', 9, DATE_SUB(NOW(), INTERVAL 15 MINUTE), NOW(), NOW()),
+('vitals-luth-020', 'pt-luth-020', 'user-luth-nurse-moji', 96, 24, 94.00, 168, 37.0, 'ALERT', 5, DATE_SUB(NOW(), INTERVAL 30 MINUTE), NOW(), NOW()),
+('vitals-luth-021', 'pt-luth-021', 'user-luth-nurse-moji', 80, 16, 98.00, 130, 36.5, 'ALERT', 2, DATE_SUB(NOW(), INTERVAL 45 MINUTE), NOW(), NOW()),
+('vitals-luth-022', 'pt-luth-022', 'user-luth-nurse-mabel', 128, 32, 88.00, 118, 37.8, 'ALERT', 8, DATE_SUB(NOW(), INTERVAL 12 MINUTE), NOW(), NOW()),
+('vitals-luth-023', 'pt-luth-023', 'user-luth-nurse-damilola', 100, 20, 97.00, 124, 37.2, 'ALERT', 4, DATE_SUB(NOW(), INTERVAL 25 MINUTE), NOW(), NOW());
+
+INSERT INTO next_of_kin (id, patient_id, name, relationship, phone, email, preferred_contact_method, is_emergency_contact, notification_consent, created_at, updated_at) VALUES
+('nok-luth-018', 'pt-luth-018', 'Emeka Anyanwu', 'Husband', '+2348021111019', 'emeka.anyanwu@example.ng', 'BOTH', TRUE, TRUE, NOW(), NOW()),
+('nok-luth-019', 'pt-luth-019', 'Zainab Aliyu', 'Daughter', '+2348021111020', 'zainab.aliyu@example.ng', 'SMS', TRUE, TRUE, NOW(), NOW()),
+('nok-luth-020', 'pt-luth-020', 'Chika Iroegbu', 'Sister', '+2348021111021', 'chika.iroegbu@example.ng', 'EMAIL', FALSE, TRUE, NOW(), NOW()),
+('nok-luth-021', 'pt-luth-021', 'Amina Garba', 'Wife', '+2348021111022', NULL, 'SMS', TRUE, FALSE, NOW(), NOW()),
+('nok-luth-022', 'pt-luth-022', 'Bode Fashola', 'Brother', '+2348021111023', 'bode.fashola@example.ng', 'BOTH', TRUE, TRUE, NOW(), NOW()),
+('nok-luth-023', 'pt-luth-023', 'Hadiza Yakubu', 'Mother', '+2348021111024', 'hadiza.yakubu@example.ng', 'EMAIL', TRUE, TRUE, NOW(), NOW());
+
+INSERT INTO care_task (id, hospital_id, patient_id, ward_id, round_id, created_by_id, assigned_to_id, assigned_to_role, task_type, source, title, description, priority, window_start, window_end, status, completed_by_id, completed_at, escalated_at, workload_conflict, workload_conflict_reason, created_at, updated_at) VALUES
+('task-luth-021', 'hosp-ng-luth', 'pt-luth-018', 'ward-luth-neuro-acute', NULL, 'user-luth-cons-eke', 'user-luth-nurse-tosin', 'NURSE', 'Seizure Chart', 'NURSING_CARE_PLAN', 'Start seizure frequency chart', 'Record any further seizures and document recovery time.', 'URGENT', DATE_SUB(NOW(), INTERVAL 20 MINUTE), DATE_ADD(NOW(), INTERVAL 2 HOUR), 'PENDING', NULL, NULL, NULL, FALSE, NULL, DATE_SUB(NOW(), INTERVAL 20 MINUTE), NOW()),
+('task-luth-022', 'hosp-ng-luth', 'pt-luth-019', 'ward-luth-stroke-unit', NULL, 'user-luth-reg-dada', 'user-luth-jd-oluchi', 'JUNIOR_DOCTOR', 'Stroke Review', 'POST_ROUND_JOB', 'Chase urgent CT brain report', 'Document radiology report and update consultant.', 'EMERGENCY', DATE_SUB(NOW(), INTERVAL 30 MINUTE), DATE_ADD(NOW(), INTERVAL 30 MINUTE), 'IN_PROGRESS', NULL, NULL, NULL, FALSE, NULL, DATE_SUB(NOW(), INTERVAL 30 MINUTE), NOW()),
+('task-luth-023', 'hosp-ng-luth', 'pt-luth-020', 'ward-luth-renal', NULL, 'user-luth-cons-oyebanjo', 'user-luth-nurse-moji', 'NURSE', 'Fluid Balance', 'NURSING_CARE_PLAN', 'Complete strict fluid balance chart', 'Escalate if urine output stays below target.', 'URGENT', DATE_SUB(NOW(), INTERVAL 2 HOUR), DATE_SUB(NOW(), INTERVAL 20 MINUTE), 'OVERDUE', NULL, NULL, DATE_SUB(NOW(), INTERVAL 10 MINUTE), FALSE, NULL, DATE_SUB(NOW(), INTERVAL 2 HOUR), NOW()),
+('task-luth-024', 'hosp-ng-luth', 'pt-luth-021', 'ward-luth-dialysis-stepdown', NULL, 'user-luth-jd-hassan', 'user-luth-jd-hassan', 'JUNIOR_DOCTOR', 'Discharge Summary', 'POST_ROUND_JOB', 'Prepare dialysis access discharge summary', 'Summary completed and ready for consultant review.', 'ROUTINE', DATE_SUB(NOW(), INTERVAL 3 HOUR), DATE_SUB(NOW(), INTERVAL 1 HOUR), 'COMPLETED', 'user-luth-jd-hassan', DATE_SUB(NOW(), INTERVAL 50 MINUTE), NULL, FALSE, NULL, DATE_SUB(NOW(), INTERVAL 3 HOUR), NOW()),
+('task-luth-025', 'hosp-ng-luth', 'pt-luth-022', 'ward-luth-respiratory', NULL, 'user-luth-cons-adamu', 'user-luth-nurse-mabel', 'NURSE', 'Oxygen Escalation', 'NURSING_CARE_PLAN', 'Increase oxygen and repeat observations', 'Repeat observations after nebuliser and oxygen escalation.', 'EMERGENCY', DATE_SUB(NOW(), INTERVAL 15 MINUTE), DATE_ADD(NOW(), INTERVAL 15 MINUTE), 'PENDING', NULL, NULL, NULL, FALSE, NULL, DATE_SUB(NOW(), INTERVAL 15 MINUTE), NOW()),
+('task-luth-026', 'hosp-ng-luth', 'pt-luth-023', 'ward-luth-orthotrauma', NULL, 'user-luth-reg-teni', 'user-luth-jd-victor', 'JUNIOR_DOCTOR', 'Theatre Prep', 'POST_ROUND_JOB', 'Confirm consent and theatre slot', 'Prepare patient for debridement list.', 'URGENT', DATE_ADD(NOW(), INTERVAL 30 MINUTE), DATE_ADD(NOW(), INTERVAL 3 HOUR), 'PENDING', NULL, NULL, NULL, FALSE, NULL, NOW(), NOW());
+
+-- Oduduwa Memorial Teaching Hospital demo tenant
+INSERT INTO hospital (id, name, address, contact_email, contact_phone, created_at, updated_at) VALUES
+('hosp-001', 'Oduduwa Memorial Teaching Hospital', 'Ile-Ife, Osun State, Nigeria', 'admin@omth.ng', '+2348010010001', NOW(), NOW());
+
+INSERT INTO system_configuration (id, hospital_id, news_amber_threshold, news_red_threshold, task_overdue_grace_minutes, round_notifications_enabled, nok_notification_enabled, created_at, updated_at) VALUES
+('sys-omth-001', 'hosp-001', 5, 7, 30, TRUE, TRUE, NOW(), NOW());
+
+INSERT INTO department (id, hospital_id, name, head_of_department_id, created_at, updated_at) VALUES
+('dept-gm-001', 'hosp-001', 'General Medicine', 'user-cons-001', NOW(), NOW()),
+('dept-card-001', 'hosp-001', 'Cardiology', 'user-cons-card-001', NOW(), NOW()),
+('dept-surg-001', 'hosp-001', 'Surgery', NULL, NOW(), NOW());
+
+INSERT INTO users (id, hospital_id, first_name, last_name, email, password_hash, role, department_id, is_active, created_at, updated_at) VALUES
+('user-admin-001', 'hosp-001', 'Admin', 'User', 'admin@omth.ng', '$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LPVyNR4f8Ki', 'ADMIN', NULL, TRUE, NOW(), NOW()),
+('user-sup-001', 'hosp-001', 'Grace', 'Adeyemi', 'supervisor@omth.ng', '$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LPVyNR4f8Ki', 'WARD_SUPERVISOR', NULL, TRUE, NOW(), NOW()),
+('user-cons-001', 'hosp-001', 'Dr. Emeka', 'Okonkwo', 'consultant@omth.ng', '$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LPVyNR4f8Ki', 'CONSULTANT', 'dept-gm-001', TRUE, NOW(), NOW()),
+('user-reg-001', 'hosp-001', 'Dr. Amina', 'Bello', 'registrar@omth.ng', '$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LPVyNR4f8Ki', 'REGISTRAR', 'dept-gm-001', TRUE, NOW(), NOW()),
+('user-jd-001', 'hosp-001', 'Dr. Tunde', 'Lawal', 'jd@omth.ng', '$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LPVyNR4f8Ki', 'JUNIOR_DOCTOR', 'dept-gm-001', TRUE, NOW(), NOW()),
+('user-nurse-001', 'hosp-001', 'Ngozi', 'Eze', 'nurse1@omth.ng', '$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LPVyNR4f8Ki', 'NURSE', NULL, TRUE, NOW(), NOW()),
+('user-nurse-002', 'hosp-001', 'Fatima', 'Hassan', 'nurse2@omth.ng', '$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LPVyNR4f8Ki', 'NURSE', NULL, TRUE, NOW(), NOW()),
+('user-cons-card-001', 'hosp-001', 'Dr. Sola', 'Adebayo', 'cardiologist@omth.ng', '$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LPVyNR4f8Ki', 'CONSULTANT', 'dept-card-001', TRUE, NOW(), NOW());
+
+INSERT INTO ward (id, hospital_id, name, specialty, total_beds, supervisor_id, created_at, updated_at) VALUES
+('ward-a-001', 'hosp-001', 'Ward A (General)', 'General Medicine', 20, 'user-sup-001', NOW(), NOW()),
+('ward-b-001', 'hosp-001', 'Ward B (Cardiac)', 'Cardiology', 15, 'user-sup-001', NOW(), NOW());
+
+INSERT INTO medical_team (id, hospital_id, name, consultant_id, department_id, created_at, updated_at) VALUES
+('team-gm-001', 'hosp-001', 'Okonkwo Firm', 'user-cons-001', 'dept-gm-001', NOW(), NOW()),
+('team-card-001', 'hosp-001', 'Adebayo Cardiac Team', 'user-cons-card-001', 'dept-card-001', NOW(), NOW());
+
+INSERT INTO medical_team_ward (medical_team_id, ward_id, assigned_at) VALUES
+('team-gm-001', 'ward-a-001', NOW()),
+('team-card-001', 'ward-b-001', NOW());
+
+INSERT INTO medical_team_member (medical_team_id, user_id, joined_at) VALUES
+('team-gm-001', 'user-reg-001', NOW()),
+('team-gm-001', 'user-jd-001', NOW()),
+('team-card-001', 'user-cons-card-001', NOW());
+
+INSERT INTO shift_schedule (id, hospital_id, ward_id, shift_type, start_time, end_time, days_of_week, is_active, created_at, updated_at) VALUES
+('sched-day-001', 'hosp-001', NULL, 'DAY', '07:00:00', '19:00:00', 'MON,TUE,WED,THU,FRI,SAT,SUN', TRUE, NOW(), NOW()),
+('sched-night-001', 'hosp-001', NULL, 'NIGHT', '19:00:00', '07:00:00', 'MON,TUE,WED,THU,FRI,SAT,SUN', TRUE, NOW(), NOW());
+
+INSERT INTO shift (id, ward_id, shift_schedule_id, type, start_time, end_time, lead_doctor_id, nurse_in_charge_id, status, assigned_at, created_at, updated_at) VALUES
+('shift-wa-day-001', 'ward-a-001', 'sched-day-001', 'DAY', TIMESTAMP(CURDATE(), '07:00:00'), TIMESTAMP(CURDATE(), '19:00:00'), 'user-cons-001', 'user-nurse-001', 'ACTIVE', TIMESTAMP(CURDATE(), '07:00:00'), NOW(), NOW()),
+('shift-wb-day-001', 'ward-b-001', 'sched-day-001', 'DAY', TIMESTAMP(CURDATE(), '07:00:00'), TIMESTAMP(CURDATE(), '19:00:00'), 'user-cons-card-001', 'user-nurse-002', 'ACTIVE', TIMESTAMP(CURDATE(), '07:00:00'), NOW(), NOW());
+
+INSERT INTO on_call_rotation (id, hospital_id, department_id, ward_id, doctor_id, role, start_time, end_time, created_at, updated_at) VALUES
+('oncall-001', 'hosp-001', 'dept-gm-001', NULL, 'user-reg-001', 'REGISTRAR_ON_CALL', TIMESTAMP(CURDATE(), '00:00:00'), TIMESTAMP(CURDATE(), '23:59:00'), NOW(), NOW()),
+('oncall-002', 'hosp-001', 'dept-gm-001', NULL, 'user-cons-001', 'CONSULTANT_ON_CALL', TIMESTAMP(CURDATE(), '00:00:00'), TIMESTAMP(CURDATE(), '23:59:00'), NOW(), NOW());
+
+INSERT INTO patient (id, hospital_id, ward_id, bed_number, medical_team_id, admitting_consultant_id, first_name, last_name, date_of_birth, gender, hospital_number, admission_date, admission_type, primary_diagnosis, specialty_required, acuity_level, news_score, is_discharge_ready, estimated_discharge_date, status, created_at, updated_at) VALUES
+('pat-001', 'hosp-001', 'ward-a-001', 'A1', 'team-gm-001', 'user-cons-001', 'Chukwu', 'Nwosu', '1965-03-14', 'M', 'OMTH-00101', DATE_SUB(NOW(), INTERVAL 3 DAY), 'EMERGENCY', 'Severe community-acquired pneumonia', 'General Medicine', 'HIGH', 8, FALSE, NULL, 'ADMITTED', NOW(), NOW()),
+('pat-002', 'hosp-001', 'ward-a-001', 'A2', 'team-gm-001', 'user-cons-001', 'Blessing', 'Okafor', '1958-07-22', 'F', 'OMTH-00102', DATE_SUB(NOW(), INTERVAL 5 DAY), 'ELECTIVE', 'Decompensated heart failure', 'General Medicine', 'MEDIUM', 5, FALSE, NULL, 'ADMITTED', NOW(), NOW()),
+('pat-003', 'hosp-001', 'ward-a-001', 'A3', 'team-gm-001', 'user-cons-001', 'Ife', 'Adeleke', '1972-11-05', 'F', 'OMTH-00103', DATE_SUB(NOW(), INTERVAL 1 DAY), 'ELECTIVE', 'Type 2 diabetes - poor glycaemic control', 'General Medicine', 'LOW', 2, FALSE, NULL, 'ADMITTED', NOW(), NOW()),
+('pat-004', 'hosp-001', 'ward-a-001', 'A4', 'team-gm-001', 'user-cons-001', 'Musa', 'Danjuma', '1980-01-30', 'M', 'OMTH-00104', NOW(), 'EMERGENCY', 'Septic shock - abdominal source', 'General Medicine', 'CRITICAL', 11, FALSE, NULL, 'ADMITTED', NOW(), NOW()),
+('pat-005', 'hosp-001', 'ward-b-001', 'B1', 'team-card-001', 'user-cons-card-001', 'Chisom', 'Igwe', '1969-09-18', 'F', 'OMTH-00205', DATE_SUB(NOW(), INTERVAL 2 DAY), 'EMERGENCY', 'Acute NSTEMI', 'Cardiology', 'HIGH', 7, FALSE, NULL, 'ADMITTED', NOW(), NOW()),
+('pat-006', 'hosp-001', 'ward-b-001', 'B2', 'team-card-001', 'user-cons-card-001', 'Yetunde', 'Afolabi', '1955-04-12', 'F', 'OMTH-00206', DATE_SUB(NOW(), INTERVAL 4 DAY), 'ELECTIVE', 'Stable angina - elective workup', 'Cardiology', 'LOW', 1, FALSE, NULL, 'ADMITTED', NOW(), NOW());
+
+INSERT INTO patient_vitals (id, patient_id, recorded_by_id, heart_rate, respiratory_rate, oxygen_saturation, systolic_bp, temperature, consciousness_level, news_score, recorded_at, created_at, updated_at) VALUES
+('vitals-omth-001', 'pat-004', 'user-nurse-001', 128, 28, 88.00, 82, 39.4, 'VOICE', 11, DATE_SUB(NOW(), INTERVAL 2 HOUR), NOW(), NOW()),
+('vitals-omth-002', 'pat-001', 'user-nurse-001', 110, 24, 92.00, 95, 38.8, 'ALERT', 8, DATE_SUB(NOW(), INTERVAL 3 HOUR), NOW(), NOW());
+
+INSERT INTO care_task (id, hospital_id, patient_id, ward_id, round_id, created_by_id, assigned_to_id, assigned_to_role, task_type, source, title, description, priority, window_start, window_end, status, completed_by_id, completed_at, escalated_at, workload_conflict, workload_conflict_reason, created_at, updated_at) VALUES
+('task-001', 'hosp-001', 'pat-001', 'ward-a-001', NULL, 'user-cons-001', 'user-nurse-001', 'NURSE', 'Medication', 'NURSING_CARE_PLAN', 'Administer IV antibiotics', NULL, 'URGENT', TIMESTAMP(CURDATE(), '08:00:00'), TIMESTAMP(CURDATE(), '10:00:00'), 'PENDING', NULL, NULL, NULL, FALSE, NULL, NOW(), NOW()),
+('task-002', 'hosp-001', 'pat-001', 'ward-a-001', NULL, 'user-reg-001', 'user-jd-001', 'JUNIOR_DOCTOR', 'Investigation', 'POST_ROUND_JOB', 'Repeat blood cultures', NULL, 'URGENT', TIMESTAMP(CURDATE(), '09:00:00'), TIMESTAMP(CURDATE(), '11:00:00'), 'IN_PROGRESS', NULL, NULL, NULL, FALSE, NULL, NOW(), NOW()),
+('task-003', 'hosp-001', 'pat-002', 'ward-a-001', NULL, 'user-cons-001', 'user-nurse-001', 'NURSE', 'Observation', 'NURSING_CARE_PLAN', 'Fluid balance monitoring', NULL, 'ROUTINE', TIMESTAMP(CURDATE(), '07:00:00'), TIMESTAMP(CURDATE(), '19:00:00'), 'PENDING', NULL, NULL, NULL, FALSE, NULL, NOW(), NOW()),
+('task-004', 'hosp-001', 'pat-004', 'ward-a-001', NULL, 'user-cons-001', 'user-reg-001', 'REGISTRAR', 'Referral', 'POST_ROUND_JOB', 'Urgent surgical review', NULL, 'EMERGENCY', TIMESTAMP(CURDATE(), '06:00:00'), TIMESTAMP(CURDATE(), '08:00:00'), 'OVERDUE', NULL, NULL, TIMESTAMP(CURDATE(), '08:00:00'), FALSE, NULL, NOW(), NOW()),
+('task-005', 'hosp-001', 'pat-003', 'ward-a-001', NULL, 'user-nurse-001', NULL, 'NURSE', 'Education', 'NURSING_CARE_PLAN', 'Diabetes education session', NULL, 'ROUTINE', TIMESTAMP(CURDATE(), '14:00:00'), TIMESTAMP(CURDATE(), '16:00:00'), 'PENDING', NULL, NULL, NULL, FALSE, NULL, NOW(), NOW());
+
+INSERT INTO escalation (id, hospital_id, patient_id, triggered_by_id, trigger_type, severity, assigned_to_id, status, notes, resolved_at, created_at, updated_at) VALUES
+('esc-001', 'hosp-001', 'pat-004', NULL, 'HIGH_NEWS_SCORE', 'RED', 'user-reg-001', 'OPEN', 'NEWS score 11 - septic shock', NULL, DATE_SUB(NOW(), INTERVAL 2 HOUR), NOW()),
+('esc-002', 'hosp-001', 'pat-001', 'user-nurse-001', 'NURSE_CONCERN', 'AMBER', 'user-reg-001', 'ACKNOWLEDGED', 'Respiratory deterioration noted at 06:00', NULL, TIMESTAMP(CURDATE(), '06:00:00'), NOW());
+
 INSERT INTO outbox_event (id, hospital_id, event_type, payload, published, published_at, correlation_id, created_at, updated_at) VALUES
 ('outbox-001', 'hosp-ng-luth', 'PATIENT_DETERIORATION', '{"hospitalId":"hosp-ng-luth","patientId":"pt-luth-002","severity":"RED","newsScore":10}', TRUE, DATE_SUB(NOW(), INTERVAL 15 MINUTE), 'corr-luth-red-001', DATE_SUB(NOW(), INTERVAL 20 MINUTE), NOW()),
 ('outbox-002', 'hosp-ng-abj', 'TASK_OVERDUE', '{"hospitalId":"hosp-ng-abj","taskId":"task-abj-001","patientId":"pt-abj-001"}', FALSE, NULL, 'corr-abj-task-001', DATE_SUB(NOW(), INTERVAL 5 MINUTE), NOW()),
@@ -364,7 +750,11 @@ INSERT INTO outbox_event (id, hospital_id, event_type, payload, published, publi
 ('outbox-007', 'hosp-ng-cedar', 'TEAM_INVITE_SENT', '{"hospitalId":"hosp-ng-cedar","inviteId":"invite-cedar-declined","teamId":"team-cedar-med"}', TRUE, DATE_SUB(NOW(), INTERVAL 8 HOUR), 'corr-invite-cedar-001', DATE_SUB(NOW(), INTERVAL 8 HOUR), NOW()),
 ('outbox-008', 'hosp-ke-knh', 'INVITE_EXPIRED', '{"hospitalId":"hosp-ke-knh","inviteId":"invite-knh-expired","teamId":"team-knh-med"}', FALSE, NULL, 'corr-invite-knh-expired', DATE_SUB(NOW(), INTERVAL 15 MINUTE), NOW()),
 ('outbox-009', 'hosp-ng-cedar', 'careround.care_task.workload_conflict', '{"hospitalId":"hosp-ng-cedar","taskId":"task-cedar-001","wardId":"ward-cedar-hdu","patientId":"pt-cedar-002"}', FALSE, NULL, 'corr-cedar-conflict-001', DATE_SUB(NOW(), INTERVAL 12 MINUTE), NOW()),
-('outbox-010', 'hosp-uk-stmary', 'PATIENT_DETERIORATION', '{"hospitalId":"hosp-uk-stmary","patientId":"pt-uk-002","severity":"AMBER","newsScore":5}', TRUE, DATE_SUB(NOW(), INTERVAL 45 MINUTE), 'corr-uk-amber-001', DATE_SUB(NOW(), INTERVAL 50 MINUTE), NOW());
+('outbox-010', 'hosp-uk-stmary', 'PATIENT_DETERIORATION', '{"hospitalId":"hosp-uk-stmary","patientId":"pt-uk-002","severity":"AMBER","newsScore":5}', TRUE, DATE_SUB(NOW(), INTERVAL 45 MINUTE), 'corr-uk-amber-001', DATE_SUB(NOW(), INTERVAL 50 MINUTE), NOW()),
+('outbox-011', 'hosp-ng-luth', 'PATIENT_DETERIORATION', '{"hospitalId":"hosp-ng-luth","patientId":"pt-luth-007","severity":"RED","newsScore":8,"wardId":"ward-luth-ccu"}', FALSE, NULL, 'corr-luth-cardio-red-002', DATE_SUB(NOW(), INTERVAL 14 MINUTE), NOW()),
+('outbox-012', 'hosp-ng-luth', 'TASK_OVERDUE', '{"hospitalId":"hosp-ng-luth","taskId":"task-luth-011","patientId":"pt-luth-010","wardId":"ward-luth-surg-female"}', FALSE, NULL, 'corr-luth-surg-task-011', DATE_SUB(NOW(), INTERVAL 28 MINUTE), NOW()),
+('outbox-013', 'hosp-ng-luth', 'careround.care_task.workload_conflict', '{"hospitalId":"hosp-ng-luth","taskId":"task-luth-019","wardId":"ward-luth-nicu","patientId":"pt-luth-017"}', FALSE, NULL, 'corr-luth-paeds-conflict-019', DATE_SUB(NOW(), INTERVAL 8 MINUTE), NOW()),
+('outbox-014', 'hosp-ng-luth', 'HANDOVER_COMPLETED', '{"hospitalId":"hosp-ng-luth","handoverId":"handover-luth-obgyn-complete","wardId":"ward-luth-antenatal"}', TRUE, DATE_SUB(NOW(), INTERVAL 25 MINUTE), 'corr-luth-obgyn-handover', DATE_SUB(NOW(), INTERVAL 30 MINUTE), NOW());
 
 INSERT INTO notification_read_receipt (id, hospital_id, user_id, notification_id, read_at, created_at, updated_at) VALUES
 ('receipt-luth-001', 'hosp-ng-luth', 'user-luth-cons-bello', 'notif-luth-001', DATE_SUB(NOW(), INTERVAL 10 MINUTE), DATE_SUB(NOW(), INTERVAL 10 MINUTE), NOW()),
@@ -386,11 +776,16 @@ INSERT INTO notifications (id, event_type, hospital_id, recipient_id, recipient_
 ('notif-luth-002', 'careround.patient.discharge-ready', 'hosp-ng-luth', 'user-luth-ws-femi', 'USER', 'EMAIL', 'Patient ready for discharge workflow', 'Hauwa Lawal is discharge ready but open tasks remain.', 'corr-discharge-ready-luth-005', '{"patientId":"pt-luth-005"}', 'PENDING', NULL, NULL, 0, DATE_SUB(NOW(), INTERVAL 25 MINUTE), NOW()),
 ('notif-luth-003', 'careround.patient.discharged', 'hosp-ng-luth', 'nok-luth-003', 'NOK', 'EMAIL', 'Discharge Notification', 'Your family member has been discharged from our care.', 'corr-discharged-luth-003', '{"patientId":"pt-luth-003"}', 'SENT', NULL, DATE_SUB(NOW(), INTERVAL 1 DAY), 0, DATE_SUB(NOW(), INTERVAL 1 DAY), NOW()),
 ('notif-knh-001', 'careround.invite.expired', 'hosp-ke-knh', 'user-knh-cons-otieno', 'USER', 'EMAIL', 'Team invite expired', 'A pending team invitation expired before it was accepted.', 'corr-invite-knh-expired', '{"inviteId":"invite-knh-expired"}', 'FAILED', 'SMTP mailbox temporarily unavailable', NULL, 1, DATE_SUB(NOW(), INTERVAL 12 MINUTE), NOW()),
-('notif-uk-001', 'careround.patient.deterioration', 'hosp-uk-stmary', 'user-uk-reg-khan', 'USER', 'EMAIL', 'AMBER deterioration review requested', 'Nadia Hassan needs prompt reassessment after a rise in respiratory observations.', 'corr-uk-amber-001', '{"patientId":"pt-uk-002","severity":"AMBER"}', 'SENT', NULL, DATE_SUB(NOW(), INTERVAL 42 MINUTE), 0, DATE_SUB(NOW(), INTERVAL 45 MINUTE), NOW());
+('notif-uk-001', 'careround.patient.deterioration', 'hosp-uk-stmary', 'user-uk-reg-khan', 'USER', 'EMAIL', 'AMBER deterioration review requested', 'Nadia Hassan needs prompt reassessment after a rise in respiratory observations.', 'corr-uk-amber-001', '{"patientId":"pt-uk-002","severity":"AMBER"}', 'SENT', NULL, DATE_SUB(NOW(), INTERVAL 42 MINUTE), 0, DATE_SUB(NOW(), INTERVAL 45 MINUTE), NOW()),
+('notif-luth-004', 'careround.patient.deterioration', 'hosp-ng-luth', 'user-luth-cons-bello', 'USER', 'SMS', 'RED escalation in Coronary Care Unit', 'Musa Salisu has NEWS2 score 8 and needs urgent cardiology review.', 'corr-luth-cardio-red-002', '{"patientId":"pt-luth-007","wardId":"ward-luth-ccu","severity":"RED"}', 'PENDING', NULL, NULL, 0, DATE_SUB(NOW(), INTERVAL 14 MINUTE), NOW()),
+('notif-luth-005', 'careround.task.overdue', 'hosp-ng-luth', 'user-luth-ws-uche', 'USER', 'EMAIL', 'Overdue surgical antibiotic task', 'IV antibiotic administration is overdue for Rukayat Aremu.', 'corr-luth-surg-task-011', '{"taskId":"task-luth-011","wardId":"ward-luth-surg-female"}', 'FAILED', 'SMTP provider unavailable during retry', NULL, 1, DATE_SUB(NOW(), INTERVAL 28 MINUTE), NOW()),
+('notif-luth-006', 'careround.care_task.workload_conflict', 'hosp-ng-luth', 'user-luth-ws-seun', 'USER', 'EMAIL', 'Paediatric workload conflict', 'NICU neonatal observations overlap with paediatric emergency coverage.', 'corr-luth-paeds-conflict-019', '{"taskId":"task-luth-019","wardId":"ward-luth-nicu"}', 'SENT', NULL, DATE_SUB(NOW(), INTERVAL 6 MINUTE), 0, DATE_SUB(NOW(), INTERVAL 8 MINUTE), NOW()),
+('notif-luth-007', 'careround.handover.completed', 'hosp-ng-luth', 'user-luth-ws-yetunde', 'USER', 'EMAIL', 'Antenatal handover completed', 'High-risk antenatal handover has been completed for the night team.', 'corr-luth-obgyn-handover', '{"handoverId":"handover-luth-obgyn-complete","wardId":"ward-luth-antenatal"}', 'SENT', NULL, DATE_SUB(NOW(), INTERVAL 23 MINUTE), 0, DATE_SUB(NOW(), INTERVAL 30 MINUTE), NOW());
 
 INSERT INTO failed_notifications (id, event_type, topic, hospital_id, correlation_id, payload, error_message, failed_at, retry_count, resolved, created_at, updated_at) VALUES
 ('failed-notif-001', 'careround.task.overdue', 'careround.task.overdue', 'hosp-ng-abj', 'corr-abj-task-001', '{"taskId":"task-abj-001","recipientId":"user-abj-ws-ngozi"}', 'SMS provider timeout after retries', DATE_SUB(NOW(), INTERVAL 3 MINUTE), 3, FALSE, DATE_SUB(NOW(), INTERVAL 3 MINUTE), NOW()),
-('failed-notif-002', 'careround.invite.expired', 'careround.invite.expired', 'hosp-ke-knh', 'corr-invite-knh-expired', '{"inviteId":"invite-knh-expired","recipientId":"user-knh-cons-otieno"}', 'Email provider rejected message during retry 1', DATE_SUB(NOW(), INTERVAL 10 MINUTE), 1, TRUE, DATE_SUB(NOW(), INTERVAL 10 MINUTE), NOW());
+('failed-notif-002', 'careround.invite.expired', 'careround.invite.expired', 'hosp-ke-knh', 'corr-invite-knh-expired', '{"inviteId":"invite-knh-expired","recipientId":"user-knh-cons-otieno"}', 'Email provider rejected message during retry 1', DATE_SUB(NOW(), INTERVAL 10 MINUTE), 1, TRUE, DATE_SUB(NOW(), INTERVAL 10 MINUTE), NOW()),
+('failed-notif-003', 'careround.task.overdue', 'careround.task.overdue', 'hosp-ng-luth', 'corr-luth-surg-task-011', '{"taskId":"task-luth-011","recipientId":"user-luth-ws-uche"}', 'SMTP provider unavailable during retry', DATE_SUB(NOW(), INTERVAL 24 MINUTE), 2, FALSE, DATE_SUB(NOW(), INTERVAL 24 MINUTE), NOW());
 
 SET FOREIGN_KEY_CHECKS = 1;
 
@@ -408,7 +803,10 @@ INSERT INTO audit_log (id, event_type, hospital_id, correlation_id, payload, kaf
 ('audit-005', 'HANDOVER_COMPLETED', 'hosp-ng-luth', 'corr-handover-luth-cardio', '{"handoverId":"handover-luth-cardio-complete","wardId":"ward-luth-cardiac"}', 'careround.handover.completed', 0, 1204, DATE_SUB(NOW(), INTERVAL 104 MINUTE), DATE_SUB(NOW(), INTERVAL 104 MINUTE), DATE_SUB(NOW(), INTERVAL 104 MINUTE), NOW()),
 ('audit-006', 'CARE_TASK_WORKLOAD_CONFLICT', 'hosp-ng-cedar', 'corr-cedar-conflict-001', '{"taskId":"task-cedar-001","wardId":"ward-cedar-hdu"}', 'careround.care_task.workload_conflict', 0, 1205, DATE_SUB(NOW(), INTERVAL 9 MINUTE), DATE_SUB(NOW(), INTERVAL 9 MINUTE), DATE_SUB(NOW(), INTERVAL 9 MINUTE), NOW()),
 ('audit-007', 'INVITE_EXPIRED', 'hosp-ke-knh', 'corr-invite-knh-expired', '{"inviteId":"invite-knh-expired","teamId":"team-knh-med"}', 'careround.invite.expired', 0, 1206, DATE_SUB(NOW(), INTERVAL 8 MINUTE), DATE_SUB(NOW(), INTERVAL 8 MINUTE), DATE_SUB(NOW(), INTERVAL 8 MINUTE), NOW()),
-('audit-008', 'PATIENT_DETERIORATION', 'hosp-uk-stmary', 'corr-uk-amber-001', '{"patientId":"pt-uk-002","severity":"AMBER","assignedToId":"user-uk-reg-khan"}', 'careround.patient.deterioration', 0, 1207, DATE_SUB(NOW(), INTERVAL 43 MINUTE), DATE_SUB(NOW(), INTERVAL 43 MINUTE), DATE_SUB(NOW(), INTERVAL 43 MINUTE), NOW());
+('audit-008', 'PATIENT_DETERIORATION', 'hosp-uk-stmary', 'corr-uk-amber-001', '{"patientId":"pt-uk-002","severity":"AMBER","assignedToId":"user-uk-reg-khan"}', 'careround.patient.deterioration', 0, 1207, DATE_SUB(NOW(), INTERVAL 43 MINUTE), DATE_SUB(NOW(), INTERVAL 43 MINUTE), DATE_SUB(NOW(), INTERVAL 43 MINUTE), NOW()),
+('audit-009', 'PATIENT_DETERIORATION', 'hosp-ng-luth', 'corr-luth-cardio-red-002', '{"patientId":"pt-luth-007","severity":"RED","assignedToId":"user-luth-cons-bello"}', 'careround.patient.deterioration', 0, 1208, DATE_SUB(NOW(), INTERVAL 13 MINUTE), DATE_SUB(NOW(), INTERVAL 13 MINUTE), DATE_SUB(NOW(), INTERVAL 13 MINUTE), NOW()),
+('audit-010', 'TASK_OVERDUE', 'hosp-ng-luth', 'corr-luth-surg-task-011', '{"taskId":"task-luth-011","patientId":"pt-luth-010","wardId":"ward-luth-surg-female"}', 'careround.task.overdue', 0, 1209, DATE_SUB(NOW(), INTERVAL 27 MINUTE), DATE_SUB(NOW(), INTERVAL 27 MINUTE), DATE_SUB(NOW(), INTERVAL 27 MINUTE), NOW()),
+('audit-011', 'CARE_TASK_WORKLOAD_CONFLICT', 'hosp-ng-luth', 'corr-luth-paeds-conflict-019', '{"taskId":"task-luth-019","wardId":"ward-luth-nicu"}', 'careround.care_task.workload_conflict', 0, 1210, DATE_SUB(NOW(), INTERVAL 7 MINUTE), DATE_SUB(NOW(), INTERVAL 7 MINUTE), DATE_SUB(NOW(), INTERVAL 7 MINUTE), NOW());
 
 SET FOREIGN_KEY_CHECKS = 1;
 

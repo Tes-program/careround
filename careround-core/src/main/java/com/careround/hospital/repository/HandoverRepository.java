@@ -10,5 +10,7 @@ public interface HandoverRepository extends JpaRepository<Handover, String> {
 
     List<Handover> findAllByWardIdOrderByCreatedAtDesc(String wardId);
 
+    List<Handover> findTop5ByWardIdOrderByCreatedAtDesc(String wardId);
+
     Optional<Handover> findByOutgoingShiftId(String shiftId);
 }

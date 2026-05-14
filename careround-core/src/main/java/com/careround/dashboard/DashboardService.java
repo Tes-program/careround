@@ -2,12 +2,17 @@ package com.careround.dashboard;
 
 import com.careround.auth.enums.UserRole;
 import com.careround.auth.repository.UserRepository;
+import com.careround.hospital.entity.Shift;
 import com.careround.hospital.entity.Ward;
+import com.careround.hospital.enums.ShiftStatus;
 import com.careround.hospital.repository.DepartmentRepository;
 import com.careround.hospital.repository.MedicalTeamRepository;
 import com.careround.hospital.repository.ShiftRepository;
 import com.careround.hospital.repository.ShiftScheduleRepository;
 import com.careround.hospital.repository.WardRepository;
+import com.careround.patient.entity.CareTask;
+import com.careround.patient.entity.Escalation;
+import com.careround.patient.entity.Patient;
 import com.careround.patient.enums.EscalationStatus;
 import com.careround.patient.enums.PatientStatus;
 import com.careround.patient.enums.RoundStatus;
@@ -33,8 +38,12 @@ import java.util.Map;
 public class DashboardService {
 
     private static final List<TaskStatus> OPEN_TASK_STATUSES = List.of(TaskStatus.PENDING, TaskStatus.IN_PROGRESS);
+    private static final List<TaskStatus> SUPERVISOR_OPEN_TASK_STATUSES =
+            List.of(TaskStatus.PENDING, TaskStatus.IN_PROGRESS, TaskStatus.OVERDUE);
     private static final List<EscalationStatus> OPEN_ESCALATION_STATUSES =
             List.of(EscalationStatus.OPEN, EscalationStatus.ACKNOWLEDGED);
+    private static final List<PatientStatus> ACTIVE_PATIENT_STATUSES =
+            List.of(PatientStatus.ADMITTED, PatientStatus.STABLE, PatientStatus.DETERIORATING, PatientStatus.DISCHARGE_READY);
 
     private final UserRepository userRepository;
     private final DepartmentRepository departmentRepository;
@@ -107,6 +116,12 @@ public class DashboardService {
         dashboard.put("teamsLed", teamIds.size());
         dashboard.put("activeTeamPatients", teamIds.isEmpty() ? 0 :
                 patientRepository.countByHospitalIdAndMedicalTeamIdInAndStatus(hospitalId, teamIds, PatientStatus.ADMITTED));
+        dashboard.put("teamPatients", teamIds.isEmpty() ? List.of() :
+                patientRepository.findAllByHospitalIdAndMedicalTeamIdInAndStatusInOrderByMedicalTeamIdAscNewsScoreDescAdmissionDateAsc(
+                                hospitalId, teamIds, ACTIVE_PATIENT_STATUSES)
+                        .stream()
+                        .map(this::patientMap)
+                        .toList());
         addDoctorDashboard(dashboard, hospitalId, userId);
     }
 
@@ -136,5 +151,106 @@ public class DashboardService {
         dashboard.put("overdueWardTasks", supervisedWardIds.isEmpty() ? 0 :
                 careTaskRepository.countByHospitalIdAndWardIdInAndStatusInAndWindowEndBefore(
                         hospitalId, supervisedWardIds, OPEN_TASK_STATUSES, LocalDateTime.now(ZoneOffset.UTC)));
+        if (!supervisedWardIds.isEmpty()) {
+            addWardSupervisorCollections(dashboard, hospitalId, supervisedWardIds);
+        } else {
+            dashboard.put("wardPatients", List.of());
+            dashboard.put("wardTasks", List.of());
+            dashboard.put("wardEscalations", List.of());
+            dashboard.put("currentShifts", List.of());
+        }
+    }
+
+    private void addWardSupervisorCollections(Map<String, Object> dashboard, String hospitalId, List<String> wardIds) {
+        LocalDateTime now = LocalDateTime.now(ZoneOffset.UTC);
+        List<Patient> patients = patientRepository
+                .findAllByHospitalIdAndWardIdInAndStatusInOrderByWardIdAscNewsScoreDescAdmissionDateAsc(
+                        hospitalId, wardIds, ACTIVE_PATIENT_STATUSES);
+        List<String> patientIds = patients.stream().map(Patient::getId).toList();
+        List<CareTask> tasks = careTaskRepository
+                .findAllByHospitalIdAndWardIdInAndStatusInOrderByWindowEndAsc(
+                        hospitalId, wardIds, SUPERVISOR_OPEN_TASK_STATUSES);
+        List<Escalation> escalations = patientIds.isEmpty()
+                ? List.of()
+                : escalationRepository.findAllByPatientIdInAndStatusInOrderBySeverityDescCreatedAtAsc(
+                        patientIds, OPEN_ESCALATION_STATUSES);
+        List<Shift> shifts = shiftRepository
+                .findAllByWardIdInAndStatusAndStartTimeLessThanAndEndTimeGreaterThanOrderByWardIdAscStartTimeDesc(
+                        wardIds, ShiftStatus.ACTIVE, now, now);
+
+        dashboard.put("wardPatients", patients.stream().map(this::patientMap).toList());
+        dashboard.put("wardTasks", tasks.stream().map(this::taskMap).toList());
+        dashboard.put("wardEscalations", escalations.stream().map(this::escalationMap).toList());
+        dashboard.put("currentShifts", shifts.stream().map(this::shiftMap).toList());
+    }
+
+    private Map<String, Object> patientMap(Patient patient) {
+        Map<String, Object> map = new LinkedHashMap<>();
+        map.put("id", patient.getId());
+        map.put("wardId", patient.getWardId());
+        map.put("medicalTeamId", patient.getMedicalTeamId());
+        map.put("firstName", patient.getFirstName());
+        map.put("lastName", patient.getLastName());
+        map.put("hospitalNumber", patient.getHospitalNumber());
+        map.put("bedNumber", patient.getBedNumber());
+        map.put("primaryDiagnosis", patient.getPrimaryDiagnosis());
+        map.put("acuityLevel", patient.getAcuityLevel());
+        map.put("newsScore", patient.getNewsScore());
+        map.put("status", patient.getStatus());
+        map.put("isDischargeReady", patient.isDischargeReady());
+        map.put("admissionDate", patient.getAdmissionDate());
+        return map;
+    }
+
+    private Map<String, Object> taskMap(CareTask task) {
+        Map<String, Object> map = new LinkedHashMap<>();
+        map.put("id", task.getId());
+        map.put("patientId", task.getPatientId());
+        map.put("wardId", task.getWardId());
+        map.put("roundId", task.getRoundId());
+        map.put("title", task.getTitle());
+        map.put("taskType", task.getTaskType());
+        map.put("priority", task.getPriority());
+        map.put("status", task.getStatus());
+        map.put("assignedToId", task.getAssignedToId());
+        map.put("assignedToRole", task.getAssignedToRole());
+        map.put("windowStart", task.getWindowStart());
+        map.put("windowEnd", task.getWindowEnd());
+        map.put("workloadConflict", task.isWorkloadConflict());
+        map.put("workloadConflictReason", task.getWorkloadConflictReason());
+        return map;
+    }
+
+    private Map<String, Object> escalationMap(Escalation escalation) {
+        Map<String, Object> map = new LinkedHashMap<>();
+        map.put("id", escalation.getId());
+        map.put("patientId", escalation.getPatientId());
+        map.put("hospitalId", escalation.getHospitalId());
+        map.put("triggeredById", escalation.getTriggeredById());
+        map.put("assignedToId", escalation.getAssignedToId());
+        map.put("triggerType", escalation.getTriggerType());
+        map.put("severity", escalation.getSeverity());
+        map.put("status", escalation.getStatus());
+        map.put("notes", escalation.getNotes());
+        map.put("createdAt", escalation.getCreatedAt());
+        map.put("resolvedAt", escalation.getResolvedAt());
+        return map;
+    }
+
+    private Map<String, Object> shiftMap(Shift shift) {
+        Map<String, Object> map = new LinkedHashMap<>();
+        map.put("id", shift.getId());
+        map.put("wardId", shift.getWardId());
+        map.put("shiftScheduleId", shift.getShiftScheduleId());
+        map.put("type", shift.getType());
+        map.put("label", shift.getType() + " shift");
+        map.put("windowLabel", "%s-%s".formatted(shift.getStartTime().toLocalTime(), shift.getEndTime().toLocalTime()));
+        map.put("startTime", shift.getStartTime());
+        map.put("endTime", shift.getEndTime());
+        map.put("leadDoctorId", shift.getLeadDoctorId());
+        map.put("nurseInChargeId", shift.getNurseInChargeId());
+        map.put("status", shift.getStatus());
+        map.put("assignedAt", shift.getAssignedAt());
+        return map;
     }
 }

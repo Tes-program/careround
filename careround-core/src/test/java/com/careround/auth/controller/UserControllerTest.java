@@ -69,21 +69,32 @@ class UserControllerTest {
     }
 
     @Test
-    void createUser_withoutAuth_shouldReturn403() throws Exception {
+    void createUser_withoutAuth_shouldReturn401() throws Exception {
         mockMvc.perform(post("/api/v1/users")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(new CreateUserRequest(
                                 "Jane", "Doe", "jane.doe@hospital.com",
                                 "password123", UserRole.NURSE, null))))
-                .andExpect(status().isForbidden());
+                .andExpect(status().isUnauthorized());
     }
 
     @Test
-    void getAllUsers_asAdmin_shouldReturn200WithList() throws Exception {
+    void getAllUsers_withInvalidBearerToken_shouldReturn401() throws Exception {
+        when(jwtService.isTokenValid("expired.access.token")).thenReturn(false);
+
+        mockMvc.perform(get("/api/v1/users")
+                        .header("Authorization", "Bearer expired.access.token"))
+                .andExpect(status().isUnauthorized())
+                .andExpect(header().string("WWW-Authenticate", "Bearer"))
+                .andExpect(jsonPath("$.message").value("Invalid or expired access token"));
+    }
+
+    @Test
+    void getAllUsers_asConsultant_shouldReturn200WithList() throws Exception {
         when(userService.listByHospital(any())).thenReturn(List.of(sampleUser));
 
         mockMvc.perform(get("/api/v1/users")
-                        .with(user("admin").roles("ADMIN")))
+                        .with(user("consultant").roles("CONSULTANT")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data[0].firstName").value("Jane"));
     }

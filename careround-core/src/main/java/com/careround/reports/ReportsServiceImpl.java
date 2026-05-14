@@ -1,11 +1,19 @@
 package com.careround.reports;
 
+import com.careround.hospital.entity.Shift;
+import com.careround.hospital.entity.Ward;
+import com.careround.hospital.enums.ShiftStatus;
+import com.careround.hospital.repository.ShiftRepository;
 import com.careround.hospital.repository.WardRepository;
 import com.careround.patient.entity.CareTask;
+import com.careround.patient.entity.Escalation;
 import com.careround.patient.entity.Patient;
 import com.careround.patient.entity.Round;
+import com.careround.patient.enums.EscalationStatus;
+import com.careround.patient.enums.PatientStatus;
 import com.careround.patient.enums.TaskStatus;
 import com.careround.patient.repository.CareTaskRepository;
+import com.careround.patient.repository.EscalationRepository;
 import com.careround.patient.repository.PatientRepository;
 import com.careround.patient.repository.PatientRoundReviewRepository;
 import com.careround.patient.repository.RoundRepository;
@@ -29,11 +37,20 @@ import java.util.function.Function;
 @RequiredArgsConstructor
 public class ReportsServiceImpl implements ReportsService {
 
+    private static final List<PatientStatus> ACTIVE_PATIENT_STATUSES =
+            List.of(PatientStatus.ADMITTED, PatientStatus.STABLE, PatientStatus.DETERIORATING, PatientStatus.DISCHARGE_READY);
+    private static final List<TaskStatus> OPEN_TASK_STATUSES =
+            List.of(TaskStatus.PENDING, TaskStatus.IN_PROGRESS, TaskStatus.OVERDUE);
+    private static final List<EscalationStatus> OPEN_ESCALATION_STATUSES =
+            List.of(EscalationStatus.OPEN, EscalationStatus.ACKNOWLEDGED);
+
     private final CareTaskRepository careTaskRepository;
     private final PatientRepository patientRepository;
     private final RoundRepository roundRepository;
     private final PatientRoundReviewRepository reviewRepository;
     private final WardRepository wardRepository;
+    private final EscalationRepository escalationRepository;
+    private final ShiftRepository shiftRepository;
 
     @Override
     @Transactional(readOnly = true)
@@ -64,6 +81,76 @@ public class ReportsServiceImpl implements ReportsService {
         DateRange range = validateAndBuildRange(hospitalId, wardId, from, to);
         List<Patient> patients = patientRepository.findAdmissionsForReport(hospitalId, wardId, range.start(), range.end());
         return byDay(range, patients, patient -> patient.getAdmissionDate().toLocalDate());
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Map<String, Object> wardSummary(String hospitalId) {
+        List<Ward> wards = wardRepository.findAllByHospitalId(hospitalId);
+        List<String> wardIds = wards.stream().map(Ward::getId).toList();
+        if (wardIds.isEmpty()) {
+            return Map.of("wards", List.of(), "totals", Map.of(
+                    "wards", 0,
+                    "activePatients", 0,
+                    "openTasks", 0,
+                    "openEscalations", 0,
+                    "activeShifts", 0));
+        }
+
+        LocalDateTime now = LocalDateTime.now();
+        List<Patient> patients = patientRepository
+                .findAllByHospitalIdAndWardIdInAndStatusInOrderByWardIdAscNewsScoreDescAdmissionDateAsc(
+                        hospitalId, wardIds, ACTIVE_PATIENT_STATUSES);
+        List<CareTask> tasks = careTaskRepository
+                .findAllByHospitalIdAndWardIdInAndStatusInOrderByWindowEndAsc(
+                        hospitalId, wardIds, OPEN_TASK_STATUSES);
+        List<Shift> shifts = shiftRepository
+                .findAllByWardIdInAndStatusAndStartTimeLessThanAndEndTimeGreaterThanOrderByWardIdAscStartTimeDesc(
+                        wardIds, ShiftStatus.ACTIVE, now, now);
+        List<String> patientIds = patients.stream().map(Patient::getId).toList();
+        List<Escalation> escalations = patientIds.isEmpty()
+                ? List.of()
+                : escalationRepository.findAllByPatientIdInAndStatusInOrderBySeverityDescCreatedAtAsc(
+                        patientIds, OPEN_ESCALATION_STATUSES);
+
+        List<Map<String, Object>> wardSummaries = wards.stream()
+                .map(ward -> {
+                    long activePatients = patients.stream().filter(patient -> ward.getId().equals(patient.getWardId())).count();
+                    long openTasks = tasks.stream().filter(task -> ward.getId().equals(task.getWardId())).count();
+                    long openEscalations = escalations.stream()
+                            .filter(escalation -> patients.stream()
+                                    .anyMatch(patient -> patient.getId().equals(escalation.getPatientId())
+                                            && ward.getId().equals(patient.getWardId())))
+                            .count();
+                    Map<String, Object> summary = new LinkedHashMap<>();
+                    summary.put("wardId", ward.getId());
+                    summary.put("name", ward.getName());
+                    summary.put("specialty", ward.getSpecialty());
+                    summary.put("totalBeds", ward.getTotalBeds());
+                    summary.put("occupiedBeds", activePatients);
+                    summary.put("availableBeds", Math.max(ward.getTotalBeds() - activePatients, 0));
+                    summary.put("openTasks", openTasks);
+                    summary.put("overdueTasks", tasks.stream()
+                            .filter(task -> ward.getId().equals(task.getWardId()))
+                            .filter(this::isOverdue)
+                            .count());
+                    summary.put("openEscalations", openEscalations);
+                    return summary;
+                })
+                .toList();
+
+        Map<String, Object> totals = new LinkedHashMap<>();
+        totals.put("wards", wards.size());
+        totals.put("activePatients", patients.size());
+        totals.put("openTasks", tasks.size());
+        totals.put("openEscalations", escalations.size());
+        totals.put("activeShifts", shifts.size());
+
+        Map<String, Object> response = new LinkedHashMap<>();
+        response.put("generatedAt", now);
+        response.put("wards", wardSummaries);
+        response.put("totals", totals);
+        return response;
     }
 
     @Override
@@ -118,6 +205,14 @@ public class ReportsServiceImpl implements ReportsService {
             return null;
         }
         return Duration.between(round.getStartedAt(), round.getCompletedAt()).toMinutes();
+    }
+
+    private boolean isOverdue(CareTask task) {
+        return task.getStatus() == TaskStatus.OVERDUE
+                || (task.getWindowEnd() != null
+                && task.getWindowEnd().isBefore(LocalDateTime.now())
+                && task.getStatus() != TaskStatus.COMPLETED
+                && task.getStatus() != TaskStatus.CANCELLED);
     }
 
     private record DateRange(LocalDate from, LocalDate to, LocalDateTime start, LocalDateTime end) {}
