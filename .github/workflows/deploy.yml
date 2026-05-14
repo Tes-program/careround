@@ -127,11 +127,11 @@ jobs:
           script: |
             cd /home/ubuntu/careround
             docker compose -f docker-compose.prod.yml pull
-            docker compose -f docker-compose.prod.yml up -d --remove-orphans
+            docker compose -f docker-compose.prod.yml up -d --scale careround-core=2 --remove-orphans
             docker system prune -f
 
       - name: Smoke test
         run: |
           sleep 60
           curl --fail --retry 5 --retry-delay 15 \
-            http://${{ secrets.EC2_HOST }}:8080/actuator/health || exit 1
+            http://${{ secrets.EC2_HOST }}/actuator/health || exit 1

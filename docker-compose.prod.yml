@@ -235,21 +235,19 @@ services:
       retries: 5
       start_period: 60s
 
-  # ── Nginx reverse proxy — SSL termination for /api/ and /grafana/ ──────────
-  # Frontend is hosted on an external CDN (Vercel/S3). This container only
-  # proxies the backend API and Grafana over HTTPS.
+  # ── Nginx reverse proxy — API load balancer ───────────────────────────────
+  # Routes /api/ and /actuator/health to scaled careround-core containers.
+  # SSL termination and frontend serving are handled externally.
   nginx:
     image: nginx:alpine
     restart: unless-stopped
     ports:
       - "80:80"
-      - "443:443"
     depends_on:
       careround-core:
         condition: service_healthy
     volumes:
-      - /etc/letsencrypt:/etc/letsencrypt:ro
-      - ./infra/nginx/ssl.conf:/etc/nginx/conf.d/default.conf:ro
+      - ./infra/nginx/api.conf:/etc/nginx/conf.d/default.conf:ro
     networks:
       - careround-net
 
@@ -268,8 +266,6 @@ services:
     restart: unless-stopped
     environment:
       GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_PASSWORD}
-      GF_SERVER_ROOT_URL: https://${DOMAIN}/grafana/
-      GF_SERVER_SERVE_FROM_SUB_PATH: "true"
     volumes:
       - grafana_data:/var/lib/grafana
       - ./infra/grafana/datasources:/etc/grafana/provisioning/datasources:ro
