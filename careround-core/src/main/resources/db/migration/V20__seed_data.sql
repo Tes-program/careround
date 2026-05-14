@@ -14,7 +14,7 @@
 -- BCrypt hash: $2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy
 -- ============================================================================
 
-SET @pw = '$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy';
+SET @pw = '$2a$10$2NwVtI/BXBtLcuLQpDxm9udFsSN2shidqfCJLljiAI20Y8Mg.j9mu';
 
 -- ── 1. Hospitals ─────────────────────────────────────────────────────────────
 
