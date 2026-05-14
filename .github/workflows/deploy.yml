@@ -95,15 +95,6 @@ jobs:
             ${{ secrets.DOCKER_HUB_USER }}/careround-audit:${{ env.IMAGE_TAG }}
             ${{ secrets.DOCKER_HUB_USER }}/careround-audit:latest
 
-      - name: Build and push careround-frontend
-        uses: docker/build-push-action@v5
-        with:
-          context: careround-frontend
-          file: careround-frontend/Dockerfile
-          push: true
-          tags: |
-            ${{ secrets.DOCKER_HUB_USER }}/careround-frontend:${{ env.IMAGE_TAG }}
-            ${{ secrets.DOCKER_HUB_USER }}/careround-frontend:latest
 
   # ── Job 3: Deploy to EC2 ───────────────────────────────────────────────────
   deploy:
