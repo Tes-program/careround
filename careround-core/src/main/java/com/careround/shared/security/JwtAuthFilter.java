@@ -28,6 +28,8 @@ import java.util.List;
 @Slf4j
 public class JwtAuthFilter extends OncePerRequestFilter {
 
+    public static final String AUTH_ERROR_ATTRIBUTE = "authError";
+
     private final JwtService jwtService;
 
     @Override
@@ -37,24 +39,29 @@ public class JwtAuthFilter extends OncePerRequestFilter {
         try {
             String token = extractToken(request);
 
-            if (token != null && jwtService.isTokenValid(token)) {
-                String userId     = jwtService.extractUserId(token);
-                String hospitalId = jwtService.extractHospitalId(token);
-                String role       = jwtService.extractRole(token);
+            if (token != null) {
+                if (jwtService.isTokenValid(token)) {
+                    String userId     = jwtService.extractUserId(token);
+                    String hospitalId = jwtService.extractHospitalId(token);
+                    String role       = jwtService.extractRole(token);
 
-                var auth = new UsernamePasswordAuthenticationToken(
-                        userId,
-                        null,
-                        role != null ? List.of(new SimpleGrantedAuthority("ROLE_" + role)) : List.of()
-                );
-                auth.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
-                SecurityContext context = SecurityContextHolder.createEmptyContext();
-                context.setAuthentication(auth);
-                SecurityContextHolder.setContext(context);
-                setLoggingContext(hospitalId, userId, role);
-                setHospitalContextIfTenantUser(hospitalId, userId, role);
+                    var auth = new UsernamePasswordAuthenticationToken(
+                            userId,
+                            null,
+                            role != null ? List.of(new SimpleGrantedAuthority("ROLE_" + role)) : List.of()
+                    );
+                    auth.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
+                    SecurityContext context = SecurityContextHolder.createEmptyContext();
+                    context.setAuthentication(auth);
+                    SecurityContextHolder.setContext(context);
+                    setLoggingContext(hospitalId, userId, role);
+                    setHospitalContextIfTenantUser(hospitalId, userId, role);
+                } else {
+                    request.setAttribute(AUTH_ERROR_ATTRIBUTE, "Invalid or expired access token");
+                }
             }
         } catch (JwtException ex) {
+            request.setAttribute(AUTH_ERROR_ATTRIBUTE, "Invalid or expired access token");
             log.debug("Invalid JWT token: {}", ex.getMessage());
         }
 

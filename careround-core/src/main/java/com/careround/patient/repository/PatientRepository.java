@@ -17,15 +17,27 @@ public interface PatientRepository extends JpaRepository<Patient, String> {
     List<Patient> findAllByHospitalIdAndWardIdAndStatusOrderByNewsScoreDescAdmissionDateAsc(
             String hospitalId, String wardId, PatientStatus status);
 
+    List<Patient> findAllByHospitalIdAndWardIdAndStatusInOrderByNewsScoreDescAdmissionDateAsc(
+            String hospitalId, String wardId, List<PatientStatus> statuses);
+
     Optional<Patient> findByIdAndHospitalId(String id, String hospitalId);
 
     Optional<Patient> findByHospitalNumber(String hospitalNumber);
 
     List<Patient> findAllByMedicalTeamIdAndStatus(String teamId, PatientStatus status);
 
+    List<Patient> findAllByHospitalIdAndMedicalTeamIdAndStatusInOrderByNewsScoreDescAdmissionDateAsc(
+            String hospitalId, String medicalTeamId, List<PatientStatus> statuses);
+
+    List<Patient> findAllByHospitalIdAndMedicalTeamIdInAndStatusInOrderByMedicalTeamIdAscNewsScoreDescAdmissionDateAsc(
+            String hospitalId, List<String> medicalTeamIds, List<PatientStatus> statuses);
+
     long countByHospitalIdAndStatus(String hospitalId, PatientStatus status);
 
     long countByHospitalIdAndWardIdInAndStatus(String hospitalId, List<String> wardIds, PatientStatus status);
+
+    List<Patient> findAllByHospitalIdAndWardIdInAndStatusInOrderByWardIdAscNewsScoreDescAdmissionDateAsc(
+            String hospitalId, List<String> wardIds, List<PatientStatus> statuses);
 
     long countByHospitalIdAndMedicalTeamIdInAndStatus(String hospitalId, List<String> medicalTeamIds, PatientStatus status);
 

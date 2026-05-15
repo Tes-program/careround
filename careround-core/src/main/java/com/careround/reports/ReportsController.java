@@ -17,6 +17,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/api/v1/reports")
@@ -51,6 +52,15 @@ public class ReportsController {
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to) {
         return ResponseEntity.ok(ApiResponse.ok(reportsService.patientFlow(HospitalContextHolder.getHospitalId(), wardId, from, to)));
+    }
+
+    @GetMapping("/ward-summary")
+    @Operation(
+            summary = "Ward summary report",
+            description = "Returns per-ward occupancy, task, escalation, and active shift summary data for the authenticated hospital."
+    )
+    public ResponseEntity<ApiResponse<Map<String, Object>>> wardSummary() {
+        return ResponseEntity.ok(ApiResponse.ok(reportsService.wardSummary(HospitalContextHolder.getHospitalId())));
     }
 
     @GetMapping("/round-history")

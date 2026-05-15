@@ -44,7 +44,7 @@ public class DashboardController {
     @PreAuthorize("hasRole('CONSULTANT')")
     @Operation(
             summary = "Get the consultant dashboard",
-            description = "Returns consultant-focused clinical and team summary metrics."
+            description = "Returns consultant-focused clinical and team summary metrics, including teamPatients with active patients assigned to teams led by the authenticated consultant."
     )
     public ResponseEntity<ApiResponse<Map<String, Object>>> consultant() {
         return ResponseEntity.ok(ApiResponse.ok(dashboardService.dashboardForRole(UserRole.CONSULTANT)));
@@ -74,7 +74,7 @@ public class DashboardController {
     @PreAuthorize("hasRole('WARD_SUPERVISOR')")
     @Operation(
             summary = "Get the ward-supervisor dashboard",
-            description = "Returns shift, ward, patient, and escalation metrics for the authenticated ward supervisor."
+            description = "Returns shift, ward, patient, and escalation metrics for the authenticated ward supervisor, including wardPatients, wardTasks, wardEscalations, and currentShifts across all supervised wards."
     )
     public ResponseEntity<ApiResponse<Map<String, Object>>> wardSupervisor() {
         return ResponseEntity.ok(ApiResponse.ok(dashboardService.dashboardForRole(UserRole.WARD_SUPERVISOR)));

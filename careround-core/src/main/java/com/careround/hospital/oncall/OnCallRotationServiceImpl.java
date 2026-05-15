@@ -1,10 +1,14 @@
 package com.careround.hospital.oncall;
 
+import com.careround.hospital.entity.Department;
 import com.careround.hospital.entity.OnCallRotation;
+import com.careround.hospital.entity.Ward;
 import com.careround.hospital.enums.OnCallRole;
 import com.careround.hospital.oncall.dto.CreateOnCallRotationRequest;
 import com.careround.hospital.oncall.dto.OnCallRotationResponse;
+import com.careround.hospital.repository.DepartmentRepository;
 import com.careround.hospital.repository.OnCallRotationRepository;
+import com.careround.hospital.repository.WardRepository;
 import com.careround.shared.exception.ResourceNotFoundException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -20,6 +24,8 @@ import java.util.Optional;
 public class OnCallRotationServiceImpl implements OnCallRotationService {
 
     private final OnCallRotationRepository onCallRotationRepository;
+    private final WardRepository wardRepository;
+    private final DepartmentRepository departmentRepository;
 
     @Override
     @Transactional
@@ -61,6 +67,30 @@ public class OnCallRotationServiceImpl implements OnCallRotationService {
     }
 
     @Override
+    @Transactional(readOnly = true)
+    public Optional<OnCallRotationResponse> getCurrentOnCallByWard(String hospitalId, String wardId, OnCallRole role) {
+        LocalDateTime now = LocalDateTime.now(ZoneOffset.UTC);
+        Ward ward = wardRepository.findByIdAndHospitalId(wardId, hospitalId)
+                .orElseThrow(() -> new ResourceNotFoundException("Ward not found"));
+
+        Optional<OnCallRotationResponse> wardSpecific = onCallRotationRepository
+                .findFirstByHospitalIdAndWardIdAndRoleAndStartTimeBeforeAndEndTimeAfter(
+                        hospitalId, wardId, role, now, now)
+                .map(this::toResponse);
+        if (wardSpecific.isPresent()) {
+            return wardSpecific;
+        }
+
+        return departmentRepository.findAllByHospitalId(hospitalId).stream()
+                .filter(department -> sameSpecialty(department, ward))
+                .findFirst()
+                .flatMap(department -> onCallRotationRepository
+                        .findFirstByHospitalIdAndDepartmentIdAndRoleAndStartTimeBeforeAndEndTimeAfter(
+                                hospitalId, department.getId(), role, now, now))
+                .map(this::toResponse);
+    }
+
+    @Override
     @Transactional
     public void delete(String hospitalId, String rotationId) {
         OnCallRotation rotation = onCallRotationRepository.findByIdAndHospitalId(rotationId, hospitalId)
@@ -72,5 +102,9 @@ public class OnCallRotationServiceImpl implements OnCallRotationService {
         return new OnCallRotationResponse(r.getId(), r.getHospitalId(), r.getDepartmentId(),
                 r.getWardId(), r.getDoctorId(), r.getRole(), r.getStartTime(),
                 r.getEndTime(), r.getCreatedAt());
+    }
+
+    private boolean sameSpecialty(Department department, Ward ward) {
+        return ward.getSpecialty() != null && department.getName().equalsIgnoreCase(ward.getSpecialty());
     }
 }

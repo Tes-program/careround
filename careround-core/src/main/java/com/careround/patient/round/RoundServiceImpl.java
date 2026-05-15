@@ -212,6 +212,24 @@ public class RoundServiceImpl implements RoundService {
     }
 
     @Override
+    @Transactional
+    public RoundResponse cancelRound(String roundId) {
+        String hospitalId = HospitalContextHolder.getHospitalId();
+
+        Round round = roundRepository.findById(roundId)
+                .orElseThrow(() -> new ResourceNotFoundException("Round not found"));
+        if (!round.getHospitalId().equals(hospitalId))
+            throw new AccessDeniedException("Round does not belong to this hospital");
+        if (round.getStatus() != RoundStatus.SCHEDULED)
+            throw new BusinessRuleException("Only SCHEDULED rounds can be cancelled");
+
+        round.setStatus(RoundStatus.CANCELLED);
+        Round saved = roundRepository.save(round);
+        log.info("action=cancelRound roundId={} hospitalId={}", roundId, hospitalId);
+        return toResponse(saved);
+    }
+
+    @Override
     @Transactional(readOnly = true)
     public List<RoundResponse> getRounds(String wardId, String teamId) {
         return roundRepository.findAllByWardIdAndMedicalTeamIdOrderByCreatedAtDesc(wardId, teamId)

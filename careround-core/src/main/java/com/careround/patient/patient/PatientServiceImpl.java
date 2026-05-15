@@ -11,14 +11,24 @@ import com.careround.hospital.repository.MedicalTeamRepository;
 import com.careround.hospital.repository.OnCallRotationRepository;
 import com.careround.hospital.repository.WardRepository;
 import com.careround.patient.entity.Patient;
+import com.careround.patient.entity.CareTask;
+import com.careround.patient.entity.ClinicalNote;
+import com.careround.patient.entity.Escalation;
+import com.careround.patient.entity.PatientRoundReview;
+import com.careround.patient.entity.PatientVitals;
 import com.careround.patient.enums.PatientStatus;
 import com.careround.patient.enums.TaskStatus;
 import com.careround.patient.patient.dto.AdmitPatientRequest;
 import com.careround.patient.patient.dto.MarkDischargeReadyRequest;
 import com.careround.patient.patient.dto.PatientResponse;
+import com.careround.patient.patient.dto.PatientTimelineItemResponse;
 import com.careround.patient.patient.dto.UpdatePatientStatusRequest;
 import com.careround.patient.repository.CareTaskRepository;
+import com.careround.patient.repository.ClinicalNoteRepository;
+import com.careround.patient.repository.EscalationRepository;
 import com.careround.patient.repository.PatientRepository;
+import com.careround.patient.repository.PatientRoundReviewRepository;
+import com.careround.patient.repository.PatientVitalsRepository;
 import com.careround.shared.event.PatientAdmittedEvent;
 import com.careround.shared.event.PatientDischargedEvent;
 import com.careround.shared.event.PatientDischargeReadyEvent;
@@ -35,12 +45,19 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 
 @Service
 @RequiredArgsConstructor
 @Slf4j
 public class PatientServiceImpl implements PatientService {
+
+    private static final List<PatientStatus> ACTIVE_PATIENT_STATUSES =
+            List.of(PatientStatus.ADMITTED, PatientStatus.STABLE, PatientStatus.DETERIORATING, PatientStatus.DISCHARGE_READY);
 
     private final PatientRepository patientRepository;
     private final WardRepository wardRepository;
@@ -48,6 +65,10 @@ public class PatientServiceImpl implements PatientService {
     private final DepartmentRepository departmentRepository;
     private final OnCallRotationRepository onCallRotationRepository;
     private final CareTaskRepository careTaskRepository;
+    private final PatientVitalsRepository patientVitalsRepository;
+    private final EscalationRepository escalationRepository;
+    private final ClinicalNoteRepository clinicalNoteRepository;
+    private final PatientRoundReviewRepository patientRoundReviewRepository;
     private final OutboxService outboxService;
 
     @Override
@@ -112,12 +133,140 @@ public class PatientServiceImpl implements PatientService {
 
     @Override
     @Transactional(readOnly = true)
+    public List<PatientTimelineItemResponse> getPatientTimeline(String patientId) {
+        String hospitalId = HospitalContextHolder.getHospitalId();
+        Patient patient = patientRepository.findByIdAndHospitalId(patientId, hospitalId)
+                .orElseThrow(() -> new ResourceNotFoundException("Patient not found"));
+
+        List<PatientTimelineItemResponse> timeline = new ArrayList<>();
+        timeline.add(new PatientTimelineItemResponse(
+                patient.getId(),
+                "ADMISSION",
+                "Patient admitted",
+                patient.getPrimaryDiagnosis(),
+                patient.getAdmissionDate(),
+                patient.getAdmittingConsultantId(),
+                metadata(
+                        "wardId", patient.getWardId(),
+                        "medicalTeamId", patient.getMedicalTeamId(),
+                        "admissionType", patient.getAdmissionType(),
+                        "status", patient.getStatus())));
+
+        for (PatientVitals vitals : patientVitalsRepository.findAllByPatientIdOrderByRecordedAtDesc(patientId)) {
+            timeline.add(new PatientTimelineItemResponse(
+                    vitals.getId(),
+                    "VITALS",
+                    "Vitals recorded",
+                    "NEWS score " + vitals.getNewsScore(),
+                    vitals.getRecordedAt(),
+                    vitals.getRecordedById(),
+                    metadata(
+                            "newsScore", vitals.getNewsScore(),
+                            "heartRate", vitals.getHeartRate(),
+                            "respiratoryRate", vitals.getRespiratoryRate(),
+                            "oxygenSaturation", vitals.getOxygenSaturation(),
+                            "systolicBP", vitals.getSystolicBP(),
+                            "temperature", vitals.getTemperature(),
+                            "consciousnessLevel", vitals.getConsciousnessLevel())));
+        }
+
+        for (Escalation escalation : escalationRepository.findAllByPatientIdOrderByCreatedAtDesc(patientId)) {
+            timeline.add(new PatientTimelineItemResponse(
+                    escalation.getId(),
+                    "ESCALATION",
+                    escalation.getSeverity() + " escalation " + escalation.getStatus(),
+                    escalation.getNotes(),
+                    escalation.getCreatedAt(),
+                    escalation.getTriggeredById(),
+                    metadata(
+                            "severity", escalation.getSeverity(),
+                            "status", escalation.getStatus(),
+                            "triggerType", escalation.getTriggerType(),
+                            "assignedToId", escalation.getAssignedToId(),
+                            "resolvedAt", escalation.getResolvedAt())));
+        }
+
+        for (PatientRoundReview review : patientRoundReviewRepository.findAllByPatientIdOrderByReviewedAtDesc(patientId)) {
+            timeline.add(new PatientTimelineItemResponse(
+                    review.getId(),
+                    "ROUND_REVIEW",
+                    "Round review",
+                    review.getManagementPlan(),
+                    review.getReviewedAt(),
+                    review.getReviewedById(),
+                    metadata(
+                            "roundId", review.getRoundId(),
+                            "clinicalStatus", review.getClinicalStatus(),
+                            "newsScoreAtReview", review.getNewsScoreAtReview(),
+                            "dischargeAssessment", review.getDischargeAssessment(),
+                            "wasExamined", review.isWasExamined(),
+                            "notifiedNextOfKin", review.isNotifiedNextOfKin())));
+        }
+
+        for (ClinicalNote note : clinicalNoteRepository.findAllByPatientIdOrderByCreatedAtDesc(patientId)) {
+            timeline.add(new PatientTimelineItemResponse(
+                    note.getId(),
+                    "CLINICAL_NOTE",
+                    note.getNoteType() + " note",
+                    note.getContent(),
+                    note.getCreatedAt(),
+                    note.getAuthorId(),
+                    metadata(
+                            "patientRoundReviewId", note.getPatientRoundReviewId(),
+                            "vitalsId", note.getVitalsId(),
+                            "isAmended", note.isAmended(),
+                            "amendedById", note.getAmendedById(),
+                            "amendedAt", note.getAmendedAt())));
+        }
+
+        for (CareTask task : careTaskRepository.findAllByPatientId(patientId)) {
+            LocalDateTime occurredAt = task.getCompletedAt() != null ? task.getCompletedAt() : task.getCreatedAt();
+            timeline.add(new PatientTimelineItemResponse(
+                    task.getId(),
+                    "CARE_TASK",
+                    task.getTitle(),
+                    task.getDescription(),
+                    occurredAt,
+                    task.getCompletedById() != null ? task.getCompletedById() : task.getCreatedById(),
+                    metadata(
+                            "wardId", task.getWardId(),
+                            "roundId", task.getRoundId(),
+                            "assignedToId", task.getAssignedToId(),
+                            "assignedToRole", task.getAssignedToRole(),
+                            "priority", task.getPriority(),
+                            "status", task.getStatus(),
+                            "windowStart", task.getWindowStart(),
+                            "windowEnd", task.getWindowEnd(),
+                            "workloadConflict", task.isWorkloadConflict())));
+        }
+
+        return timeline.stream()
+                .sorted(Comparator.comparing(PatientTimelineItemResponse::occurredAt,
+                                Comparator.nullsLast(Comparator.naturalOrder()))
+                        .reversed())
+                .toList();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
     public List<PatientResponse> getPatientsByWard(String wardId) {
         String hospitalId = HospitalContextHolder.getHospitalId();
         wardRepository.findByIdAndHospitalId(wardId, hospitalId)
                 .orElseThrow(() -> new ResourceNotFoundException("Ward not found"));
         return patientRepository.findAllByHospitalIdAndWardIdAndStatusOrderByNewsScoreDescAdmissionDateAsc(
                         hospitalId, wardId, PatientStatus.ADMITTED)
+                .stream().map(this::toResponse).toList();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<PatientResponse> getPatientsByTeam(String teamId) {
+        String hospitalId = HospitalContextHolder.getHospitalId();
+        medicalTeamRepository.findByIdAndHospitalId(teamId, hospitalId)
+                .orElseThrow(() -> new ResourceNotFoundException("Medical team not found"));
+        return patientRepository
+                .findAllByHospitalIdAndMedicalTeamIdAndStatusInOrderByNewsScoreDescAdmissionDateAsc(
+                        hospitalId, teamId, ACTIVE_PATIENT_STATUSES)
                 .stream().map(this::toResponse).toList();
     }
 
@@ -242,5 +391,13 @@ public class PatientServiceImpl implements PatientService {
                 p.getSpecialtyRequired(), p.getAcuityLevel(), p.getNewsScore(),
                 p.isDischargeReady(), p.getEstimatedDischargeDate(), p.getStatus(),
                 p.getAdmissionDate(), p.getCreatedAt(), p.getUpdatedAt());
+    }
+
+    private Map<String, Object> metadata(Object... entries) {
+        Map<String, Object> metadata = new LinkedHashMap<>();
+        for (int i = 0; i < entries.length; i += 2) {
+            metadata.put((String) entries[i], entries[i + 1]);
+        }
+        return metadata;
     }
 }
