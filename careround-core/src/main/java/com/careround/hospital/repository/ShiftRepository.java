@@ -23,6 +23,9 @@ public interface ShiftRepository extends JpaRepository<Shift, String> {
     List<Shift> findAllByStatusAndStartTimeLessThanAndEndTimeGreaterThan(
             ShiftStatus status, LocalDateTime windowEnd, LocalDateTime windowStart);
 
+    List<Shift> findAllByWardIdInAndStatusAndStartTimeLessThanAndEndTimeGreaterThanOrderByWardIdAscStartTimeDesc(
+            List<String> wardIds, ShiftStatus status, LocalDateTime windowEnd, LocalDateTime windowStart);
+
     long countByWardIdInAndStatus(List<String> wardIds, ShiftStatus status);
 
     List<Shift> findAllByWardIdAndStartTimeLessThanEqualAndEndTimeGreaterThanEqualOrderByStartTimeAsc(

@@ -6,6 +6,7 @@ import com.careround.patient.round.dto.ReviewPatientRequest;
 import com.careround.patient.round.dto.RoundResponse;
 import com.careround.shared.dto.ApiResponse;
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -62,6 +63,14 @@ public class RoundController {
     @Operation(summary = "Complete round", description = "Completes an active clinical round.")
     public ResponseEntity<ApiResponse<RoundResponse>> completeRound(@PathVariable String roundId) {
         return ResponseEntity.ok(ApiResponse.ok("Round completed", roundService.completeRound(roundId)));
+    }
+
+    @PostMapping("/{roundId}/cancel")
+    @PreAuthorize("hasAnyRole('CONSULTANT', 'REGISTRAR')")
+    @Operation(summary = "Cancel round", description = "Cancels a scheduled round that was created in error.")
+    public ResponseEntity<ApiResponse<RoundResponse>> cancelRound(
+            @Parameter(description = "Round id") @PathVariable String roundId) {
+        return ResponseEntity.ok(ApiResponse.ok("Round cancelled", roundService.cancelRound(roundId)));
     }
 
     @GetMapping

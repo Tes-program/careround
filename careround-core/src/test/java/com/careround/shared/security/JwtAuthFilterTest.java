@@ -82,6 +82,8 @@ class JwtAuthFilterTest {
 
         verify(filterChain).doFilter(request, response);
         assertThat(SecurityContextHolder.getContext().getAuthentication()).isNull();
+        assertThat(request.getAttribute(JwtAuthFilter.AUTH_ERROR_ATTRIBUTE))
+                .isEqualTo("Invalid or expired access token");
     }
 
     @Test

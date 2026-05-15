@@ -12,5 +12,7 @@ public interface PatientRoundReviewRepository extends JpaRepository<PatientRound
 
     Optional<PatientRoundReview> findByRoundIdAndPatientId(String roundId, String patientId);
 
+    List<PatientRoundReview> findAllByPatientIdOrderByReviewedAtDesc(String patientId);
+
     long countByRoundId(String roundId);
 }

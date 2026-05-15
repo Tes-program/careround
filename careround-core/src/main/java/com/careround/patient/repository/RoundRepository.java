@@ -15,6 +15,9 @@ public interface RoundRepository extends JpaRepository<Round, String> {
 
     List<Round> findAllByWardIdAndMedicalTeamIdOrderByCreatedAtDesc(String wardId, String teamId);
 
+    List<Round> findAllByHospitalIdAndWardIdAndStatusOrderByStartedAtDesc(
+            String hospitalId, String wardId, RoundStatus status);
+
     boolean existsByWardIdAndMedicalTeamIdAndRoundTypeAndStatus(
             String wardId, String teamId, RoundType type, RoundStatus status);
 

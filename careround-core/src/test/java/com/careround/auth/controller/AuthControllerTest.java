@@ -170,12 +170,12 @@ class AuthControllerTest {
     }
 
     @Test
-    void changePassword_withoutAuthToken_shouldReturn403() throws Exception {
+    void changePassword_withoutAuthToken_shouldReturn401() throws Exception {
         mockMvc.perform(post("/api/v1/auth/change-password")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(
                                 new ChangePasswordRequest("oldPass123", "newPass456"))))
-                .andExpect(status().isForbidden());
+                .andExpect(status().isUnauthorized());
     }
 }
 

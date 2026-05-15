@@ -12,6 +12,7 @@ public interface RoundService {
     RoundResponse startRound(String roundId);
     PatientRoundReviewResponse reviewPatient(String roundId, String patientId, ReviewPatientRequest request);
     RoundResponse completeRound(String roundId);
+    RoundResponse cancelRound(String roundId);
     List<RoundResponse> getRounds(String wardId, String teamId);
     List<PatientRoundReviewResponse> getReviews(String roundId);
 }

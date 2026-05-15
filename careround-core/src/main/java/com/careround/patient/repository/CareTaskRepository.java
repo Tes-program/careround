@@ -14,6 +14,9 @@ public interface CareTaskRepository extends JpaRepository<CareTask, String> {
     List<CareTask> findAllByHospitalIdAndWardIdAndStatusOrderByWindowEnd(
             String hospitalId, String wardId, TaskStatus status);
 
+    List<CareTask> findAllByHospitalIdAndWardIdAndStatusInOrderByWindowEndAsc(
+            String hospitalId, String wardId, List<TaskStatus> statuses);
+
     List<CareTask> findAllByPatientId(String patientId);
 
     List<CareTask> findAllByHospitalIdAndStatusInOrderByWindowEndAsc(String hospitalId, List<TaskStatus> statuses);
@@ -28,6 +31,9 @@ public interface CareTaskRepository extends JpaRepository<CareTask, String> {
     long countByHospitalIdAndAssignedToIdAndStatusIn(String hospitalId, String assignedToId, List<TaskStatus> statuses);
 
     long countByHospitalIdAndWardIdInAndStatusIn(String hospitalId, List<String> wardIds, List<TaskStatus> statuses);
+
+    List<CareTask> findAllByHospitalIdAndWardIdInAndStatusInOrderByWindowEndAsc(
+            String hospitalId, List<String> wardIds, List<TaskStatus> statuses);
 
     long countByHospitalIdAndStatusInAndWindowEndBefore(String hospitalId, List<TaskStatus> statuses, LocalDateTime now);
 

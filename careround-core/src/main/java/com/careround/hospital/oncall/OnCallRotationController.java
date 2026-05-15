@@ -6,6 +6,7 @@ import com.careround.hospital.oncall.dto.OnCallRotationResponse;
 import com.careround.shared.dto.ApiResponse;
 import com.careround.shared.security.HospitalContextHolder;
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -59,12 +60,15 @@ public class OnCallRotationController {
     }
 
     @GetMapping("/current")
-    @Operation(summary = "Get current on-call doctor", description = "Returns the current on-call rotation for a department and role.")
+    @Operation(summary = "Get current on-call doctor", description = "Returns the current on-call rotation for a department or ward and role.")
     public ResponseEntity<ApiResponse<OnCallRotationResponse>> getCurrent(
-            @RequestParam String departmentId,
-            @RequestParam OnCallRole role) {
-        return onCallRotationService
-                .getCurrentOnCall(HospitalContextHolder.getHospitalId(), departmentId, role)
+            @Parameter(description = "Department id. Use this or wardId.") @RequestParam(required = false) String departmentId,
+            @Parameter(description = "Ward id. Preferred for ward-scoped nurse workflows; use this or departmentId.") @RequestParam(required = false) String wardId,
+            @Parameter(description = "On-call role to look up.") @RequestParam OnCallRole role) {
+        var current = wardId != null
+                ? onCallRotationService.getCurrentOnCallByWard(HospitalContextHolder.getHospitalId(), wardId, role)
+                : onCallRotationService.getCurrentOnCall(HospitalContextHolder.getHospitalId(), departmentId, role);
+        return current
                 .map(r -> ResponseEntity.ok(ApiResponse.ok(r)))
                 .orElse(ResponseEntity.ok(ApiResponse.ok(null)));
     }

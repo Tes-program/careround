@@ -3,9 +3,11 @@ package com.careround.patient.patient;
 import com.careround.patient.patient.dto.AdmitPatientRequest;
 import com.careround.patient.patient.dto.MarkDischargeReadyRequest;
 import com.careround.patient.patient.dto.PatientResponse;
+import com.careround.patient.patient.dto.PatientTimelineItemResponse;
 import com.careround.patient.patient.dto.UpdatePatientStatusRequest;
 import com.careround.shared.dto.ApiResponse;
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -40,11 +42,21 @@ public class PatientController {
         return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.ok("Patient admitted", response));
     }
 
-    @GetMapping("/{patientId}")
+    @GetMapping("/{id}")
     @Operation(summary = "Get patient", description = "Returns patient details by id.")
     public ResponseEntity<ApiResponse<PatientResponse>> getPatient(
-            @PathVariable String patientId) {
+            @Parameter(description = "Patient id") @PathVariable("id") String patientId) {
         return ResponseEntity.ok(ApiResponse.ok(patientService.getPatient(patientId)));
+    }
+
+    @GetMapping("/{id}/timeline")
+    @Operation(
+            summary = "Get patient timeline",
+            description = "Returns a chronological patient audit and clinical timeline including admission, vitals, escalations, round reviews, notes, care tasks, discharge-readiness changes, and discharge events where available."
+    )
+    public ResponseEntity<ApiResponse<List<PatientTimelineItemResponse>>> getPatientTimeline(
+            @Parameter(description = "Patient id") @PathVariable("id") String patientId) {
+        return ResponseEntity.ok(ApiResponse.ok(patientService.getPatientTimeline(patientId)));
     }
 
     @GetMapping("/ward/{wardId}")
@@ -52,6 +64,13 @@ public class PatientController {
     public ResponseEntity<ApiResponse<List<PatientResponse>>> getPatientsByWard(
             @PathVariable String wardId) {
         return ResponseEntity.ok(ApiResponse.ok(patientService.getPatientsByWard(wardId)));
+    }
+
+    @GetMapping("/team/{teamId}")
+    @Operation(summary = "List team patients", description = "Returns all active patients assigned to a medical team across wards.")
+    public ResponseEntity<ApiResponse<List<PatientResponse>>> getPatientsByTeam(
+            @Parameter(description = "Medical team id") @PathVariable String teamId) {
+        return ResponseEntity.ok(ApiResponse.ok(patientService.getPatientsByTeam(teamId)));
     }
 
     @GetMapping("/search")

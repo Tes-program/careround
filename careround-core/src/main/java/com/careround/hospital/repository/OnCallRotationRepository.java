@@ -19,4 +19,7 @@ public interface OnCallRotationRepository extends JpaRepository<OnCallRotation, 
 
     Optional<OnCallRotation> findFirstByHospitalIdAndDepartmentIdAndRoleAndStartTimeBeforeAndEndTimeAfter(
             String hospitalId, String departmentId, OnCallRole role, LocalDateTime now1, LocalDateTime now2);
+
+    Optional<OnCallRotation> findFirstByHospitalIdAndWardIdAndRoleAndStartTimeBeforeAndEndTimeAfter(
+            String hospitalId, String wardId, OnCallRole role, LocalDateTime now1, LocalDateTime now2);
 }
