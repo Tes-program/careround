@@ -15,6 +15,8 @@ import java.time.LocalDateTime;
 import java.time.ZoneOffset;
 import java.util.Map;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 
 @Service
 @RequiredArgsConstructor
@@ -60,15 +62,24 @@ public class OutboxPollerProcessor {
 
             try {
                 objectMapper.readTree(event.getPayload());
-                kafkaTemplate.send(topic, event.getHospitalId(), event.getPayload()).get();
+                kafkaTemplate.send(topic, event.getHospitalId(), event.getPayload())
+                        .get(5, TimeUnit.SECONDS);
                 event.setPublished(true);
                 event.setPublishedAt(LocalDateTime.now(ZoneOffset.UTC));
                 publishedCount++;
+            } catch (TimeoutException ex) {
+                log.error("action=OUTBOX_PUBLISH_FAILED eventId={} hospitalId={} topic={} message={}",
+                        event.getId(), event.getHospitalId(), topic, ex.getMessage(), ex);
+                throw new RuntimeException("Kafka send timed out for event " + event.getId(), ex);
             } catch (InterruptedException ex) {
                 Thread.currentThread().interrupt();
                 log.error("action=OUTBOX_PUBLISH_FAILED eventId={} topic={} correlationId={} message={}",
                         event.getId(), topic, event.getCorrelationId(), ex.getMessage(), ex);
-            } catch (ExecutionException | RuntimeException ex) {
+            } catch (ExecutionException ex) {
+                log.error("action=OUTBOX_PUBLISH_FAILED eventId={} hospitalId={} topic={} message={}",
+                        event.getId(), event.getHospitalId(), topic, ex.getMessage(), ex);
+                throw new RuntimeException("Kafka send failed for event " + event.getId(), ex);
+            } catch (RuntimeException ex) {
                 log.error("action=OUTBOX_PUBLISH_FAILED eventId={} topic={} correlationId={} message={}",
                         event.getId(), topic, event.getCorrelationId(), ex.getMessage(), ex);
             } catch (Exception ex) {

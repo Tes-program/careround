@@ -17,6 +17,7 @@ import java.util.List;
 import java.util.concurrent.CompletableFuture;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
@@ -71,9 +72,9 @@ class OutboxPollerJobTest {
         when(kafkaTemplate.send(any(), any(), any()))
                 .thenReturn(CompletableFuture.failedFuture(new RuntimeException("kafka down")));
 
-        int published = processor.pollAndPublishBatch();
-
-        assertThat(published).isZero();
+        assertThatThrownBy(() -> processor.pollAndPublishBatch())
+                .isInstanceOf(RuntimeException.class)
+                .hasMessageContaining("Kafka send failed for event evt-1");
         assertThat(event.isPublished()).isFalse();
         assertThat(event.getPublishedAt()).isNull();
     }

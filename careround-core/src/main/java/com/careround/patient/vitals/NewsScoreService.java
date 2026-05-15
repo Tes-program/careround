@@ -10,6 +10,8 @@ import com.careround.patient.enums.EscalationTrigger;
 import com.careround.patient.escalation.EscalationService;
 import com.careround.patient.escalation.dto.EscalationResponse;
 import com.careround.shared.security.HospitalContextHolder;
+import io.micrometer.core.instrument.Counter;
+import io.micrometer.core.instrument.MeterRegistry;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -23,6 +25,7 @@ public class NewsScoreService {
 
     private final SystemConfigurationService systemConfigurationService;
     private final EscalationService escalationService;
+    private final MeterRegistry meterRegistry;
 
     public int computeAndUpdate(Patient patient, PatientVitals vitals) {
         int score = compute(vitals);
@@ -42,6 +45,10 @@ public class NewsScoreService {
 
         log.info("action=computeNewsScore patientId={} hospitalId={} score={} acuity={}",
                 patient.getId(), hospitalId, score, patient.getAcuityLevel());
+        Counter.builder("careround.news2.scored")
+                .tag("riskLevel", patient.getAcuityLevel().name())
+                .register(meterRegistry)
+                .increment();
         return score;
     }
 
@@ -74,7 +81,8 @@ public class NewsScoreService {
         return AcuityLevel.HIGH;
     }
 
-    private int respiratoryRateScore(int rr) {
+    private int respiratoryRateScore(Integer rr) {
+        if (rr == null) return 0;
         if (rr <= 8) return 3;
         if (rr <= 11) return 1;
         if (rr <= 20) return 0;
@@ -83,6 +91,7 @@ public class NewsScoreService {
     }
 
     private int oxygenSaturationScore(BigDecimal spo2) {
+        if (spo2 == null) return 0;
         int val = spo2.intValue();
         if (val <= 91) return 3;
         if (val <= 93) return 2;
@@ -90,7 +99,8 @@ public class NewsScoreService {
         return 0;
     }
 
-    private int systolicBpScore(int sbp) {
+    private int systolicBpScore(Integer sbp) {
+        if (sbp == null) return 0;
         if (sbp <= 90) return 3;
         if (sbp <= 100) return 2;
         if (sbp <= 110) return 1;
@@ -98,7 +108,8 @@ public class NewsScoreService {
         return 3;
     }
 
-    private int heartRateScore(int hr) {
+    private int heartRateScore(Integer hr) {
+        if (hr == null) return 0;
         if (hr <= 40) return 3;
         if (hr <= 50) return 1;
         if (hr <= 90) return 0;
@@ -108,6 +119,7 @@ public class NewsScoreService {
     }
 
     private int temperatureScore(BigDecimal temp) {
+        if (temp == null) return 0;
         if (temp.compareTo(new BigDecimal("35.0")) <= 0) return 3;
         if (temp.compareTo(new BigDecimal("36.0")) <= 0) return 1;
         if (temp.compareTo(new BigDecimal("38.0")) <= 0) return 0;
@@ -116,6 +128,7 @@ public class NewsScoreService {
     }
 
     private int consciousnessScore(PatientVitals vitals) {
+        if (vitals.getConsciousnessLevel() == null) return 0;
         return switch (vitals.getConsciousnessLevel()) {
             case ALERT -> 0;
             case VOICE, PAIN, UNRESPONSIVE -> 3;

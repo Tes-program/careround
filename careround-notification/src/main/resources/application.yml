@@ -35,13 +35,12 @@ spring:
       value-deserializer: org.springframework.kafka.support.serializer.JsonDeserializer
       properties:
         spring.json.trusted.packages: "com.careround.*"
+  lifecycle:
+    timeout-per-shutdown-phase: 30s
 
 server:
   port: 8081
   shutdown: graceful
-
-spring.lifecycle:
-  timeout-per-shutdown-phase: 30s
 
 management:
   endpoints:
