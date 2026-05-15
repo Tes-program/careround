@@ -14,8 +14,20 @@ public class FlywayJpaDependencyConfig {
     @Bean
     static BeanFactoryPostProcessor entityManagerFactoryDependsOnFlyway() {
         return beanFactory -> {
-            if (!beanFactory.containsBeanDefinition("entityManagerFactory")
-                    || !beanFactory.containsBeanDefinition("flywayInitializer")) {
+            if (!beanFactory.containsBeanDefinition("entityManagerFactory")) {
+                return;
+            }
+
+            // In Spring Boot 4.x the separate "flywayInitializer" bean was removed;
+            // migrations are triggered by the "flyway" bean itself. Depend on whichever
+            // bean name is present so this works across Spring Boot 3.x and 4.x.
+            String flywayBeanName = beanFactory.containsBeanDefinition("flywayInitializer")
+                    ? "flywayInitializer"
+                    : beanFactory.containsBeanDefinition("flyway")
+                            ? "flyway"
+                            : null;
+
+            if (flywayBeanName == null) {
                 return;
             }
 
@@ -25,7 +37,7 @@ public class FlywayJpaDependencyConfig {
             if (existing != null) {
                 dependencies.addAll(Arrays.asList(existing));
             }
-            dependencies.add("flywayInitializer");
+            dependencies.add(flywayBeanName);
             entityManagerFactory.setDependsOn(dependencies.toArray(String[]::new));
         };
     }

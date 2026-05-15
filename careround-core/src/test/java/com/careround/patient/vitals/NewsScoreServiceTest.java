@@ -11,12 +11,15 @@ import com.careround.patient.enums.EscalationSeverity;
 import com.careround.patient.escalation.EscalationService;
 import com.careround.patient.escalation.dto.EscalationResponse;
 import com.careround.shared.security.HospitalContextHolder;
+import io.micrometer.core.instrument.MeterRegistry;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
+import org.mockito.Spy;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.math.BigDecimal;
@@ -34,6 +37,7 @@ class NewsScoreServiceTest {
 
     @Mock private SystemConfigurationService systemConfigurationService;
     @Mock private EscalationService escalationService;
+    @Spy private MeterRegistry meterRegistry = new SimpleMeterRegistry();
 
     @InjectMocks private NewsScoreService newsScoreService;
 

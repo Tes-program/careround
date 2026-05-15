@@ -34,6 +34,8 @@ import com.careround.shared.exception.BusinessRuleException;
 import com.careround.shared.exception.ResourceNotFoundException;
 import com.careround.shared.security.HospitalContextHolder;
 import com.careround.shared.service.OutboxService;
+import io.micrometer.core.instrument.Counter;
+import io.micrometer.core.instrument.MeterRegistry;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.slf4j.MDC;
@@ -58,6 +60,7 @@ public class RoundServiceImpl implements RoundService {
     private final PatientRepository patientRepository;
     private final CareTaskRepository careTaskRepository;
     private final OutboxService outboxService;
+    private final MeterRegistry meterRegistry;
 
     @Override
     @Transactional
@@ -193,6 +196,10 @@ public class RoundServiceImpl implements RoundService {
         round.setStatus(RoundStatus.COMPLETED);
         round.setCompletedAt(LocalDateTime.now(ZoneOffset.UTC));
         Round saved = roundRepository.save(round);
+        Counter.builder("careround.round.completed")
+                .tag("hospitalId", saved.getHospitalId())
+                .register(meterRegistry)
+                .increment();
 
         outboxService.publish("careround.round.completed",
                 new RoundCompletedEvent(hospitalId, round.getId(), round.getWardId(),

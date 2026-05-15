@@ -117,6 +117,83 @@ services:
             --replication-factor 1
         done
 
+  # ── Application Services ───────────────────────────────────────────────────
+  careround-core:
+    build:
+      context: .
+      dockerfile: careround-core/Dockerfile
+    container_name: careround-core
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    environment:
+      TZ: UTC
+      SPRING_PROFILES_ACTIVE: dev
+      SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/careround_core?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC
+      MYSQL_USER: ${MYSQL_USER}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD}
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      REDIS_HOST: redis
+      JWT_SECRET: ${JWT_SECRET}
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+    networks:
+      - careround-net
+
+  careround-notification:
+    build:
+      context: .
+      dockerfile: careround-notification/Dockerfile
+    container_name: careround-notification
+    restart: unless-stopped
+    ports:
+      - "8081:8081"
+    environment:
+      TZ: UTC
+      SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/careround_notification?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC
+      MYSQL_USER: ${MYSQL_USER}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD}
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      CAREROUND_CORE_BASE_URL: http://careround-core:8080
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+    networks:
+      - careround-net
+
+  careround-audit:
+    build:
+      context: .
+      dockerfile: careround-audit/Dockerfile
+    container_name: careround-audit
+    restart: unless-stopped
+    ports:
+      - "8082:8082"
+    environment:
+      TZ: UTC
+      SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/careround_audit?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC
+      MYSQL_USER: ${MYSQL_USER}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD}
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+    networks:
+      - careround-net
+
   kafka-ui:
     image: provectuslabs/kafka-ui:latest
     container_name: careround-kafka-ui
