@@ -33,7 +33,7 @@ public class SystemConfigurationServiceImpl implements SystemConfigurationServic
         if (cached != null) {
             try {
                 return objectMapper.readValue(cached, SystemConfigResponse.class);
-            } catch (RuntimeException e) {
+            } catch (Exception e) {
                 log.warn("Failed to deserialize cached config for hospital {}: {}", hospitalId, e.getMessage());
             }
         }
@@ -81,7 +81,7 @@ public class SystemConfigurationServiceImpl implements SystemConfigurationServic
     private void putCache(String key, SystemConfigResponse response) {
         try {
             redisTemplate.opsForValue().set(key, objectMapper.writeValueAsString(response), CACHE_TTL);
-        } catch (RuntimeException e) {
+        } catch (Exception e) {
             log.warn("Failed to cache system config [key={}]: {}", key, e.getMessage());
         }
     }
