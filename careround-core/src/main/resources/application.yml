@@ -28,13 +28,12 @@ spring:
       org.quartz.jobStore.tablePrefix: QRTZ_
       org.quartz.threadPool.threadCount: 5
       org.quartz.scheduler.skipUpdateCheck: true
+  lifecycle:
+    timeout-per-shutdown-phase: 30s
 
 server:
   port: 8080
   shutdown: graceful
-
-spring.lifecycle:
-  timeout-per-shutdown-phase: 30s
 
 management:
   endpoints:

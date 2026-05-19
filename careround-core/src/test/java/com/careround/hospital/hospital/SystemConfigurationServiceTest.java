@@ -5,7 +5,6 @@ import com.careround.hospital.hospital.dto.SystemConfigResponse;
 import com.careround.hospital.hospital.dto.UpdateSystemConfigRequest;
 import com.careround.hospital.repository.SystemConfigurationRepository;
 import com.careround.shared.exception.ResourceNotFoundException;
-import tools.jackson.core.JacksonException;
 import tools.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;

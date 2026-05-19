@@ -22,6 +22,8 @@ import com.careround.shared.exception.AccessDeniedException;
 import com.careround.shared.exception.ResourceNotFoundException;
 import com.careround.shared.security.HospitalContextHolder;
 import com.careround.shared.service.OutboxService;
+import io.micrometer.core.instrument.Counter;
+import io.micrometer.core.instrument.MeterRegistry;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.slf4j.MDC;
@@ -43,6 +45,7 @@ public class EscalationServiceImpl implements EscalationService {
     private final MedicalTeamRepository medicalTeamRepository;
     private final OnCallRotationRepository onCallRotationRepository;
     private final OutboxService outboxService;
+    private final MeterRegistry meterRegistry;
 
     @Override
     @Transactional
@@ -69,6 +72,11 @@ public class EscalationServiceImpl implements EscalationService {
         escalation.setAssignedToId(resolveOnCallAssignee(hospitalId, patient, severity));
 
         Escalation saved = escalationRepository.save(escalation);
+        Counter.builder("careround.escalation.created")
+                .tag("severity", saved.getSeverity().name())
+                .tag("hospitalId", saved.getHospitalId())
+                .register(meterRegistry)
+                .increment();
 
         PatientDeteriorationEvent event = new PatientDeteriorationEvent(
                 hospitalId, patientId, patient.getWardId(),
@@ -110,6 +118,11 @@ public class EscalationServiceImpl implements EscalationService {
         escalation.setAssignedToId(resolveOnCallAssignee(hospitalId, patient, request.severity()));
 
         Escalation saved = escalationRepository.save(escalation);
+        Counter.builder("careround.escalation.created")
+                .tag("severity", saved.getSeverity().name())
+                .tag("hospitalId", saved.getHospitalId())
+                .register(meterRegistry)
+                .increment();
 
         PatientDeteriorationEvent event = new PatientDeteriorationEvent(
                 hospitalId, patientId, patient.getWardId(),

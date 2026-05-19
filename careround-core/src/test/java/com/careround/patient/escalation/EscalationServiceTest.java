@@ -21,12 +21,15 @@ import com.careround.shared.exception.AccessDeniedException;
 import com.careround.shared.exception.ResourceNotFoundException;
 import com.careround.shared.security.HospitalContextHolder;
 import com.careround.shared.service.OutboxService;
+import io.micrometer.core.instrument.MeterRegistry;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
+import org.mockito.Spy;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.time.LocalDateTime;
@@ -49,6 +52,7 @@ class EscalationServiceTest {
     @Mock private MedicalTeamRepository medicalTeamRepository;
     @Mock private OnCallRotationRepository onCallRotationRepository;
     @Mock private OutboxService outboxService;
+    @Spy private MeterRegistry meterRegistry = new SimpleMeterRegistry();
 
     @InjectMocks private EscalationServiceImpl escalationService;
 
