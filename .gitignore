@@ -1,6 +1,7 @@
 target/
 !.mvn/wrapper/maven-wrapper.jar
 /logs/
+docs/
 
 ### Environment ###
 .env
@@ -41,5 +42,4 @@ local.properties
 ### Operating System ###
 .DS_Store
 Thumbs.db
-
 README.md
