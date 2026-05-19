@@ -44,7 +44,7 @@ TRUNCATE TABLE hospital_onboarding_request;
 TRUNCATE TABLE platform_operator;
 TRUNCATE TABLE hospital;
 
-SET @password_hash = '$2a$10$BxWU1teADySM1SiaFy2jhuzN3JKhgWR41Hlfn25dctv7Cw7zmDSaC';
+SET @password_hash = '$2a$10$r1VQZ6GedTKo4BoZtmhc/Ocy3rOKESXlEOjg85PTmuk.ZHvmd2bFq';
 
 INSERT INTO hospital (id, name, address, contact_email, contact_phone, created_at, updated_at) VALUES
 ('hosp-ng-luth', 'Lagos University Teaching Hospital', 'Idi-Araba, Surulere, Lagos, Nigeria', 'admin@luth.example.ng', '+2348010000101', NOW(), NOW()),
@@ -679,14 +679,14 @@ INSERT INTO department (id, hospital_id, name, head_of_department_id, created_at
 ('dept-surg-001', 'hosp-001', 'Surgery', NULL, NOW(), NOW());
 
 INSERT INTO users (id, hospital_id, first_name, last_name, email, password_hash, role, department_id, is_active, created_at, updated_at) VALUES
-('user-admin-001', 'hosp-001', 'Admin', 'User', 'admin@omth.ng', '$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LPVyNR4f8Ki', 'ADMIN', NULL, TRUE, NOW(), NOW()),
-('user-sup-001', 'hosp-001', 'Grace', 'Adeyemi', 'supervisor@omth.ng', '$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LPVyNR4f8Ki', 'WARD_SUPERVISOR', NULL, TRUE, NOW(), NOW()),
-('user-cons-001', 'hosp-001', 'Dr. Emeka', 'Okonkwo', 'consultant@omth.ng', '$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LPVyNR4f8Ki', 'CONSULTANT', 'dept-gm-001', TRUE, NOW(), NOW()),
-('user-reg-001', 'hosp-001', 'Dr. Amina', 'Bello', 'registrar@omth.ng', '$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LPVyNR4f8Ki', 'REGISTRAR', 'dept-gm-001', TRUE, NOW(), NOW()),
-('user-jd-001', 'hosp-001', 'Dr. Tunde', 'Lawal', 'jd@omth.ng', '$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LPVyNR4f8Ki', 'JUNIOR_DOCTOR', 'dept-gm-001', TRUE, NOW(), NOW()),
-('user-nurse-001', 'hosp-001', 'Ngozi', 'Eze', 'nurse1@omth.ng', '$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LPVyNR4f8Ki', 'NURSE', NULL, TRUE, NOW(), NOW()),
-('user-nurse-002', 'hosp-001', 'Fatima', 'Hassan', 'nurse2@omth.ng', '$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LPVyNR4f8Ki', 'NURSE', NULL, TRUE, NOW(), NOW()),
-('user-cons-card-001', 'hosp-001', 'Dr. Sola', 'Adebayo', 'cardiologist@omth.ng', '$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LPVyNR4f8Ki', 'CONSULTANT', 'dept-card-001', TRUE, NOW(), NOW());
+('user-admin-001', 'hosp-001', 'Admin', 'User', 'admin@omth.ng', '$2a$10$r1VQZ6GedTKo4BoZtmhc/Ocy3rOKESXlEOjg85PTmuk.ZHvmd2bFq', 'ADMIN', NULL, TRUE, NOW(), NOW()),
+('user-sup-001', 'hosp-001', 'Grace', 'Adeyemi', 'supervisor@omth.ng', '$2a$10$r1VQZ6GedTKo4BoZtmhc/Ocy3rOKESXlEOjg85PTmuk.ZHvmd2bFq', 'WARD_SUPERVISOR', NULL, TRUE, NOW(), NOW()),
+('user-cons-001', 'hosp-001', 'Dr. Emeka', 'Okonkwo', 'consultant@omth.ng', '$2a$10$r1VQZ6GedTKo4BoZtmhc/Ocy3rOKESXlEOjg85PTmuk.ZHvmd2bFq', 'CONSULTANT', 'dept-gm-001', TRUE, NOW(), NOW()),
+('user-reg-001', 'hosp-001', 'Dr. Amina', 'Bello', 'registrar@omth.ng', '$2a$10$r1VQZ6GedTKo4BoZtmhc/Ocy3rOKESXlEOjg85PTmuk.ZHvmd2bFq', 'REGISTRAR', 'dept-gm-001', TRUE, NOW(), NOW()),
+('user-jd-001', 'hosp-001', 'Dr. Tunde', 'Lawal', 'jd@omth.ng', '$2a$10$r1VQZ6GedTKo4BoZtmhc/Ocy3rOKESXlEOjg85PTmuk.ZHvmd2bFq', 'JUNIOR_DOCTOR', 'dept-gm-001', TRUE, NOW(), NOW()),
+('user-nurse-001', 'hosp-001', 'Ngozi', 'Eze', 'nurse1@omth.ng', '$2a$10$r1VQZ6GedTKo4BoZtmhc/Ocy3rOKESXlEOjg85PTmuk.ZHvmd2bFq', 'NURSE', NULL, TRUE, NOW(), NOW()),
+('user-nurse-002', 'hosp-001', 'Fatima', 'Hassan', 'nurse2@omth.ng', '$2a$10$r1VQZ6GedTKo4BoZtmhc/Ocy3rOKESXlEOjg85PTmuk.ZHvmd2bFq', 'NURSE', NULL, TRUE, NOW(), NOW()),
+('user-cons-card-001', 'hosp-001', 'Dr. Sola', 'Adebayo', 'cardiologist@omth.ng', '$2a$10$r1VQZ6GedTKo4BoZtmhc/Ocy3rOKESXlEOjg85PTmuk.ZHvmd2bFq', 'CONSULTANT', 'dept-card-001', TRUE, NOW(), NOW());
 
 INSERT INTO ward (id, hospital_id, name, specialty, total_beds, supervisor_id, created_at, updated_at) VALUES
 ('ward-a-001', 'hosp-001', 'Ward A (General)', 'General Medicine', 20, 'user-sup-001', NOW(), NOW()),
