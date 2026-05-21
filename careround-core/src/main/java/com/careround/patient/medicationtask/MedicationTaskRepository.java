@@ -2,6 +2,8 @@ package com.careround.patient.medicationtask;
 
 import com.careround.patient.medicationtask.entity.MedicationTask;
 import com.careround.patient.medicationtask.enums.MedicationTaskStatus;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 
 import java.time.LocalDateTime;
@@ -28,4 +30,7 @@ public interface MedicationTaskRepository extends JpaRepository<MedicationTask, 
 
     List<MedicationTask> findAllByStatusAndScheduledTimeBeforeAndReminderSentAtIsNull(
             MedicationTaskStatus status, LocalDateTime threshold);
+
+    Page<MedicationTask> findAllByStatusAndScheduledTimeBeforeAndReminderSentAtIsNull(
+            MedicationTaskStatus status, LocalDateTime threshold, Pageable pageable);
 }

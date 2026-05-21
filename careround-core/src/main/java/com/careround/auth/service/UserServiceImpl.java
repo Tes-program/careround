@@ -60,6 +60,15 @@ public class UserServiceImpl implements UserService {
     }
 
     @Override
+    @Transactional
+    public void updateDeviceToken(String userId, String hospitalId, String deviceToken) {
+        User user = userRepository.findByIdAndHospitalId(userId, hospitalId)
+                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
+        user.setFcmToken(deviceToken);
+        userRepository.save(user);
+    }
+
+    @Override
     @Transactional(readOnly = true)
     public List<UserResponse> listByHospital(String hospitalId) {
         return userRepository.findAllByHospitalIdAndIsActiveTrue(hospitalId)

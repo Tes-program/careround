@@ -1,5 +1,6 @@
 package com.careround.scheduler.service;
 
+import com.careround.scheduler.jobs.MedicationTaskOverdueJob;
 import com.careround.scheduler.jobs.OutboxPollerJob;
 import com.careround.scheduler.jobs.RefreshTokenCleanupJob;
 import lombok.RequiredArgsConstructor;
@@ -32,6 +33,7 @@ public class JobSchedulingService implements ApplicationListener<ContextRefreshe
         try {
             registerSimpleJob("outboxPollerJob", OutboxPollerJob.class, 1);
             registerCronJob("refreshTokenCleanupJob", RefreshTokenCleanupJob.class, "0 0 * * * ?");
+            registerCronJob("medicationTaskOverdueJob", MedicationTaskOverdueJob.class, "0 * * * * ?");
         } catch (SchedulerException ex) {
             throw new IllegalStateException("Failed to register Quartz jobs", ex);
         }
