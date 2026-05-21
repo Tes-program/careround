@@ -1,16 +1,16 @@
 package com.careround.patient.vitals;
 
 import com.careround.auth.enums.UserRole;
+import com.careround.hospital.entity.SystemConfiguration;
+import com.careround.hospital.repository.SystemConfigurationRepository;
 import com.careround.patient.entity.Patient;
 import com.careround.patient.entity.PatientVitals;
 import com.careround.patient.enums.AcuityColor;
 import com.careround.patient.enums.ConsciousnessLevel;
-import com.careround.patient.repository.ClinicalNoteRepository;
 import com.careround.patient.repository.PatientRepository;
 import com.careround.patient.repository.PatientVitalsRepository;
 import com.careround.patient.vitals.dto.RecordVitalsRequest;
 import com.careround.patient.vitals.dto.VitalsResponse;
-import com.careround.shared.exception.AccessDeniedException;
 import com.careround.shared.exception.ResourceNotFoundException;
 import com.careround.shared.security.HospitalContextHolder;
 import org.junit.jupiter.api.AfterEach;
@@ -30,6 +30,8 @@ import java.util.stream.IntStream;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -37,7 +39,8 @@ class PatientVitalsServiceTest {
 
     @Mock private PatientVitalsRepository patientVitalsRepository;
     @Mock private PatientRepository patientRepository;
-    @Mock private ClinicalNoteRepository clinicalNoteRepository;
+    @Mock private AcuityComputationService acuityComputationService;
+    @Mock private SystemConfigurationRepository systemConfigurationRepository;
 
     @InjectMocks private PatientVitalsServiceImpl patientVitalsService;
 
@@ -45,6 +48,7 @@ class PatientVitalsServiceTest {
     private static final String PATIENT_ID = "patient-1";
 
     private Patient patient;
+    private SystemConfiguration config;
 
     @BeforeEach
     void setUp() {
@@ -53,6 +57,10 @@ class PatientVitalsServiceTest {
         patient = new Patient();
         patient.setId(PATIENT_ID);
         patient.setHospitalId(HOSPITAL_ID);
+
+        config = new SystemConfiguration();
+        config.setAcuityAmberThreshold(5);
+        config.setAcuityRedThreshold(7);
     }
 
     @AfterEach
@@ -62,14 +70,16 @@ class PatientVitalsServiceTest {
 
     @Test
     void recordVitals_happyPath_computesNews2ScoreAndUpdatesPatient() {
-        when(patientRepository.findById(PATIENT_ID)).thenReturn(Optional.of(patient));
+        when(patientRepository.findByIdAndHospitalId(PATIENT_ID, HOSPITAL_ID)).thenReturn(Optional.of(patient));
+        when(systemConfigurationRepository.findByHospitalId(HOSPITAL_ID)).thenReturn(Optional.of(config));
+        when(acuityComputationService.computeScore(any(), any(), any(), any(), any(), any())).thenReturn(0);
+        when(acuityComputationService.computeColor(eq(0), eq(config))).thenReturn(AcuityColor.GREEN);
         when(patientVitalsRepository.save(any())).thenAnswer(inv -> {
             PatientVitals v = inv.getArgument(0);
             v.setId("vitals-1");
             return v;
         });
 
-        // Normal vitals → all sub-scores 0 → computedScore=0, AcuityColor.GREEN
         VitalsResponse result = patientVitalsService.recordVitals(PATIENT_ID, sampleRequest());
 
         assertThat(result.computedScore()).isEqualTo(0);
@@ -79,14 +89,16 @@ class PatientVitalsServiceTest {
 
     @Test
     void recordVitals_abnormalVitals_computesHighScore() {
-        when(patientRepository.findById(PATIENT_ID)).thenReturn(Optional.of(patient));
+        when(patientRepository.findByIdAndHospitalId(PATIENT_ID, HOSPITAL_ID)).thenReturn(Optional.of(patient));
+        when(systemConfigurationRepository.findByHospitalId(HOSPITAL_ID)).thenReturn(Optional.of(config));
+        when(acuityComputationService.computeScore(any(), any(), any(), any(), any(), any())).thenReturn(18);
+        when(acuityComputationService.computeColor(eq(18), eq(config))).thenReturn(AcuityColor.RED);
         when(patientVitalsRepository.save(any())).thenAnswer(inv -> {
             PatientVitals v = inv.getArgument(0);
             v.setId("vitals-2");
             return v;
         });
 
-        // RR=30(+3), SpO2=85(+3), SBP=80(+3), HR=150(+3), Temp=35.0(+3), UNRESPONSIVE(+3) = 18
         RecordVitalsRequest criticalRequest = new RecordVitalsRequest(
                 150, 30, new BigDecimal("85.0"),
                 80, new BigDecimal("35.0"),
@@ -94,32 +106,47 @@ class PatientVitalsServiceTest {
 
         VitalsResponse result = patientVitalsService.recordVitals(PATIENT_ID, criticalRequest);
 
-        assertThat(result.computedScore()).isGreaterThanOrEqualTo(7);
+        assertThat(result.computedScore()).isEqualTo(18);
         assertThat(result.acuityColor()).isEqualTo(AcuityColor.RED);
     }
 
     @Test
     void recordVitals_patientNotFound_throwsNotFoundException() {
-        when(patientRepository.findById(PATIENT_ID)).thenReturn(Optional.empty());
+        when(patientRepository.findByIdAndHospitalId(PATIENT_ID, HOSPITAL_ID)).thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> patientVitalsService.recordVitals(PATIENT_ID, sampleRequest()))
                 .isInstanceOf(ResourceNotFoundException.class);
     }
 
     @Test
-    void recordVitals_crossTenantPatient_throwsAccessDeniedException() {
-        Patient other = new Patient();
-        other.setId(PATIENT_ID);
-        other.setHospitalId("other-hosp");
-        when(patientRepository.findById(PATIENT_ID)).thenReturn(Optional.of(other));
+    void recordVitals_crossTenantPatient_throwsNotFoundException() {
+        when(patientRepository.findByIdAndHospitalId(PATIENT_ID, HOSPITAL_ID)).thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> patientVitalsService.recordVitals(PATIENT_ID, sampleRequest()))
-                .isInstanceOf(AccessDeniedException.class);
+                .isInstanceOf(ResourceNotFoundException.class);
+    }
+
+    @Test
+    void record_usesHospitalThresholds_notDefaults() {
+        when(patientRepository.findByIdAndHospitalId(PATIENT_ID, HOSPITAL_ID)).thenReturn(Optional.of(patient));
+        when(systemConfigurationRepository.findByHospitalId(HOSPITAL_ID)).thenReturn(Optional.of(config));
+        when(acuityComputationService.computeScore(any(), any(), any(), any(), any(), any())).thenReturn(5);
+        when(acuityComputationService.computeColor(eq(5), eq(config))).thenReturn(AcuityColor.AMBER);
+        when(patientVitalsRepository.save(any())).thenAnswer(inv -> {
+            PatientVitals v = inv.getArgument(0);
+            v.setId("vitals-3");
+            return v;
+        });
+
+        patientVitalsService.recordVitals(PATIENT_ID, sampleRequest());
+
+        // Verify the exact config instance was passed — not hardcoded thresholds
+        verify(acuityComputationService).computeColor(5, config);
     }
 
     @Test
     void getVitalsHistory_limitCappedAt50() {
-        when(patientRepository.findById(PATIENT_ID)).thenReturn(Optional.of(patient));
+        when(patientRepository.findByIdAndHospitalId(PATIENT_ID, HOSPITAL_ID)).thenReturn(Optional.of(patient));
         List<PatientVitals> hundredVitals = IntStream.range(0, 100)
                 .mapToObj(i -> buildVitals("v-" + i))
                 .toList();

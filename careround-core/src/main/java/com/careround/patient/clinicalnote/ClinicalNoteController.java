@@ -1,6 +1,8 @@
 package com.careround.patient.clinicalnote;
 
 import com.careround.patient.clinicalnote.dto.ClinicalNoteResponse;
+import com.careround.patient.clinicalnote.dto.ConfirmNoteRequest;
+import com.careround.patient.clinicalnote.dto.ConfirmNoteResponse;
 import com.careround.patient.clinicalnote.dto.CreateClinicalNoteRequest;
 import com.careround.shared.dto.ApiResponse;
 import io.swagger.v3.oas.annotations.Operation;
@@ -34,6 +36,16 @@ public class ClinicalNoteController {
             @Valid @RequestBody CreateClinicalNoteRequest request) {
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(ApiResponse.ok("Clinical note created", clinicalNoteService.createNote(request)));
+    }
+
+    @PostMapping("/confirm")
+    @PreAuthorize("hasRole('DOCTOR')")
+    @Operation(summary = "Confirm clinical note with prescriptions",
+            description = "Atomically saves a confirmed clinical note and its associated prescriptions.")
+    public ResponseEntity<ApiResponse<ConfirmNoteResponse>> confirmNote(
+            @Valid @RequestBody ConfirmNoteRequest request) {
+        return ResponseEntity.status(HttpStatus.CREATED)
+                .body(ApiResponse.ok("Clinical note confirmed", clinicalNoteService.confirm(request)));
     }
 
     @GetMapping("/patient/{patientId}")

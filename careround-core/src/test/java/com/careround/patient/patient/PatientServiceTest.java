@@ -88,7 +88,7 @@ class PatientServiceTest {
 
         assertThat(result.id()).isEqualTo(PATIENT_ID);
         assertThat(result.wardId()).isEqualTo(WARD_ID);
-        verify(outboxService).publish(eq("careround.patient.admitted"), any(), eq(HOSPITAL_ID));
+        verify(outboxService).publish(eq("patient-admitted"), any(), eq(HOSPITAL_ID));
     }
 
     @Test
@@ -120,6 +120,17 @@ class PatientServiceTest {
 
         assertThatThrownBy(() -> patientService.getPatient(PATIENT_ID))
                 .isInstanceOf(AccessDeniedException.class);
+    }
+
+    @Test
+    void updatePatientStatus_patientNotFound_throwsResourceNotFoundException() {
+        when(patientRepository.findByIdAndHospitalId(PATIENT_ID, HOSPITAL_ID))
+                .thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> patientService.updatePatientStatus(PATIENT_ID,
+                new UpdatePatientStatusRequest(PatientStatus.DISCHARGED)))
+                .isInstanceOf(ResourceNotFoundException.class)
+                .hasMessageContaining("Patient not found");
     }
 
     @Test
@@ -157,7 +168,7 @@ class PatientServiceTest {
         assertThat(result.status()).isEqualTo(PatientStatus.DISCHARGED);
         assertThat(result.wardId()).isNull();
         assertThat(result.bedNumber()).isNull();
-        verify(outboxService).publish(eq("careround.patient.discharged"), any(), eq(HOSPITAL_ID));
+        verify(outboxService).publish(eq("patient-discharged"), any(), eq(HOSPITAL_ID));
     }
 
     private AdmitPatientRequest admitRequest() {

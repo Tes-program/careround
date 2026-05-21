@@ -64,7 +64,7 @@ public class PatientServiceImpl implements PatientService {
 
         Patient saved = patientRepository.save(patient);
 
-        outboxService.publish("careround.patient.admitted",
+        outboxService.publish("patient-admitted",
                 new PatientAdmittedEvent(hospitalId, saved.getId(), saved.getWardId(), MDC.get("correlationId")),
                 hospitalId);
 
@@ -115,7 +115,7 @@ public class PatientServiceImpl implements PatientService {
 
         if (target == PatientStatus.DISCHARGED) {
             String wardId = patient.getWardId();
-            outboxService.publish("careround.patient.discharged",
+            outboxService.publish("patient-discharged",
                     new PatientDischargedEvent(hospitalId, patientId, wardId,
                             LocalDateTime.now(ZoneOffset.UTC), MDC.get("correlationId")),
                     hospitalId);
