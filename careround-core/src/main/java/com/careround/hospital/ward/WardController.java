@@ -6,7 +6,6 @@ import com.careround.hospital.ward.dto.WardResponse;
 import com.careround.shared.dto.ApiResponse;
 import com.careround.shared.security.HospitalContextHolder;
 import io.swagger.v3.oas.annotations.Operation;
-import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -23,7 +22,6 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
-import java.util.Map;
 
 @RestController
 @RequestMapping("/api/v1/wards")
@@ -56,19 +54,8 @@ public class WardController {
         return ResponseEntity.ok(ApiResponse.ok(response));
     }
 
-    @GetMapping("/{id}/dashboard")
-    @Operation(
-            summary = "Get ward dashboard",
-            description = "Returns ward-level operational summary: patients, beds, current shift, open tasks, overdue tasks, open escalations, active rounds, and recent handover status."
-    )
-    public ResponseEntity<ApiResponse<Map<String, Object>>> getDashboard(
-            @Parameter(description = "Ward id") @PathVariable String id) {
-        Map<String, Object> response = wardService.getDashboard(HospitalContextHolder.getHospitalId(), id);
-        return ResponseEntity.ok(ApiResponse.ok(response));
-    }
-
     @PutMapping("/{id}")
-    @PreAuthorize("hasAnyRole('ADMIN', 'WARD_SUPERVISOR')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'SUPERVISOR')")
     @Operation(summary = "Update ward", description = "Updates a ward by id.")
     public ResponseEntity<ApiResponse<WardResponse>> update(
             @PathVariable String id, @RequestBody UpdateWardRequest request) {

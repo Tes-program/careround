@@ -5,6 +5,7 @@ import jakarta.validation.constraints.NotBlank;
 
 public record CreateHospitalRequest(
         @NotBlank String name,
+        @NotBlank String code,
         String address,
         @NotBlank @Email String contactEmail,
         String contactPhone

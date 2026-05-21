@@ -58,7 +58,7 @@ class AuthServiceTest {
         testUser.setHospitalId("hospital-456");
         testUser.setEmail("doctor@hospital.com");
         testUser.setPasswordHash("$2a$10$encodedPassword");
-        testUser.setRole(UserRole.CONSULTANT);
+        testUser.setRole(UserRole.DOCTOR);
         testUser.setActive(true);
     }
 
@@ -81,7 +81,7 @@ class AuthServiceTest {
         assertThat(response.getTokenType()).isEqualTo("Bearer");
         assertThat(response.getUserId()).isEqualTo("user-123");
         assertThat(response.getHospitalId()).isEqualTo("hospital-456");
-        assertThat(response.getRole()).isEqualTo("CONSULTANT");
+        assertThat(response.getRole()).isEqualTo("DOCTOR");
         assertThat(response.getRefreshToken()).isNotBlank();
     }
 

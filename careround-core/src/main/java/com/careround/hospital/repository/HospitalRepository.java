@@ -6,4 +6,6 @@ import org.springframework.data.jpa.repository.JpaRepository;
 public interface HospitalRepository extends JpaRepository<Hospital, String> {
 
     boolean existsByContactEmail(String contactEmail);
+
+    boolean existsByCode(String code);
 }

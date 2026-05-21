@@ -1,6 +1,6 @@
 package com.careround.patient.patient.dto;
 
-import com.careround.patient.enums.AcuityLevel;
+import com.careround.patient.enums.AcuityColor;
 import com.careround.patient.enums.AdmissionType;
 import com.careround.patient.enums.PatientStatus;
 
@@ -9,9 +9,8 @@ import java.time.LocalDateTime;
 
 public record PatientResponse(
         String id,
+        String hospitalId,
         String wardId,
-        String medicalTeamId,
-        String admittingConsultantId,
         String firstName,
         String lastName,
         String hospitalNumber,
@@ -20,10 +19,7 @@ public record PatientResponse(
         String bedNumber,
         AdmissionType admissionType,
         String primaryDiagnosis,
-        String specialtyRequired,
-        AcuityLevel acuityLevel,
-        int newsScore,
-        boolean isDischargeReady,
+        AcuityColor acuityColor,
         LocalDate estimatedDischargeDate,
         PatientStatus status,
         LocalDateTime admissionDate,

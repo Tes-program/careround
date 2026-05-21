@@ -81,14 +81,14 @@ class OutboxPollerJobTest {
 
     @Test
     void mapsEventTypeToCorrectTopic() {
-        OutboxEvent event = unpublishedEvent("SHIFT_CREATED");
+        OutboxEvent event = unpublishedEvent("PATIENT_ADMITTED");
         when(outboxEventRepository.findUnpublishedForUpdate(any(Pageable.class))).thenReturn(List.of(event));
-        when(kafkaTemplate.send(eq("careround.shift.created"), eq("hosp-1"), eq("{\"ok\":true}")))
+        when(kafkaTemplate.send(eq("careround.patient.admitted"), eq("hosp-1"), eq("{\"ok\":true}")))
                 .thenReturn(CompletableFuture.completedFuture(mock(SendResult.class)));
 
         processor.pollAndPublishBatch();
 
-        verify(kafkaTemplate).send("careround.shift.created", "hosp-1", "{\"ok\":true}");
+        verify(kafkaTemplate).send("careround.patient.admitted", "hosp-1", "{\"ok\":true}");
     }
 
     private OutboxEvent unpublishedEvent(String eventType) {

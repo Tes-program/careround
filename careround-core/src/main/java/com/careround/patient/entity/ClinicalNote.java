@@ -23,28 +23,28 @@ public class ClinicalNote extends BaseEntity {
     @Column(name = "patient_id", nullable = false, length = 36)
     private String patientId;
 
-    @Column(name = "patient_round_review_id", length = 36)
-    private String patientRoundReviewId;
-
-    @Column(name = "vitals_id", length = 36)
-    private String vitalsId;
+    @Column(name = "hospital_id", nullable = false, length = 36)
+    private String hospitalId;
 
     @Column(name = "author_id", nullable = false, length = 36)
     private String authorId;
 
     @Enumerated(EnumType.STRING)
-    @Column(name = "note_type", nullable = false, length = 25)
+    @Column(name = "note_type", nullable = false, length = 30)
     private NoteType noteType;
 
-    @Column(nullable = false, columnDefinition = "TEXT")
+    @Column(nullable = false, columnDefinition = "LONGTEXT")
     private String content;
 
-    @Column(name = "is_amended", nullable = false)
-    private boolean isAmended = false;
+    @Column(name = "raw_transcription", columnDefinition = "LONGTEXT")
+    private String rawTranscription;
 
-    @Column(name = "amended_by_id", length = 36)
-    private String amendedById;
+    @Column(name = "is_ai_generated", nullable = false)
+    private boolean isAiGenerated = false;
 
-    @Column(name = "amended_at")
-    private LocalDateTime amendedAt;
+    @Column(name = "confirmed_by_doctor_at")
+    private LocalDateTime confirmedByDoctorAt;
+
+    @Column(name = "ai_model_used", length = 100)
+    private String aiModelUsed;
 }

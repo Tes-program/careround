@@ -39,12 +39,12 @@ public class User extends BaseEntity {
     private String passwordHash;
 
     @Enumerated(EnumType.STRING)
-    @Column(nullable = false, length = 50)
+    @Column(nullable = false, length = 20)
     private UserRole role;
-
-    @Column(name = "department_id", length = 36)
-    private String departmentId;
 
     @Column(name = "is_active", nullable = false)
     private boolean isActive = true;
+
+    @Column(name = "fcm_token", length = 512)
+    private String fcmToken;
 }

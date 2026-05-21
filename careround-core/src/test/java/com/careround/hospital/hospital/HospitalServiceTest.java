@@ -6,6 +6,7 @@ import com.careround.hospital.hospital.dto.CreateHospitalRequest;
 import com.careround.hospital.hospital.dto.HospitalResponse;
 import com.careround.hospital.repository.HospitalRepository;
 import com.careround.hospital.repository.SystemConfigurationRepository;
+import com.careround.shared.exception.ConflictException;
 import com.careround.shared.exception.ResourceNotFoundException;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -21,6 +22,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.lenient;
 
 @ExtendWith(MockitoExtension.class)
 class HospitalServiceTest {
@@ -36,12 +38,14 @@ class HospitalServiceTest {
         saved.setId("hosp-1");
         saved.setName("City Hospital");
         saved.setContactEmail("admin@city.com");
+        saved.setCode("CITY001");
 
+        lenient().when(hospitalRepository.existsByCode(any())).thenReturn(false);
         when(hospitalRepository.save(any())).thenReturn(saved);
         when(systemConfigurationRepository.save(any())).thenAnswer(i -> i.getArgument(0));
 
         HospitalResponse result = hospitalService.register(
-                new CreateHospitalRequest("City Hospital", "123 Main St", "admin@city.com", null));
+                new CreateHospitalRequest("City Hospital", "CITY001", "123 Main St", "admin@city.com", null));
 
         assertThat(result.id()).isEqualTo("hosp-1");
         assertThat(result.name()).isEqualTo("City Hospital");
@@ -49,27 +53,38 @@ class HospitalServiceTest {
         ArgumentCaptor<SystemConfiguration> configCaptor = ArgumentCaptor.forClass(SystemConfiguration.class);
         verify(systemConfigurationRepository).save(configCaptor.capture());
         assertThat(configCaptor.getValue().getHospitalId()).isEqualTo("hosp-1");
-        assertThat(configCaptor.getValue().getNewsAmberThreshold()).isEqualTo(5);
-        assertThat(configCaptor.getValue().getNewsRedThreshold()).isEqualTo(7);
+        assertThat(configCaptor.getValue().getAcuityAmberThreshold()).isEqualTo(5);
+        assertThat(configCaptor.getValue().getAcuityRedThreshold()).isEqualTo(7);
     }
 
     @Test
     void register_shouldInitializeSystemConfigurationWithDefaults() {
         Hospital saved = new Hospital();
         saved.setId("hosp-2");
+        saved.setCode("NEW001");
 
+        lenient().when(hospitalRepository.existsByCode(any())).thenReturn(false);
         when(hospitalRepository.save(any())).thenReturn(saved);
         when(systemConfigurationRepository.save(any())).thenAnswer(i -> i.getArgument(0));
 
         hospitalService.register(
-                new CreateHospitalRequest("New Hospital", null, "new@hosp.com", null));
+                new CreateHospitalRequest("New Hospital", "NEW001", null, "new@hosp.com", null));
 
         ArgumentCaptor<SystemConfiguration> cap = ArgumentCaptor.forClass(SystemConfiguration.class);
         verify(systemConfigurationRepository).save(cap.capture());
         SystemConfiguration config = cap.getValue();
-        assertThat(config.getTaskOverdueGraceMinutes()).isEqualTo(30);
-        assertThat(config.isRoundNotificationsEnabled()).isTrue();
-        assertThat(config.isNokNotificationEnabled()).isTrue();
+        assertThat(config.getTaskOverdueReminderMinutes()).isEqualTo(10);
+        assertThat(config.getTaskEscalationMinutes()).isEqualTo(20);
+        assertThat(config.isPushNotificationsEnabled()).isTrue();
+    }
+
+    @Test
+    void register_withDuplicateCode_shouldThrowConflictException() {
+        when(hospitalRepository.existsByCode("DUP001")).thenReturn(true);
+
+        assertThatThrownBy(() -> hospitalService.register(
+                new CreateHospitalRequest("Another Hospital", "DUP001", null, "another@hosp.com", null)))
+                .isInstanceOf(ConflictException.class);
     }
 
     @Test

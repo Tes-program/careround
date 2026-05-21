@@ -8,6 +8,6 @@ public record WardResponse(
         String name,
         String specialty,
         int totalBeds,
-        String supervisorId,
+        boolean isActive,
         LocalDateTime createdAt
 ) {}

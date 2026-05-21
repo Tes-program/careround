@@ -23,20 +23,13 @@ import java.util.concurrent.TimeoutException;
 @Slf4j
 public class OutboxPollerProcessor {
 
-    private static final Map<String, String> EVENT_TOPIC_MAP = Map.ofEntries(
-            Map.entry("PATIENT_ADMITTED", "careround.patient.admitted"),
-            Map.entry("SHIFT_CREATED", "careround.shift.created"),
-            Map.entry("SHIFT_ACTIVATED", "careround.shift.activated"),
-            Map.entry("ROUND_COMPLETED", "careround.round.completed"),
-            Map.entry("HANDOVER_COMPLETED", "careround.handover.completed"),
-            Map.entry("TASK_OVERDUE", "careround.task.overdue"),
-            Map.entry("PATIENT_DETERIORATION", "careround.patient.deterioration"),
-            Map.entry("ESCALATION_UNACKNOWLEDGED", "careround.escalation.unacknowledged"),
-            Map.entry("PATIENT_DISCHARGE_READY", "careround.patient.discharge-ready"),
-            Map.entry("PATIENT_DISCHARGED", "careround.patient.discharged"),
-            Map.entry("TEAM_INVITE_SENT", "careround.team.invite-sent"),
-            Map.entry("TEAM_MEMBER_ADDED", "careround.team.member-added"),
-            Map.entry("INVITE_EXPIRED", "careround.invite.expired")
+    private static final Map<String, String> EVENT_TOPIC_MAP = Map.of(
+            "PATIENT_ADMITTED", "careround.patient.admitted",
+            "PATIENT_DISCHARGED", "careround.patient.discharged",
+            "PATIENT_DETERIORATION", "careround.patient.deterioration",
+            "VITALS_RECORDED", "careround.vitals.recorded",
+            "NOTE_CREATED", "careround.note.created",
+            "USER_INVITED", "careround.user.invited"
     );
 
     private final OutboxEventRepository outboxEventRepository;
