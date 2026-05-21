@@ -6,6 +6,5 @@ import jakarta.validation.constraints.NotBlank;
 public record CreateWardRequest(
         @NotBlank String name,
         String specialty,
-        @Min(0) int totalBeds,
-        String supervisorId
+        @Min(0) int totalBeds
 ) {}

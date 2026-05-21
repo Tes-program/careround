@@ -46,7 +46,7 @@ class AuthControllerTest {
             1_500_000L,
             "user-123",
             "hospital-456",
-            "CONSULTANT"
+            "DOCTOR"
     );
 
     // ── POST /api/v1/auth/login ────────────────────────────────────────────────
@@ -63,7 +63,7 @@ class AuthControllerTest {
                 .andExpect(jsonPath("$.success").value(true))
                 .andExpect(jsonPath("$.data.accessToken").value("access.token.value"))
                 .andExpect(jsonPath("$.data.tokenType").value("Bearer"))
-                .andExpect(jsonPath("$.data.role").value("CONSULTANT"));
+                .andExpect(jsonPath("$.data.role").value("DOCTOR"));
     }
 
     @Test
@@ -142,7 +142,7 @@ class AuthControllerTest {
         when(jwtService.isTokenValid(fakeToken)).thenReturn(true);
         when(jwtService.extractUserId(fakeToken)).thenReturn("user-123");
         when(jwtService.extractHospitalId(fakeToken)).thenReturn("hospital-456");
-        when(jwtService.extractRole(fakeToken)).thenReturn("CONSULTANT");
+        when(jwtService.extractRole(fakeToken)).thenReturn("DOCTOR");
         doNothing().when(authService).changePassword(any(), any());
 
         mockMvc.perform(post("/api/v1/auth/change-password")
@@ -151,22 +151,6 @@ class AuthControllerTest {
                         .content(objectMapper.writeValueAsString(
                                 new ChangePasswordRequest("oldPass123", "newPass456"))))
                 .andExpect(status().isOk());
-    }
-
-    @Test
-    void changePassword_withPlatformToken_shouldReturn403() throws Exception {
-        String fakeToken = "fake.platform.jwt.access.token";
-        when(jwtService.isTokenValid(fakeToken)).thenReturn(true);
-        when(jwtService.extractUserId(fakeToken)).thenReturn("platform-user-123");
-        when(jwtService.extractHospitalId(fakeToken)).thenReturn("PLATFORM");
-        when(jwtService.extractRole(fakeToken)).thenReturn("PLATFORM_ADMIN");
-
-        mockMvc.perform(post("/api/v1/auth/change-password")
-                        .header("Authorization", "Bearer " + fakeToken)
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(
-                                new ChangePasswordRequest("oldPass123", "newPass456"))))
-                .andExpect(status().isForbidden());
     }
 
     @Test

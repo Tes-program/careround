@@ -50,7 +50,7 @@ class JwtAuthFilterTest {
         when(jwtService.isTokenValid("valid.jwt.token")).thenReturn(true);
         when(jwtService.extractUserId("valid.jwt.token")).thenReturn("user-123");
         when(jwtService.extractHospitalId("valid.jwt.token")).thenReturn("hospital-456");
-        when(jwtService.extractRole("valid.jwt.token")).thenReturn("CONSULTANT");
+        when(jwtService.extractRole("valid.jwt.token")).thenReturn("DOCTOR");
 
         jwtAuthFilter.doFilterInternal(request, response, filterChain);
 
@@ -61,7 +61,7 @@ class JwtAuthFilterTest {
         assertThat(auth.getPrincipal()).isEqualTo("user-123");
         assertThat(auth.getAuthorities())
                 .extracting(GrantedAuthority::getAuthority)
-                .containsExactly("ROLE_CONSULTANT");
+                .containsExactly("ROLE_DOCTOR");
     }
 
     @Test
@@ -103,7 +103,7 @@ class JwtAuthFilterTest {
         when(jwtService.isTokenValid("valid.jwt.token")).thenReturn(true);
         when(jwtService.extractUserId("valid.jwt.token")).thenReturn("user-123");
         when(jwtService.extractHospitalId("valid.jwt.token")).thenReturn("hospital-456");
-        when(jwtService.extractRole("valid.jwt.token")).thenReturn("CONSULTANT");
+        when(jwtService.extractRole("valid.jwt.token")).thenReturn("DOCTOR");
 
         jwtAuthFilter.doFilterInternal(request, response, filterChain);
 

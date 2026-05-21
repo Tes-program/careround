@@ -48,7 +48,7 @@ class WardServiceTest {
         });
 
         WardResponse result = wardService.create("hosp-1",
-                new CreateWardRequest("ICU", "Critical Care", 10, null));
+                new CreateWardRequest("ICU", "Critical Care", 10));
 
         assertThat(result.name()).isEqualTo("ICU");
         assertThat(result.totalBeds()).isEqualTo(10);

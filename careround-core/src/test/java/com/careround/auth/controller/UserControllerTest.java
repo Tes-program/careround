@@ -62,7 +62,7 @@ class UserControllerTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(new CreateUserRequest(
                                 "Jane", "Doe", "jane.doe@hospital.com",
-                                "password123", UserRole.NURSE, null))))
+                                "password123", UserRole.NURSE))))
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.data.email").value("jane.doe@hospital.com"))
                 .andExpect(jsonPath("$.data.role").value("NURSE"));
@@ -74,7 +74,7 @@ class UserControllerTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(new CreateUserRequest(
                                 "Jane", "Doe", "jane.doe@hospital.com",
-                                "password123", UserRole.NURSE, null))))
+                                "password123", UserRole.NURSE))))
                 .andExpect(status().isUnauthorized());
     }
 
@@ -90,11 +90,11 @@ class UserControllerTest {
     }
 
     @Test
-    void getAllUsers_asConsultant_shouldReturn200WithList() throws Exception {
+    void getAllUsers_asDoctor_shouldReturn200WithList() throws Exception {
         when(userService.listByHospital(any())).thenReturn(List.of(sampleUser));
 
         mockMvc.perform(get("/api/v1/users")
-                        .with(user("consultant").roles("CONSULTANT")))
+                        .with(user("doctor").roles("DOCTOR")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data[0].firstName").value("Jane"));
     }

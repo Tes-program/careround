@@ -45,7 +45,7 @@ class UserServiceTest {
         existingUser.setLastName("Smith");
         existingUser.setEmail("john.smith@hospital.com");
         existingUser.setPasswordHash("$2a$10$hash");
-        existingUser.setRole(UserRole.CONSULTANT);
+        existingUser.setRole(UserRole.DOCTOR);
         existingUser.setActive(true);
     }
 
@@ -53,7 +53,7 @@ class UserServiceTest {
     void create_withUniqueEmail_shouldSaveAndReturnUser() {
         CreateUserRequest request = new CreateUserRequest(
                 "Jane", "Doe", "jane.doe@hospital.com",
-                "password123", UserRole.NURSE, null);
+                "password123", UserRole.NURSE);
 
         when(userRepository.existsByHospitalIdAndEmail("hospital-456", "jane.doe@hospital.com"))
                 .thenReturn(false);
@@ -82,7 +82,7 @@ class UserServiceTest {
                 .thenReturn(true);
 
         assertThatThrownBy(() -> userService.create("hospital-456",
-                new CreateUserRequest("J", "S", "john.smith@hospital.com", "pass", UserRole.NURSE, null)))
+                new CreateUserRequest("J", "S", "john.smith@hospital.com", "pass", UserRole.NURSE)))
                 .isInstanceOf(BusinessRuleException.class)
                 .hasMessageContaining("already exists");
     }

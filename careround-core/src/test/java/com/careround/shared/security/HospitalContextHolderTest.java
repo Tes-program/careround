@@ -16,11 +16,11 @@ class HospitalContextHolderTest {
 
     @Test
     void set_andGet_shouldReturnCorrectValues() {
-        HospitalContextHolder.set("hospital-1", "user-1", UserRole.CONSULTANT);
+        HospitalContextHolder.set("hospital-1", "user-1", UserRole.DOCTOR);
 
         assertThat(HospitalContextHolder.getHospitalId()).isEqualTo("hospital-1");
         assertThat(HospitalContextHolder.getUserId()).isEqualTo("user-1");
-        assertThat(HospitalContextHolder.getRole()).isEqualTo(UserRole.CONSULTANT);
+        assertThat(HospitalContextHolder.getRole()).isEqualTo(UserRole.DOCTOR);
     }
 
     @Test
@@ -35,18 +35,18 @@ class HospitalContextHolderTest {
 
     @Test
     void hasRole_withMatchingRole_shouldReturnTrue() {
-        HospitalContextHolder.set("h", "u", UserRole.REGISTRAR);
+        HospitalContextHolder.set("h", "u", UserRole.SUPERVISOR);
 
-        assertThat(HospitalContextHolder.hasRole(UserRole.REGISTRAR)).isTrue();
-        assertThat(HospitalContextHolder.hasRole(UserRole.CONSULTANT)).isFalse();
+        assertThat(HospitalContextHolder.hasRole(UserRole.SUPERVISOR)).isTrue();
+        assertThat(HospitalContextHolder.hasRole(UserRole.DOCTOR)).isFalse();
     }
 
     @Test
     void hasAnyRole_withOneMatch_shouldReturnTrue() {
         HospitalContextHolder.set("h", "u", UserRole.NURSE);
 
-        assertThat(HospitalContextHolder.hasAnyRole(UserRole.CONSULTANT, UserRole.NURSE)).isTrue();
-        assertThat(HospitalContextHolder.hasAnyRole(UserRole.ADMIN, UserRole.CONSULTANT)).isFalse();
+        assertThat(HospitalContextHolder.hasAnyRole(UserRole.DOCTOR, UserRole.NURSE)).isTrue();
+        assertThat(HospitalContextHolder.hasAnyRole(UserRole.ADMIN, UserRole.SUPERVISOR)).isFalse();
     }
 
     @Test

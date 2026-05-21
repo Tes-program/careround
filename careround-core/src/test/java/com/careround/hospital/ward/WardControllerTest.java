@@ -43,7 +43,7 @@ class WardControllerTest {
     @BeforeEach
     void setUp() {
         HospitalContextHolder.set("hosp-1", "user-1", UserRole.ADMIN);
-        sample = new WardResponse("ward-1", "hosp-1", "ICU", "Critical Care", 10, null, LocalDateTime.now());
+        sample = new WardResponse("ward-1", "hosp-1", "ICU", "Critical Care", 10, true, LocalDateTime.now());
     }
 
     @AfterEach
@@ -59,18 +59,18 @@ class WardControllerTest {
                         .with(user("admin").roles("ADMIN"))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(
-                                new CreateWardRequest("ICU", "Critical Care", 10, null))))
+                                new CreateWardRequest("ICU", "Critical Care", 10))))
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.data.name").value("ICU"));
     }
 
     @Test
-    void create_asJuniorDoctor_shouldReturn403() throws Exception {
+    void create_asNurse_shouldReturn403() throws Exception {
         mockMvc.perform(post("/api/v1/wards")
-                        .with(user("junior").roles("JUNIOR_DOCTOR"))
+                        .with(user("nurse").roles("NURSE"))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(
-                                new CreateWardRequest("ICU", null, 10, null))))
+                                new CreateWardRequest("ICU", null, 10))))
                 .andExpect(status().isForbidden());
     }
 
@@ -85,9 +85,9 @@ class WardControllerTest {
     }
 
     @Test
-    void delete_asWardSupervisor_shouldReturn403() throws Exception {
+    void delete_asNurse_shouldReturn403() throws Exception {
         mockMvc.perform(delete("/api/v1/wards/ward-1")
-                        .with(user("supervisor").roles("WARD_SUPERVISOR")))
+                        .with(user("nurse").roles("NURSE")))
                 .andExpect(status().isForbidden());
     }
 

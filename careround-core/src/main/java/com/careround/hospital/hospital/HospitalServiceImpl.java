@@ -25,8 +25,12 @@ public class HospitalServiceImpl implements HospitalService {
     @Override
     @Transactional
     public HospitalResponse register(CreateHospitalRequest request) {
+        if (hospitalRepository.existsByCode(request.code())) {
+            throw new ConflictException("Hospital code already exists");
+        }
         Hospital hospital = new Hospital();
         hospital.setName(request.name());
+        hospital.setCode(request.code());
         hospital.setAddress(request.address());
         hospital.setContactEmail(request.contactEmail());
         hospital.setContactPhone(request.contactPhone());
@@ -57,8 +61,13 @@ public class HospitalServiceImpl implements HospitalService {
                 && hospitalRepository.existsByContactEmail(request.contactEmail())) {
             throw new ConflictException("Hospital contact email already exists");
         }
+        if (!hospital.getCode().equalsIgnoreCase(request.code())
+                && hospitalRepository.existsByCode(request.code())) {
+            throw new ConflictException("Hospital code already exists");
+        }
 
         hospital.setName(request.name());
+        hospital.setCode(request.code());
         hospital.setAddress(request.address());
         hospital.setContactEmail(request.contactEmail());
         hospital.setContactPhone(request.contactPhone());
@@ -74,7 +83,7 @@ public class HospitalServiceImpl implements HospitalService {
     }
 
     private HospitalResponse toResponse(Hospital h) {
-        return new HospitalResponse(h.getId(), h.getName(), h.getAddress(),
-                h.getContactEmail(), h.getContactPhone(), h.getCreatedAt());
+        return new HospitalResponse(h.getId(), h.getName(), h.getCode(), h.getAddress(),
+                h.getContactEmail(), h.getContactPhone(), h.isActive(), h.getCreatedAt());
     }
 }

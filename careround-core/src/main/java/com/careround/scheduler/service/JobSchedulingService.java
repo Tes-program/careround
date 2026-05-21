@@ -1,11 +1,7 @@
 package com.careround.scheduler.service;
 
-import com.careround.scheduler.jobs.EscalationUnacknowledgedJob;
-import com.careround.scheduler.jobs.InviteExpiryJob;
 import com.careround.scheduler.jobs.OutboxPollerJob;
 import com.careround.scheduler.jobs.RefreshTokenCleanupJob;
-import com.careround.scheduler.jobs.ShiftCreationJob;
-import com.careround.scheduler.jobs.TaskOverdueJob;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.quartz.CronScheduleBuilder;
@@ -35,10 +31,6 @@ public class JobSchedulingService implements ApplicationListener<ContextRefreshe
     public void onApplicationEvent(ContextRefreshedEvent event) {
         try {
             registerSimpleJob("outboxPollerJob", OutboxPollerJob.class, 1);
-            registerCronJob("shiftCreationJob", ShiftCreationJob.class, "0 * * * * ?");
-            registerCronJob("taskOverdueJob", TaskOverdueJob.class, "0 */2 * * * ?");
-            registerCronJob("escalationUnacknowledgedJob", EscalationUnacknowledgedJob.class, "0 */5 * * * ?");
-            registerCronJob("inviteExpiryJob", InviteExpiryJob.class, "0 */30 * * * ?");
             registerCronJob("refreshTokenCleanupJob", RefreshTokenCleanupJob.class, "0 0 * * * ?");
         } catch (SchedulerException ex) {
             throw new IllegalStateException("Failed to register Quartz jobs", ex);

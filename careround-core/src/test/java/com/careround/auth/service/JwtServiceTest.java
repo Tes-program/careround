@@ -27,7 +27,7 @@ class JwtServiceTest {
         testUser.setId("user-123");
         testUser.setHospitalId("hospital-456");
         testUser.setEmail("doctor@hospital.com");
-        testUser.setRole(UserRole.CONSULTANT);
+        testUser.setRole(UserRole.DOCTOR);
     }
 
     @Test
@@ -57,7 +57,7 @@ class JwtServiceTest {
     @Test
     void extractRole_shouldReturnRoleName() {
         String token = jwtService.generateAccessToken(testUser);
-        assertThat(jwtService.extractRole(token)).isEqualTo("CONSULTANT");
+        assertThat(jwtService.extractRole(token)).isEqualTo("DOCTOR");
     }
 
     @Test

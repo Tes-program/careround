@@ -36,8 +36,8 @@ class HospitalControllerTest {
     @BeforeEach
     void setUp() {
         HospitalContextHolder.set("hosp-1", "user-1", UserRole.ADMIN);
-        sampleResponse = new HospitalResponse("hosp-1", "City Hospital", null,
-                "admin@city.com", null, LocalDateTime.now());
+        sampleResponse = new HospitalResponse("hosp-1", "City Hospital", "CITY001",
+                null, "admin@city.com", null, true, LocalDateTime.now());
     }
 
     @AfterEach
@@ -46,19 +46,19 @@ class HospitalControllerTest {
     }
 
     @Test
-    void listHospitals_asPlatformAdmin_shouldReturn200() throws Exception {
+    void listHospitals_asAdmin_shouldReturn200() throws Exception {
         when(hospitalService.listAll()).thenReturn(java.util.List.of(sampleResponse));
 
         mockMvc.perform(get("/api/v1/hospitals")
-                        .with(user("platform").roles("PLATFORM_ADMIN")))
+                        .with(user("admin").roles("ADMIN")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data[0].id").value("hosp-1"));
     }
 
     @Test
-    void listHospitals_asTenantAdmin_shouldReturn403() throws Exception {
+    void listHospitals_asDoctor_shouldReturn403() throws Exception {
         mockMvc.perform(get("/api/v1/hospitals")
-                        .with(user("tenant-admin").roles("ADMIN")))
+                        .with(user("doctor").roles("DOCTOR")))
                 .andExpect(status().isForbidden());
     }
 

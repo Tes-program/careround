@@ -92,10 +92,14 @@ public class JwtAuthFilter extends OncePerRequestFilter {
     }
 
     private void setHospitalContextIfTenantUser(String hospitalId, String userId, String role) {
-        if (!StringUtils.hasText(role) || "PLATFORM_ADMIN".equals(role)) {
+        if (!StringUtils.hasText(role)) {
             return;
         }
-        HospitalContextHolder.set(hospitalId, userId, UserRole.valueOf(role));
+        try {
+            HospitalContextHolder.set(hospitalId, userId, UserRole.valueOf(role));
+        } catch (IllegalArgumentException ignored) {
+            // Unknown role — skip setting hospital context, auth is still set
+        }
     }
 
     private String extractToken(HttpServletRequest request) {

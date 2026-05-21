@@ -1,7 +1,7 @@
 package com.careround.patient.patient;
 
 import com.careround.auth.enums.UserRole;
-import com.careround.patient.enums.AcuityLevel;
+import com.careround.patient.enums.AcuityColor;
 import com.careround.patient.enums.AdmissionType;
 import com.careround.patient.enums.PatientStatus;
 import com.careround.patient.patient.dto.AdmitPatientRequest;
@@ -45,13 +45,15 @@ class PatientControllerTest {
 
     @BeforeEach
     void setUp() {
-        HospitalContextHolder.set("hosp-1", "user-1", UserRole.CONSULTANT);
+        HospitalContextHolder.set("hosp-1", "user-1", UserRole.DOCTOR);
         sample = new PatientResponse(
-                "p-1", "ward-1", "team-1", "cons-1",
-                "John", "Doe", "HN001", LocalDate.of(1985, 6, 15),
-                "M", "4A", AdmissionType.EMERGENCY, "Chest pain", "Cardiology",
-                AcuityLevel.LOW, 0, false, null, PatientStatus.ADMITTED,
-                LocalDateTime.now(), LocalDateTime.now(), LocalDateTime.now());
+                "p-1", "hosp-1", "ward-1",
+                "John", "Doe", "HN001",
+                LocalDate.of(1985, 6, 15), "M", "4A",
+                AdmissionType.EMERGENCY, "Chest pain",
+                AcuityColor.GREEN, null,
+                PatientStatus.ADMITTED, LocalDateTime.now(),
+                LocalDateTime.now(), LocalDateTime.now());
     }
 
     @AfterEach
@@ -60,11 +62,11 @@ class PatientControllerTest {
     }
 
     @Test
-    void admitPatient_asConsultant_returns201() throws Exception {
+    void admitPatient_asDoctor_returns201() throws Exception {
         when(patientService.admitPatient(any())).thenReturn(sample);
 
         mockMvc.perform(post("/api/v1/patients")
-                        .with(user("cons").roles("CONSULTANT"))
+                        .with(user("doctor").roles("DOCTOR"))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(admitRequest())))
                 .andExpect(status().isCreated())
@@ -72,9 +74,9 @@ class PatientControllerTest {
     }
 
     @Test
-    void admitPatient_asJuniorDoctor_returns403() throws Exception {
+    void admitPatient_asNurse_returns403() throws Exception {
         mockMvc.perform(post("/api/v1/patients")
-                        .with(user("jr").roles("JUNIOR_DOCTOR"))
+                        .with(user("nurse").roles("NURSE"))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(admitRequest())))
                 .andExpect(status().isForbidden());
@@ -106,7 +108,7 @@ class PatientControllerTest {
                 """;
 
         mockMvc.perform(post("/api/v1/patients")
-                        .with(user("cons").roles("CONSULTANT"))
+                        .with(user("doctor").roles("DOCTOR"))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(invalidJson))
                 .andExpect(status().isBadRequest());
@@ -114,9 +116,8 @@ class PatientControllerTest {
 
     private AdmitPatientRequest admitRequest() {
         return new AdmitPatientRequest(
-                "ward-1", "team-1", "John", "Doe",
+                "ward-1", "John", "Doe",
                 LocalDate.of(1985, 6, 15), "M", "HN001",
-                AdmissionType.EMERGENCY, "Chest pain", "Cardiology",
-                "cons-1", null);
+                AdmissionType.EMERGENCY, "Chest pain", "4A", null);
     }
 }

@@ -51,11 +51,11 @@ public class SystemConfigurationServiceImpl implements SystemConfigurationServic
         SystemConfiguration config = systemConfigurationRepository.findByHospitalId(hospitalId)
                 .orElseThrow(() -> new ResourceNotFoundException("System configuration not found"));
 
-        config.setNewsAmberThreshold(request.newsAmberThreshold());
-        config.setNewsRedThreshold(request.newsRedThreshold());
-        config.setTaskOverdueGraceMinutes(request.taskOverdueGraceMinutes());
-        config.setRoundNotificationsEnabled(request.roundNotificationsEnabled());
-        config.setNokNotificationEnabled(request.nokNotificationEnabled());
+        config.setAcuityAmberThreshold(request.acuityAmberThreshold());
+        config.setAcuityRedThreshold(request.acuityRedThreshold());
+        config.setTaskOverdueReminderMinutes(request.taskOverdueReminderMinutes());
+        config.setTaskEscalationMinutes(request.taskEscalationMinutes());
+        config.setPushNotificationsEnabled(request.pushNotificationsEnabled());
 
         evictCache(CACHE_PREFIX + hospitalId);
         return toResponse(config);
@@ -88,8 +88,8 @@ public class SystemConfigurationServiceImpl implements SystemConfigurationServic
 
     private SystemConfigResponse toResponse(SystemConfiguration c) {
         return new SystemConfigResponse(c.getId(), c.getHospitalId(),
-                c.getNewsAmberThreshold(), c.getNewsRedThreshold(),
-                c.getTaskOverdueGraceMinutes(), c.isRoundNotificationsEnabled(),
-                c.isNokNotificationEnabled());
+                c.getAcuityAmberThreshold(), c.getAcuityRedThreshold(),
+                c.getTaskOverdueReminderMinutes(), c.getTaskEscalationMinutes(),
+                c.isPushNotificationsEnabled());
     }
 }

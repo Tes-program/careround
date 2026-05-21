@@ -7,16 +7,14 @@ import jakarta.validation.constraints.NotNull;
 import java.time.LocalDate;
 
 public record AdmitPatientRequest(
-        @NotBlank String wardId,
-        @NotBlank String medicalTeamId,
+        String wardId,
         @NotBlank String firstName,
         @NotBlank String lastName,
         @NotNull LocalDate dateOfBirth,
         @NotBlank String gender,
         @NotBlank String hospitalNumber,
         @NotNull AdmissionType admissionType,
-        @NotBlank String primaryDiagnosis,
-        @NotBlank String specialtyRequired,
-        String admittingConsultantId,
+        String primaryDiagnosis,
+        String bedNumber,
         LocalDate estimatedDischargeDate
 ) {}

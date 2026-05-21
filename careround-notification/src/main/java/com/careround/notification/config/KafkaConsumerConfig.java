@@ -1,7 +1,5 @@
 package com.careround.notification.config;
 
-import com.careround.notification.dlt.repository.FailedNotificationRepository;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.kafka.clients.consumer.ConsumerConfig;
 import org.apache.kafka.clients.producer.ProducerConfig;
@@ -25,7 +23,6 @@ import java.util.Map;
 
 @Configuration
 @EnableKafka
-@RequiredArgsConstructor
 @Slf4j
 public class KafkaConsumerConfig {
 
@@ -56,8 +53,7 @@ public class KafkaConsumerConfig {
     }
 
     @Bean
-    public CommonErrorHandler errorHandler(KafkaTemplate<String, String> dltKafkaTemplate,
-                                           FailedNotificationRepository repo) {
+    public CommonErrorHandler errorHandler(KafkaTemplate<String, String> dltKafkaTemplate) {
         var recoverer = new DeadLetterPublishingRecoverer(dltKafkaTemplate);
         var handler = new DefaultErrorHandler(recoverer, new FixedBackOff(1000L, 3));
         handler.addNotRetryableExceptions(IllegalArgumentException.class);

@@ -38,7 +38,6 @@ public class UserServiceImpl implements UserService {
         user.setEmail(email);
         user.setPasswordHash(passwordEncoder.encode(request.getPassword()));
         user.setRole(request.getRole());
-        user.setDepartmentId(request.getDepartmentId());
         user.setActive(true);
 
         return toResponse(userRepository.save(user));
@@ -77,7 +76,7 @@ public class UserServiceImpl implements UserService {
                 user.getLastName(),
                 user.getEmail(),
                 user.getRole(),
-                user.getDepartmentId(),
+                user.getFcmToken(),
                 user.isActive(),
                 user.getCreatedAt()
         );

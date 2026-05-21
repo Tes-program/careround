@@ -24,6 +24,4 @@ public class CreateUserRequest {
 
     @NotNull(message = "Role is required")
     private UserRole role;
-
-    private String departmentId;
 }

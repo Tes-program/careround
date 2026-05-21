@@ -27,7 +27,7 @@ public class HospitalController {
     private final HospitalService hospitalService;
 
     @GetMapping
-    @PreAuthorize("hasRole('PLATFORM_ADMIN')")
+    @PreAuthorize("hasRole('ADMIN')")
     @Operation(
             summary = "List all hospital tenants",
             description = "Returns all provisioned hospitals. This endpoint is restricted to platform administrators."

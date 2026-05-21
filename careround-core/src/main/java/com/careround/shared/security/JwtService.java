@@ -1,7 +1,6 @@
 package com.careround.shared.security;
 
 import com.careround.auth.entity.User;
-import com.careround.platform.entity.PlatformOperator;
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.JwtException;
 import io.jsonwebtoken.Jwts;
@@ -33,12 +32,6 @@ public class JwtService {
 
     public String generateAccessToken(User user) {
         return buildToken(user.getId(), user.getEmail(), user.getHospitalId(), user.getRole().name(),
-                accessTokenExpiryMs,
-                "access");
-    }
-
-    public String generatePlatformAccessToken(PlatformOperator operator) {
-        return buildToken(operator.getId(), operator.getEmail(), "PLATFORM", operator.getRole().name(),
                 accessTokenExpiryMs,
                 "access");
     }

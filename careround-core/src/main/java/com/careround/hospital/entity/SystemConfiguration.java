@@ -18,18 +18,18 @@ public class SystemConfiguration extends BaseEntity {
     @Column(name = "hospital_id", nullable = false, unique = true, length = 36)
     private String hospitalId;
 
-    @Column(name = "news_amber_threshold", nullable = false)
-    private int newsAmberThreshold = 5;
+    @Column(name = "acuity_amber_threshold", nullable = false)
+    private int acuityAmberThreshold = 5;
 
-    @Column(name = "news_red_threshold", nullable = false)
-    private int newsRedThreshold = 7;
+    @Column(name = "acuity_red_threshold", nullable = false)
+    private int acuityRedThreshold = 7;
 
-    @Column(name = "task_overdue_grace_minutes", nullable = false)
-    private int taskOverdueGraceMinutes = 30;
+    @Column(name = "task_overdue_reminder_minutes", nullable = false)
+    private int taskOverdueReminderMinutes = 10;
 
-    @Column(name = "round_notifications_enabled", nullable = false)
-    private boolean roundNotificationsEnabled = true;
+    @Column(name = "task_escalation_minutes", nullable = false)
+    private int taskEscalationMinutes = 20;
 
-    @Column(name = "nok_notification_enabled", nullable = false)
-    private boolean nokNotificationEnabled = true;
+    @Column(name = "push_notifications_enabled", nullable = false)
+    private boolean pushNotificationsEnabled = true;
 }
