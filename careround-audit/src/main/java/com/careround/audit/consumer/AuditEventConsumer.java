@@ -1,6 +1,6 @@
 package com.careround.audit.consumer;
 
-import com.careround.audit.entity.AuditLogEntry;
+import com.careround.audit.entity.AuditLog;
 import com.careround.audit.repository.AuditLogRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -23,49 +23,34 @@ public class AuditEventConsumer {
     private final ObjectMapper objectMapper;
 
     @KafkaListener(topics = {
-            "careround.patient.admitted",
-            "careround.shift.created",
-            "careround.shift.activated",
-            "careround.round.completed",
-            "careround.handover.completed",
-            "careround.task.overdue",
-            "careround.patient.deterioration",
-            "careround.escalation.unacknowledged",
-            "careround.patient.discharge-ready",
-            "careround.patient.discharged",
-            "careround.team.invite-sent",
-            "careround.team.member-added",
-            "careround.invite.expired",
-            "careround.hospital.onboarding_requested",
-            "careround.hospital.onboarding_reviewed",
-            "careround.hospital.provisioned",
-            "careround.user.activation_requested",
-            "careround.care_task.workload_conflict"
+            "patient-admitted",
+            "patient-discharged",
+            "clinical-note-saved",
+            "prescription-confirmed",
+            "medication-chart-created",
+            "medication-task-overdue"
     }, groupId = "careround-audit-group")
     @Transactional
     public void listen(ConsumerRecord<String, String> record) {
         try {
             Map<?, ?> payload = objectMapper.readValue(record.value(), Map.class);
+            String eventId = asString(payload.get("eventId"));
             String correlationId = asString(payload.get("correlationId"));
-            if (StringUtils.hasText(correlationId) && auditLogRepository.existsByCorrelationId(correlationId)) {
-                log.warn("action=AUDIT_DUPLICATE_SKIPPED topic={} correlationId={}", record.topic(), correlationId);
+            if (StringUtils.hasText(eventId) && auditLogRepository.existsByEventId(eventId)) {
+                log.warn("action=AUDIT_DUPLICATE_SKIPPED topic={} eventId={}", record.topic(), eventId);
                 return;
             }
 
-            LocalDateTime now = LocalDateTime.now();
-            AuditLogEntry entry = new AuditLogEntry();
+            AuditLog entry = new AuditLog();
+            entry.setEventId(eventId);
             entry.setHospitalId(asString(payload.get("hospitalId")));
             entry.setEventType(record.topic());
             entry.setPayload(record.value());
             entry.setCorrelationId(correlationId);
-            entry.setKafkaTopic(record.topic());
-            entry.setKafkaPartition(record.partition());
-            entry.setKafkaOffset(record.offset());
-            entry.setReceivedAt(now);
-            entry.setProcessedAt(now);
+            entry.setReceivedAt(LocalDateTime.now());
             auditLogRepository.save(entry);
 
-            log.info("action=AUDIT_LOG_WRITTEN topic={} correlationId={}", record.topic(), correlationId);
+            log.info("action=AUDIT_LOG_WRITTEN topic={} eventId={}", record.topic(), eventId);
         } catch (Exception ex) {
             log.error("action=AUDIT_LOG_WRITE_FAILED topic={} partition={} offset={} message={}",
                     record.topic(), record.partition(), record.offset(), ex.getMessage(), ex);

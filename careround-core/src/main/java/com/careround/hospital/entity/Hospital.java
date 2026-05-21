@@ -18,6 +18,9 @@ public class Hospital extends BaseEntity {
     @Column(nullable = false, length = 255)
     private String name;
 
+    @Column(nullable = false, unique = true, length = 20)
+    private String code;
+
     @Column(columnDefinition = "TEXT")
     private String address;
 
@@ -26,4 +29,7 @@ public class Hospital extends BaseEntity {
 
     @Column(name = "contact_phone", length = 50)
     private String contactPhone;
+
+    @Column(name = "is_active", nullable = false)
+    private boolean isActive = true;
 }

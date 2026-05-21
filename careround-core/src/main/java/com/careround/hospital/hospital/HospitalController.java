@@ -1,6 +1,8 @@
 package com.careround.hospital.hospital;
 
+import com.careround.hospital.hospital.dto.HospitalRegistrationResponse;
 import com.careround.hospital.hospital.dto.HospitalResponse;
+import com.careround.hospital.hospital.dto.RegisterHospitalRequest;
 import com.careround.hospital.hospital.dto.UpdateHospitalRequest;
 import com.careround.shared.dto.ApiResponse;
 import com.careround.shared.security.HospitalContextHolder;
@@ -8,9 +10,11 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -26,8 +30,19 @@ public class HospitalController {
 
     private final HospitalService hospitalService;
 
+    @PostMapping("/register")
+    @Operation(
+            summary = "Register a new hospital",
+            description = "Creates a new hospital tenant with a default admin user. No authentication required."
+    )
+    public ResponseEntity<ApiResponse<HospitalRegistrationResponse>> register(
+            @Valid @RequestBody RegisterHospitalRequest request) {
+        HospitalRegistrationResponse response = hospitalService.register(request);
+        return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.ok("Hospital registered", response));
+    }
+
     @GetMapping
-    @PreAuthorize("hasRole('PLATFORM_ADMIN')")
+    @PreAuthorize("hasRole('ADMIN')")
     @Operation(
             summary = "List all hospital tenants",
             description = "Returns all provisioned hospitals. This endpoint is restricted to platform administrators."

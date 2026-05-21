@@ -60,12 +60,11 @@ public class SecurityConfig {
                                 "/swagger-ui.html",
                                 "/docs"
                         ).permitAll()
-                        .requestMatchers(HttpMethod.POST, "/api/v1/onboarding/hospital-requests").permitAll()
-                        .requestMatchers(HttpMethod.POST, "/api/v1/platform/auth/login").permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/v1/auth/change-password").authenticated()
                         .requestMatchers(
                                 "/api/v1/auth/**"
                         ).permitAll()
+                        .requestMatchers(HttpMethod.POST, "/api/v1/hospitals/register").permitAll()
                         .anyRequest().authenticated()
                 )
                 .addFilterBefore(correlationIdFilter, UsernamePasswordAuthenticationFilter.class);

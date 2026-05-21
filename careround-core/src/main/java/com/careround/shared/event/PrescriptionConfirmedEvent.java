@@ -1,0 +1,12 @@
+package com.careround.shared.event;
+
+import java.time.LocalDateTime;
+
+public record PrescriptionConfirmedEvent(
+        String eventId,
+        String prescriptionId,
+        String patientId,
+        String hospitalId,
+        String correlationId,
+        LocalDateTime timestamp
+) {}

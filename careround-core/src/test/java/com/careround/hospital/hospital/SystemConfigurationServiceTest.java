@@ -45,11 +45,11 @@ class SystemConfigurationServiceTest {
         config = new SystemConfiguration();
         config.setId("cfg-1");
         config.setHospitalId("hosp-1");
-        config.setNewsAmberThreshold(5);
-        config.setNewsRedThreshold(7);
-        config.setTaskOverdueGraceMinutes(30);
-        config.setRoundNotificationsEnabled(true);
-        config.setNokNotificationEnabled(true);
+        config.setAcuityAmberThreshold(5);
+        config.setAcuityRedThreshold(7);
+        config.setTaskOverdueReminderMinutes(10);
+        config.setTaskEscalationMinutes(20);
+        config.setPushNotificationsEnabled(true);
 
         lenient().when(redisTemplate.opsForValue()).thenReturn(valueOperations);
     }
@@ -71,7 +71,7 @@ class SystemConfigurationServiceTest {
     @Test
     void getByHospitalId_secondReadWithinTTL_hitsCacheNotDatabase() throws Exception {
         SystemConfigResponse cachedResponse = new SystemConfigResponse(
-                "cfg-1", "hosp-1", 5, 7, 30, true, true);
+                "cfg-1", "hosp-1", 5, 7, 10, 20, true);
         String cachedJson = "{\"id\":\"cfg-1\"}";
 
         when(valueOperations.get("sysconfig:hosp-1")).thenReturn(cachedJson);
@@ -97,12 +97,12 @@ class SystemConfigurationServiceTest {
     void update_shouldPersistChangesAndEvictCache() {
         when(systemConfigurationRepository.findByHospitalId("hosp-1")).thenReturn(Optional.of(config));
 
-        service.update("hosp-1", new UpdateSystemConfigRequest(6, 8, 45, false, false));
+        service.update("hosp-1", new UpdateSystemConfigRequest(6, 8, 45, 30, false));
 
-        assertThat(config.getNewsAmberThreshold()).isEqualTo(6);
-        assertThat(config.getNewsRedThreshold()).isEqualTo(8);
-        assertThat(config.getTaskOverdueGraceMinutes()).isEqualTo(45);
-        assertThat(config.isRoundNotificationsEnabled()).isFalse();
+        assertThat(config.getAcuityAmberThreshold()).isEqualTo(6);
+        assertThat(config.getAcuityRedThreshold()).isEqualTo(8);
+        assertThat(config.getTaskOverdueReminderMinutes()).isEqualTo(45);
+        assertThat(config.isPushNotificationsEnabled()).isFalse();
         verify(redisTemplate).delete("sysconfig:hosp-1");
     }
 
@@ -113,19 +113,19 @@ class SystemConfigurationServiceTest {
                 .thenThrow(new RedisConnectionFailureException("redis unavailable"));
 
         SystemConfigResponse result = service.update(
-                "hosp-1", new UpdateSystemConfigRequest(6, 8, 45, false, false));
+                "hosp-1", new UpdateSystemConfigRequest(6, 8, 45, 30, false));
 
-        assertThat(result.newsAmberThreshold()).isEqualTo(6);
-        assertThat(result.newsRedThreshold()).isEqualTo(8);
-        assertThat(result.taskOverdueGraceMinutes()).isEqualTo(45);
-        assertThat(result.roundNotificationsEnabled()).isFalse();
+        assertThat(result.acuityAmberThreshold()).isEqualTo(6);
+        assertThat(result.acuityRedThreshold()).isEqualTo(8);
+        assertThat(result.taskOverdueReminderMinutes()).isEqualTo(45);
+        assertThat(result.pushNotificationsEnabled()).isFalse();
     }
 
     @Test
     void update_whenNotFound_shouldThrowResourceNotFoundException() {
         when(systemConfigurationRepository.findByHospitalId("bad")).thenReturn(Optional.empty());
 
-        assertThatThrownBy(() -> service.update("bad", new UpdateSystemConfigRequest(5, 7, 30, true, true)))
+        assertThatThrownBy(() -> service.update("bad", new UpdateSystemConfigRequest(5, 7, 30, 20, true)))
                 .isInstanceOf(ResourceNotFoundException.class);
     }
 }

@@ -73,6 +73,9 @@ careround:
     base-url: ${CAREROUND_CORE_BASE_URL:http://localhost:8080}
     service-account-jwt: ${CAREROUND_SERVICE_ACCOUNT_JWT:}
 
+firebase:
+  service-account-path: ${FIREBASE_SERVICE_ACCOUNT_PATH:config/firebase-service-account.json}
+
 logging:
   level:
     com.careround: DEBUG

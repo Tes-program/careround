@@ -1,9 +1,7 @@
 package com.careround.patient.patient;
 
 import com.careround.patient.patient.dto.AdmitPatientRequest;
-import com.careround.patient.patient.dto.MarkDischargeReadyRequest;
 import com.careround.patient.patient.dto.PatientResponse;
-import com.careround.patient.patient.dto.PatientTimelineItemResponse;
 import com.careround.patient.patient.dto.UpdatePatientStatusRequest;
 
 import java.util.List;
@@ -14,15 +12,7 @@ public interface PatientService {
 
     PatientResponse getPatient(String patientId);
 
-    List<PatientTimelineItemResponse> getPatientTimeline(String patientId);
-
     List<PatientResponse> getPatientsByWard(String wardId);
-
-    List<PatientResponse> getPatientsByTeam(String teamId);
-
-    List<PatientResponse> searchPatients(String query);
-
-    PatientResponse markDischargeReady(String patientId, MarkDischargeReadyRequest request);
 
     PatientResponse updatePatientStatus(String patientId, UpdatePatientStatusRequest request);
 }

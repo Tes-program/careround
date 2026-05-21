@@ -1,7 +1,8 @@
 package com.careround.patient.clinicalnote;
 
-import com.careround.patient.clinicalnote.dto.AmendNoteRequest;
 import com.careround.patient.clinicalnote.dto.ClinicalNoteResponse;
+import com.careround.patient.clinicalnote.dto.ConfirmNoteRequest;
+import com.careround.patient.clinicalnote.dto.ConfirmNoteResponse;
 import com.careround.patient.clinicalnote.dto.CreateClinicalNoteRequest;
 import com.careround.shared.dto.ApiResponse;
 import io.swagger.v3.oas.annotations.Operation;
@@ -12,7 +13,6 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -24,28 +24,28 @@ import java.util.List;
 @RestController
 @RequestMapping("/api/v1/clinical-notes")
 @RequiredArgsConstructor
-@Tag(name = "Clinical Notes", description = "Clinical note creation, amendment, and patient note history")
+@Tag(name = "Clinical Notes", description = "Clinical note creation and patient note history")
 public class ClinicalNoteController {
 
     private final ClinicalNoteService clinicalNoteService;
 
     @PostMapping
-    @PreAuthorize("hasAnyRole('CONSULTANT', 'REGISTRAR', 'JUNIOR_DOCTOR', 'NURSE', 'WARD_SUPERVISOR')")
-    @Operation(summary = "Create clinical note", description = "Creates a clinical note for a patient or round review.")
+    @PreAuthorize("hasAnyRole('DOCTOR', 'NURSE', 'SUPERVISOR')")
+    @Operation(summary = "Create clinical note", description = "Creates a clinical note for a patient.")
     public ResponseEntity<ApiResponse<ClinicalNoteResponse>> createNote(
             @Valid @RequestBody CreateClinicalNoteRequest request) {
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(ApiResponse.ok("Clinical note created", clinicalNoteService.createNote(request)));
     }
 
-    @PatchMapping("/{noteId}/amend")
-    @PreAuthorize("hasAnyRole('CONSULTANT', 'REGISTRAR', 'JUNIOR_DOCTOR', 'NURSE', 'WARD_SUPERVISOR')")
-    @Operation(summary = "Amend clinical note", description = "Amends an existing clinical note.")
-    public ResponseEntity<ApiResponse<ClinicalNoteResponse>> amendNote(
-            @PathVariable String noteId,
-            @Valid @RequestBody AmendNoteRequest request) {
-        return ResponseEntity.ok(ApiResponse.ok("Clinical note amended",
-                clinicalNoteService.amendNote(noteId, request)));
+    @PostMapping("/confirm")
+    @PreAuthorize("hasRole('DOCTOR')")
+    @Operation(summary = "Confirm clinical note with prescriptions",
+            description = "Atomically saves a confirmed clinical note and its associated prescriptions.")
+    public ResponseEntity<ApiResponse<ConfirmNoteResponse>> confirmNote(
+            @Valid @RequestBody ConfirmNoteRequest request) {
+        return ResponseEntity.status(HttpStatus.CREATED)
+                .body(ApiResponse.ok("Clinical note confirmed", clinicalNoteService.confirm(request)));
     }
 
     @GetMapping("/patient/{patientId}")

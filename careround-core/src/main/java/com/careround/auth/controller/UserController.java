@@ -1,6 +1,7 @@
 package com.careround.auth.controller;
 
 import com.careround.auth.dto.CreateUserRequest;
+import com.careround.auth.dto.UpdateDeviceTokenRequest;
 import com.careround.auth.dto.UserResponse;
 import com.careround.auth.service.UserService;
 import com.careround.shared.dto.ApiResponse;
@@ -35,7 +36,7 @@ public class UserController {
     }
 
     @GetMapping
-    @PreAuthorize("hasAnyRole('ADMIN', 'CONSULTANT', 'REGISTRAR', 'JUNIOR_DOCTOR', 'NURSE', 'WARD_SUPERVISOR')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'DOCTOR', 'NURSE', 'SUPERVISOR')")
     @Operation(summary = "List tenant users", description = "Returns all active users for the authenticated hospital tenant.")
     public ResponseEntity<ApiResponse<List<UserResponse>>> getAllUsers() {
         List<UserResponse> users = userService.listByHospital(HospitalContextHolder.getHospitalId());
@@ -65,5 +66,16 @@ public class UserController {
     public ResponseEntity<ApiResponse<Void>> deactivateUser(@PathVariable String id) {
         userService.deactivate(HospitalContextHolder.getHospitalId(), id);
         return ResponseEntity.ok(ApiResponse.ok("User deactivated", null));
+    }
+
+    @PutMapping("/me/device-token")
+    @PreAuthorize("hasAnyRole('NURSE', 'DOCTOR', 'SUPERVISOR')")
+    @Operation(summary = "Update device token", description = "Registers or updates the FCM device token for the authenticated user.")
+    public ResponseEntity<Void> updateDeviceToken(@Valid @RequestBody UpdateDeviceTokenRequest request) {
+        userService.updateDeviceToken(
+                HospitalContextHolder.getUserId(),
+                HospitalContextHolder.getHospitalId(),
+                request.deviceToken());
+        return ResponseEntity.noContent().build();
     }
 }

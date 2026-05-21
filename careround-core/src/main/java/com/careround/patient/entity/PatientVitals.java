@@ -1,5 +1,6 @@
 package com.careround.patient.entity;
 
+import com.careround.patient.enums.AcuityColor;
 import com.careround.patient.enums.ConsciousnessLevel;
 import com.careround.shared.entity.BaseEntity;
 import jakarta.persistence.Column;
@@ -24,6 +25,9 @@ public class PatientVitals extends BaseEntity {
     @Column(name = "patient_id", nullable = false, length = 36)
     private String patientId;
 
+    @Column(name = "hospital_id", nullable = false, length = 36)
+    private String hospitalId;
+
     @Column(name = "recorded_by_id", nullable = false, length = 36)
     private String recordedById;
 
@@ -46,8 +50,12 @@ public class PatientVitals extends BaseEntity {
     @Column(name = "consciousness_level", length = 20)
     private ConsciousnessLevel consciousnessLevel;
 
-    @Column(name = "news_score", nullable = false)
-    private int newsScore;
+    @Column(name = "computed_score", nullable = false)
+    private int computedScore;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "acuity_color", nullable = false, length = 10)
+    private AcuityColor acuityColor;
 
     @Column(name = "recorded_at", nullable = false)
     private LocalDateTime recordedAt;

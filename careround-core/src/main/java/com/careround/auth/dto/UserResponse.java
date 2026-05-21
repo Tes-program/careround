@@ -18,7 +18,7 @@ public class UserResponse {
     private String lastName;
     private String email;
     private UserRole role;
-    private String departmentId;
+    private String fcmToken;
     private boolean isActive;
     private LocalDateTime createdAt;
 }

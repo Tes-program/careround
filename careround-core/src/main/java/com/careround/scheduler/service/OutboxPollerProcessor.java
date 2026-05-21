@@ -13,7 +13,7 @@ import tools.jackson.databind.ObjectMapper;
 
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
-import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
@@ -23,20 +23,13 @@ import java.util.concurrent.TimeoutException;
 @Slf4j
 public class OutboxPollerProcessor {
 
-    private static final Map<String, String> EVENT_TOPIC_MAP = Map.ofEntries(
-            Map.entry("PATIENT_ADMITTED", "careround.patient.admitted"),
-            Map.entry("SHIFT_CREATED", "careround.shift.created"),
-            Map.entry("SHIFT_ACTIVATED", "careround.shift.activated"),
-            Map.entry("ROUND_COMPLETED", "careround.round.completed"),
-            Map.entry("HANDOVER_COMPLETED", "careround.handover.completed"),
-            Map.entry("TASK_OVERDUE", "careround.task.overdue"),
-            Map.entry("PATIENT_DETERIORATION", "careround.patient.deterioration"),
-            Map.entry("ESCALATION_UNACKNOWLEDGED", "careround.escalation.unacknowledged"),
-            Map.entry("PATIENT_DISCHARGE_READY", "careround.patient.discharge-ready"),
-            Map.entry("PATIENT_DISCHARGED", "careround.patient.discharged"),
-            Map.entry("TEAM_INVITE_SENT", "careround.team.invite-sent"),
-            Map.entry("TEAM_MEMBER_ADDED", "careround.team.member-added"),
-            Map.entry("INVITE_EXPIRED", "careround.invite.expired")
+    private static final Set<String> KNOWN_TOPICS = Set.of(
+            "patient-admitted",
+            "patient-discharged",
+            "prescription-confirmed",
+            "clinical-note-saved",
+            "medication-chart-created",
+            "medication-task-overdue"
     );
 
     private final OutboxEventRepository outboxEventRepository;
@@ -97,13 +90,10 @@ public class OutboxPollerProcessor {
         return publishedCount;
     }
 
-    String resolveTopic(String eventType) {
+    public String resolveTopic(String eventType) {
         if (eventType == null) {
             return null;
         }
-        if (eventType.startsWith("careround.")) {
-            return eventType;
-        }
-        return EVENT_TOPIC_MAP.get(eventType);
+        return KNOWN_TOPICS.contains(eventType) ? eventType : null;
     }
 }

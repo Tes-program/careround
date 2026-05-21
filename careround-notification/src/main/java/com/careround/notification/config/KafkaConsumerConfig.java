@@ -1,12 +1,10 @@
 package com.careround.notification.config;
 
+import com.careround.notification.dlt.entity.FailedNotification;
 import com.careround.notification.dlt.repository.FailedNotificationRepository;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.kafka.clients.consumer.ConsumerConfig;
-import org.apache.kafka.clients.producer.ProducerConfig;
 import org.apache.kafka.common.serialization.StringDeserializer;
-import org.apache.kafka.common.serialization.StringSerializer;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -14,18 +12,15 @@ import org.springframework.kafka.annotation.EnableKafka;
 import org.springframework.kafka.config.ConcurrentKafkaListenerContainerFactory;
 import org.springframework.kafka.core.ConsumerFactory;
 import org.springframework.kafka.core.DefaultKafkaConsumerFactory;
-import org.springframework.kafka.core.DefaultKafkaProducerFactory;
-import org.springframework.kafka.core.KafkaTemplate;
-import org.springframework.kafka.listener.CommonErrorHandler;
-import org.springframework.kafka.listener.DeadLetterPublishingRecoverer;
 import org.springframework.kafka.listener.DefaultErrorHandler;
-import org.springframework.util.backoff.FixedBackOff;
+import org.springframework.util.backoff.ExponentialBackOff;
 
+import java.time.LocalDateTime;
+import java.time.ZoneOffset;
 import java.util.Map;
 
 @Configuration
 @EnableKafka
-@RequiredArgsConstructor
 @Slf4j
 public class KafkaConsumerConfig {
 
@@ -47,30 +42,30 @@ public class KafkaConsumerConfig {
     }
 
     @Bean
-    public KafkaTemplate<String, String> dltKafkaTemplate() {
-        return new KafkaTemplate<>(new DefaultKafkaProducerFactory<>(Map.of(
-                ProducerConfig.BOOTSTRAP_SERVERS_CONFIG, bootstrapServers,
-                ProducerConfig.KEY_SERIALIZER_CLASS_CONFIG, StringSerializer.class,
-                ProducerConfig.VALUE_SERIALIZER_CLASS_CONFIG, StringSerializer.class
-        )));
+    public DefaultErrorHandler notificationErrorHandler(FailedNotificationRepository repo) {
+        ExponentialBackOff backOff = new ExponentialBackOff(1000L, 2.0);
+        backOff.setMaxElapsedTime(7000L); // approx 3 retries: 1s + 2s + 4s
+        return new DefaultErrorHandler((record, ex) -> {
+            log.error("action=NOTIFICATION_CONSUMER_FAILED topic={} partition={} offset={} message={}",
+                    record.topic(), record.partition(), record.offset(), ex.getMessage());
+            FailedNotification fn = new FailedNotification();
+            fn.setEventType(record.topic());
+            fn.setTopic(record.topic());
+            fn.setPayload(record.value() != null ? record.value().toString() : null);
+            fn.setErrorMessage(ex.getMessage());
+            fn.setFailedAt(LocalDateTime.now(ZoneOffset.UTC));
+            repo.save(fn);
+        }, backOff);
     }
 
     @Bean
-    public CommonErrorHandler errorHandler(KafkaTemplate<String, String> dltKafkaTemplate,
-                                           FailedNotificationRepository repo) {
-        var recoverer = new DeadLetterPublishingRecoverer(dltKafkaTemplate);
-        var handler = new DefaultErrorHandler(recoverer, new FixedBackOff(1000L, 3));
-        handler.addNotRetryableExceptions(IllegalArgumentException.class);
-        return handler;
-    }
-
-    @Bean
-    public ConcurrentKafkaListenerContainerFactory<String, String> kafkaListenerContainerFactory(
+    public ConcurrentKafkaListenerContainerFactory<String, String> notificationKafkaListenerContainerFactory(
             ConsumerFactory<String, String> consumerFactory,
-            CommonErrorHandler errorHandler) {
-        var factory = new ConcurrentKafkaListenerContainerFactory<String, String>();
+            DefaultErrorHandler notificationErrorHandler) {
+        ConcurrentKafkaListenerContainerFactory<String, String> factory =
+                new ConcurrentKafkaListenerContainerFactory<>();
         factory.setConsumerFactory(consumerFactory);
-        factory.setCommonErrorHandler(errorHandler);
+        factory.setCommonErrorHandler(notificationErrorHandler);
         return factory;
     }
 }

@@ -39,7 +39,7 @@ class SystemConfigurationControllerTest {
     @BeforeEach
     void setUp() {
         HospitalContextHolder.set("hosp-1", "user-1", UserRole.ADMIN);
-        sampleConfig = new SystemConfigResponse("cfg-1", "hosp-1", 5, 7, 30, true, true);
+        sampleConfig = new SystemConfigResponse("cfg-1", "hosp-1", 5, 7, 10, 20, true);
     }
 
     @AfterEach
@@ -54,7 +54,7 @@ class SystemConfigurationControllerTest {
         mockMvc.perform(get("/api/v1/system-config")
                         .with(user("admin").roles("ADMIN")))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.newsAmberThreshold").value(5));
+                .andExpect(jsonPath("$.data.acuityAmberThreshold").value(5));
     }
 
     @Test
@@ -72,17 +72,17 @@ class SystemConfigurationControllerTest {
                         .with(user("admin").roles("ADMIN"))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(
-                                new UpdateSystemConfigRequest(6, 8, 45, false, false))))
+                                new UpdateSystemConfigRequest(6, 8, 45, 30, true))))
                 .andExpect(status().isOk());
     }
 
     @Test
-    void updateConfig_asConsultant_shouldReturn403() throws Exception {
+    void updateConfig_asDoctor_shouldReturn403() throws Exception {
         mockMvc.perform(put("/api/v1/system-config")
-                        .with(user("consultant").roles("CONSULTANT"))
+                        .with(user("doctor").roles("DOCTOR"))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(
-                                new UpdateSystemConfigRequest(6, 8, 45, false, false))))
+                                new UpdateSystemConfigRequest(6, 8, 45, 30, true))))
                 .andExpect(status().isForbidden());
     }
 }

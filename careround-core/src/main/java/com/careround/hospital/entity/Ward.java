@@ -27,6 +27,6 @@ public class Ward extends BaseEntity {
     @Column(name = "total_beds", nullable = false)
     private int totalBeds = 0;
 
-    @Column(name = "supervisor_id", length = 36)
-    private String supervisorId;
+    @Column(name = "is_active", nullable = false)
+    private boolean isActive = true;
 }

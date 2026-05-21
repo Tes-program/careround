@@ -1,6 +1,7 @@
 package com.careround.patient.vitals;
 
 import com.careround.auth.enums.UserRole;
+import com.careround.patient.enums.AcuityColor;
 import com.careround.patient.enums.ConsciousnessLevel;
 import com.careround.patient.vitals.dto.RecordVitalsRequest;
 import com.careround.patient.vitals.dto.VitalsResponse;
@@ -46,10 +47,10 @@ class PatientVitalsControllerTest {
     void setUp() {
         HospitalContextHolder.set("hosp-1", "user-1", UserRole.NURSE);
         sample = new VitalsResponse(
-                "v-1", "p-1", "user-1",
+                "v-1", "p-1", "hosp-1", "user-1",
                 75, 16, 120,
                 new BigDecimal("98.0"), new BigDecimal("37.0"),
-                ConsciousnessLevel.ALERT, 0, LocalDateTime.now());
+                ConsciousnessLevel.ALERT, 0, AcuityColor.GREEN, LocalDateTime.now());
     }
 
     @AfterEach
