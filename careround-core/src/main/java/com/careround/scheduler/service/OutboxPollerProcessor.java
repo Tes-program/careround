@@ -13,7 +13,7 @@ import tools.jackson.databind.ObjectMapper;
 
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
-import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
@@ -23,13 +23,13 @@ import java.util.concurrent.TimeoutException;
 @Slf4j
 public class OutboxPollerProcessor {
 
-    private static final Map<String, String> EVENT_TOPIC_MAP = Map.of(
-            "patient-admitted",         "patient-admitted",
-            "patient-discharged",       "patient-discharged",
-            "prescription-confirmed",   "prescription-confirmed",
-            "clinical-note-saved",      "clinical-note-saved",
-            "medication-chart-created", "medication-chart-created",
-            "medication-task-overdue",  "medication-task-overdue"
+    private static final Set<String> KNOWN_TOPICS = Set.of(
+            "patient-admitted",
+            "patient-discharged",
+            "prescription-confirmed",
+            "clinical-note-saved",
+            "medication-chart-created",
+            "medication-task-overdue"
     );
 
     private final OutboxEventRepository outboxEventRepository;
@@ -90,10 +90,10 @@ public class OutboxPollerProcessor {
         return publishedCount;
     }
 
-    String resolveTopic(String eventType) {
+    public String resolveTopic(String eventType) {
         if (eventType == null) {
             return null;
         }
-        return EVENT_TOPIC_MAP.get(eventType);
+        return KNOWN_TOPICS.contains(eventType) ? eventType : null;
     }
 }

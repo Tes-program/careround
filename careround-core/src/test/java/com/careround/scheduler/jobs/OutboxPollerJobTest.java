@@ -91,6 +91,23 @@ class OutboxPollerJobTest {
         verify(kafkaTemplate).send("patient-admitted", "hosp-1", "{\"ok\":true}");
     }
 
+    @Test
+    void resolveTopic_returnsTopicName_forKnownTopic() {
+        assertThat(processor.resolveTopic("patient-admitted")).isEqualTo("patient-admitted");
+        assertThat(processor.resolveTopic("medication-task-overdue")).isEqualTo("medication-task-overdue");
+    }
+
+    @Test
+    void resolveTopic_returnsNull_forUnknownTopic() {
+        assertThat(processor.resolveTopic("careround.unknown.topic")).isNull();
+        assertThat(processor.resolveTopic("unknown-event")).isNull();
+    }
+
+    @Test
+    void resolveTopic_returnsNull_forNullInput() {
+        assertThat(processor.resolveTopic(null)).isNull();
+    }
+
     private OutboxEvent unpublishedEvent(String eventType) {
         OutboxEvent event = new OutboxEvent();
         event.setId("evt-1");

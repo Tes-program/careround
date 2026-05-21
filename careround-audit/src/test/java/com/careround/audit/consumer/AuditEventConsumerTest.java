@@ -30,14 +30,14 @@ class AuditEventConsumerTest {
 
     @Test
     void listen_validRecord_writesAuditLog() {
-        ConsumerRecord<String, String> record = record("careround.patient.admitted", "event-1");
+        ConsumerRecord<String, String> record = record("patient-admitted", "event-1");
 
         consumer.listen(record);
 
         ArgumentCaptor<AuditLog> captor = ArgumentCaptor.forClass(AuditLog.class);
         verify(auditLogRepository).save(captor.capture());
         AuditLog saved = captor.getValue();
-        assertThat(saved.getEventType()).isEqualTo("careround.patient.admitted");
+        assertThat(saved.getEventType()).isEqualTo("patient-admitted");
         assertThat(saved.getHospitalId()).isEqualTo("hosp-1");
         assertThat(saved.getEventId()).isEqualTo("event-1");
         assertThat(saved.getCorrelationId()).isEqualTo("corr-1");
@@ -47,7 +47,7 @@ class AuditEventConsumerTest {
     void listen_duplicateEventId_skipsProcessing() {
         when(auditLogRepository.existsByEventId("event-dup")).thenReturn(true);
 
-        consumer.listen(record("careround.patient.discharged", "event-dup"));
+        consumer.listen(record("patient-discharged", "event-dup"));
 
         verify(auditLogRepository, never()).save(org.mockito.ArgumentMatchers.any());
     }
@@ -55,11 +55,22 @@ class AuditEventConsumerTest {
     @Test
     void listen_malformedJson_doesNotThrow() {
         ConsumerRecord<String, String> bad = new ConsumerRecord<>(
-                "careround.note.created", 0, 1L, "key", "not-json");
+                "clinical-note-saved", 0, 1L, "key", "not-json");
 
         consumer.listen(bad);
 
         verify(auditLogRepository, never()).save(org.mockito.ArgumentMatchers.any());
+    }
+
+    @Test
+    void listen_validRecord_writesAuditLog_forMedicationTaskOverdue() {
+        ConsumerRecord<String, String> record = record("medication-task-overdue", "event-3");
+
+        consumer.listen(record);
+
+        ArgumentCaptor<AuditLog> captor = ArgumentCaptor.forClass(AuditLog.class);
+        verify(auditLogRepository).save(captor.capture());
+        assertThat(captor.getValue().getEventType()).isEqualTo("medication-task-overdue");
     }
 
     private ConsumerRecord<String, String> record(String topic, String eventId) {

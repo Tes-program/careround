@@ -23,12 +23,12 @@ public class AuditEventConsumer {
     private final ObjectMapper objectMapper;
 
     @KafkaListener(topics = {
-            "careround.patient.admitted",
-            "careround.patient.discharged",
-            "careround.patient.deterioration",
-            "careround.vitals.recorded",
-            "careround.note.created",
-            "careround.user.invited"
+            "patient-admitted",
+            "patient-discharged",
+            "clinical-note-saved",
+            "prescription-confirmed",
+            "medication-chart-created",
+            "medication-task-overdue"
     }, groupId = "careround-audit-group")
     @Transactional
     public void listen(ConsumerRecord<String, String> record) {

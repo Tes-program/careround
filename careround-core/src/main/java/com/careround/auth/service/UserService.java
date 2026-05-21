@@ -13,4 +13,6 @@ public interface UserService {
     void deactivate(String hospitalId, String userId);
 
     List<UserResponse> listByHospital(String hospitalId);
+
+    void updateDeviceToken(String userId, String hospitalId, String deviceToken);
 }
