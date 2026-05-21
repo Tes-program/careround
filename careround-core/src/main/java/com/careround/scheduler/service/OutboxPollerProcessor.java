@@ -24,12 +24,12 @@ import java.util.concurrent.TimeoutException;
 public class OutboxPollerProcessor {
 
     private static final Map<String, String> EVENT_TOPIC_MAP = Map.of(
-            "PATIENT_ADMITTED", "careround.patient.admitted",
-            "PATIENT_DISCHARGED", "careround.patient.discharged",
-            "PATIENT_DETERIORATION", "careround.patient.deterioration",
-            "VITALS_RECORDED", "careround.vitals.recorded",
-            "NOTE_CREATED", "careround.note.created",
-            "USER_INVITED", "careround.user.invited"
+            "patient-admitted",         "patient-admitted",
+            "patient-discharged",       "patient-discharged",
+            "prescription-confirmed",   "prescription-confirmed",
+            "clinical-note-saved",      "clinical-note-saved",
+            "medication-chart-created", "medication-chart-created",
+            "medication-task-overdue",  "medication-task-overdue"
     );
 
     private final OutboxEventRepository outboxEventRepository;
@@ -93,9 +93,6 @@ public class OutboxPollerProcessor {
     String resolveTopic(String eventType) {
         if (eventType == null) {
             return null;
-        }
-        if (eventType.startsWith("careround.")) {
-            return eventType;
         }
         return EVENT_TOPIC_MAP.get(eventType);
     }

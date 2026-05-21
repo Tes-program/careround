@@ -64,6 +64,7 @@ public class SecurityConfig {
                         .requestMatchers(
                                 "/api/v1/auth/**"
                         ).permitAll()
+                        .requestMatchers(HttpMethod.POST, "/api/v1/hospitals/register").permitAll()
                         .anyRequest().authenticated()
                 )
                 .addFilterBefore(correlationIdFilter, UsernamePasswordAuthenticationFilter.class);
