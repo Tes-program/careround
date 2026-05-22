@@ -33,20 +33,23 @@ CREATE TABLE medication_chart (
 CREATE INDEX idx_chart_patient ON medication_chart(patient_id, status);
 
 CREATE TABLE medication_task (
-    id                  VARCHAR(36) NOT NULL PRIMARY KEY,
-    medication_chart_id VARCHAR(36) NOT NULL,
-    patient_id          VARCHAR(36) NOT NULL,
-    hospital_id         VARCHAR(36) NOT NULL,
-    ward_id             VARCHAR(36) NOT NULL,
-    assigned_nurse_id   VARCHAR(36),
-    scheduled_time      DATETIME    NOT NULL,
-    status              VARCHAR(15) NOT NULL DEFAULT 'PENDING',
-    completed_at        DATETIME,
-    completed_by_id     VARCHAR(36),
-    reminder_sent_at    DATETIME,
-    created_at          DATETIME    NOT NULL,
-    updated_at          DATETIME    NOT NULL
+    id                    VARCHAR(36) NOT NULL PRIMARY KEY,
+    medication_chart_id   VARCHAR(36) NOT NULL,
+    patient_id            VARCHAR(36) NOT NULL,
+    hospital_id           VARCHAR(36) NOT NULL,
+    ward_id               VARCHAR(36) NOT NULL,
+    assigned_nurse_id     VARCHAR(36),
+    scheduled_time        DATETIME    NOT NULL,
+    status                VARCHAR(15) NOT NULL DEFAULT 'PENDING',
+    completed_at          DATETIME,
+    completed_by_id       VARCHAR(36),
+    actual_dose_given     VARCHAR(50),
+    pre_reminder_sent_at  DATETIME,
+    overdue_alert_sent_at DATETIME,
+    created_at            DATETIME    NOT NULL,
+    updated_at            DATETIME    NOT NULL
 );
 CREATE INDEX idx_task_hospital_status_time ON medication_task(hospital_id, status, scheduled_time);
 CREATE INDEX idx_task_ward_status ON medication_task(ward_id, status, scheduled_time);
 CREATE INDEX idx_task_nurse_status ON medication_task(assigned_nurse_id, status, scheduled_time);
+CREATE INDEX idx_task_reminder_window ON medication_task(status, scheduled_time, pre_reminder_sent_at);

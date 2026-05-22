@@ -1,73 +1,79 @@
 package com.careround.patient.vitals;
 
-import com.careround.hospital.entity.SystemConfiguration;
 import com.careround.patient.enums.AcuityColor;
-import com.careround.patient.enums.ConsciousnessLevel;
+import com.careround.patient.enums.VhiStatus;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
 
+/**
+ * Computes the Vitals Health Index (VHI) score from five inputs using fixed clinical thresholds.
+ * Thresholds are not configurable per hospital — they follow the VHI specification exactly.
+ *
+ * Score 0-2  → STABLE  → GREEN
+ * Score 3-4  → WATCH   → AMBER
+ * Score 5+   → CRITICAL → RED
+ */
 @Service
 public class AcuityComputationService {
 
-    public AcuityColor computeColor(int score, SystemConfiguration config) {
-        if (score >= config.getAcuityRedThreshold()) return AcuityColor.RED;
-        if (score >= config.getAcuityAmberThreshold()) return AcuityColor.AMBER;
-        return AcuityColor.GREEN;
+    public VhiStatus computeVhiStatus(int vhiScore) {
+        if (vhiScore >= 5) return VhiStatus.CRITICAL;
+        if (vhiScore >= 3) return VhiStatus.WATCH;
+        return VhiStatus.STABLE;
     }
 
-    public int computeScore(Integer heartRate, Integer respiratoryRate,
-                            BigDecimal oxygenSaturation, Integer systolicBP,
-                            BigDecimal temperature, ConsciousnessLevel consciousnessLevel) {
+    public AcuityColor toAcuityColor(VhiStatus vhiStatus) {
+        return switch (vhiStatus) {
+            case CRITICAL -> AcuityColor.RED;
+            case WATCH    -> AcuityColor.AMBER;
+            case STABLE   -> AcuityColor.GREEN;
+        };
+    }
+
+    public int computeScore(Integer pulse, Integer systolicBp,
+                            Integer respiratoryRate, BigDecimal temperature, BigDecimal spo2) {
         int score = 0;
+
+        if (pulse != null) {
+            int hr = pulse;
+            if (hr <= 40 || hr >= 130)         score += 3;
+            else if (hr <= 50 || hr >= 111)     score += 2;
+            else if (hr <= 60 || hr >= 101)     score += 1;
+            // 61-100 → 0
+        }
+
+        if (systolicBp != null) {
+            int sbp = systolicBp;
+            if (sbp <= 80)                      score += 3;
+            else if (sbp <= 90 || sbp >= 200)   score += 2;
+            else if (sbp <= 100 || sbp >= 160)  score += 1;
+            // 101-159 → 0
+        }
 
         if (respiratoryRate != null) {
             int rr = respiratoryRate;
-            if (rr <= 8) score += 3;
-            else if (rr <= 11) score += 1;
-            else if (rr <= 20) score += 0;
-            else if (rr <= 24) score += 2;
-            else score += 3;
-        }
-
-        if (oxygenSaturation != null) {
-            int spo2 = oxygenSaturation.intValue();
-            if (spo2 >= 96) score += 0;
-            else if (spo2 >= 94) score += 1;
-            else if (spo2 >= 92) score += 2;
-            else score += 3;
-        }
-
-        if (systolicBP != null) {
-            int sbp = systolicBP;
-            if (sbp <= 90) score += 3;
-            else if (sbp <= 100) score += 2;
-            else if (sbp <= 110) score += 1;
-            else if (sbp <= 219) score += 0;
-            else score += 3;
-        }
-
-        if (heartRate != null) {
-            int hr = heartRate;
-            if (hr <= 40) score += 3;
-            else if (hr <= 50) score += 1;
-            else if (hr <= 90) score += 0;
-            else if (hr <= 110) score += 1;
-            else if (hr <= 130) score += 2;
-            else score += 3;
+            if (rr <= 8 || rr >= 30)            score += 3;
+            else if (rr >= 21)                  score += 2;
+            else if (rr >= 15)                  score += 1;
+            // 9-14 → 0
         }
 
         if (temperature != null) {
             double temp = temperature.doubleValue();
-            if (temp <= 35.0) score += 3;
-            else if (temp <= 36.0) score += 1;
-            else if (temp <= 38.0) score += 0;
-            else if (temp <= 39.0) score += 1;
-            else score += 2;
+            if (temp <= 35.0 || temp >= 39.0)   score += 3;
+            else if (temp <= 36.0 || temp >= 38.5) score += 2;
+            else if (temp <= 37.4)              /* 36.1-37.4 → 0 */ ;
+            else if (temp <= 38.4)              score += 1;
+            // 37.5-38.4 → 1, 38.5-38.9 → 2, ≥39.0 → 3
         }
 
-        if (consciousnessLevel != null && consciousnessLevel != ConsciousnessLevel.ALERT) {
-            score += 3;
+        if (spo2 != null) {
+            int o2 = spo2.intValue();
+            if (o2 <= 91)       score += 3;
+            else if (o2 <= 93)  score += 2;
+            else if (o2 <= 95)  score += 1;
+            // 96-100 → 0
         }
 
         return score;

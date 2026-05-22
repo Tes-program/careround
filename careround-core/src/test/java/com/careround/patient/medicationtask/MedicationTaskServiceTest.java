@@ -6,6 +6,7 @@ import com.careround.patient.medicationtask.entity.MedicationTask;
 import com.careround.patient.medicationtask.enums.MedicationTaskStatus;
 import com.careround.shared.exception.ResourceNotFoundException;
 import com.careround.shared.security.HospitalContextHolder;
+import com.careround.shared.service.OutboxService;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -29,6 +30,7 @@ import static org.mockito.Mockito.when;
 class MedicationTaskServiceTest {
 
     @Mock private MedicationTaskRepository medicationTaskRepository;
+    @Mock private OutboxService outboxService;
 
     @InjectMocks private MedicationTaskServiceImpl medicationTaskService;
 
@@ -120,7 +122,7 @@ class MedicationTaskServiceTest {
         when(medicationTaskRepository.findByIdAndHospitalId(TASK_ID, HOSPITAL_ID)).thenReturn(Optional.of(t));
         when(medicationTaskRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
 
-        medicationTaskService.complete(TASK_ID);
+        medicationTaskService.complete(TASK_ID, null);
 
         assertThat(t.getStatus()).isEqualTo(MedicationTaskStatus.COMPLETED);
         assertThat(t.getCompletedAt()).isNotNull();
@@ -130,7 +132,7 @@ class MedicationTaskServiceTest {
     void complete_throwsResourceNotFound_whenTaskNotFound() {
         when(medicationTaskRepository.findByIdAndHospitalId(TASK_ID, HOSPITAL_ID)).thenReturn(Optional.empty());
 
-        assertThatThrownBy(() -> medicationTaskService.complete(TASK_ID))
+        assertThatThrownBy(() -> medicationTaskService.complete(TASK_ID, null))
                 .isInstanceOf(ResourceNotFoundException.class);
     }
 
@@ -139,7 +141,7 @@ class MedicationTaskServiceTest {
         MedicationTask t = task(TASK_ID, MedicationTaskStatus.COMPLETED, utcNow().minusHours(1));
         when(medicationTaskRepository.findByIdAndHospitalId(TASK_ID, HOSPITAL_ID)).thenReturn(Optional.of(t));
 
-        assertThatThrownBy(() -> medicationTaskService.complete(TASK_ID))
+        assertThatThrownBy(() -> medicationTaskService.complete(TASK_ID, null))
                 .isInstanceOf(IllegalStateException.class);
     }
 
@@ -149,7 +151,7 @@ class MedicationTaskServiceTest {
         when(medicationTaskRepository.findByIdAndHospitalId(TASK_ID, HOSPITAL_ID)).thenReturn(Optional.of(t));
         when(medicationTaskRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
 
-        medicationTaskService.complete(TASK_ID);
+        medicationTaskService.complete(TASK_ID, null);
 
         assertThat(t.getStatus()).isEqualTo(MedicationTaskStatus.COMPLETED);
     }
@@ -160,7 +162,7 @@ class MedicationTaskServiceTest {
         when(medicationTaskRepository.findByIdAndHospitalId(TASK_ID, HOSPITAL_ID)).thenReturn(Optional.of(t));
         when(medicationTaskRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
 
-        medicationTaskService.complete(TASK_ID);
+        medicationTaskService.complete(TASK_ID, null);
 
         assertThat(t.getCompletedById()).isEqualTo(USER_ID);
     }

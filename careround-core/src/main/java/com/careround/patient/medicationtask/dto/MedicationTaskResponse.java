@@ -15,7 +15,9 @@ public record MedicationTaskResponse(
         MedicationTaskStatus status,
         LocalDateTime completedAt,
         String completedById,
-        LocalDateTime reminderSentAt,
+        String actualDoseGiven,
+        LocalDateTime preReminderSentAt,
+        LocalDateTime overdueAlertSentAt,
         LocalDateTime createdAt,
         LocalDateTime updatedAt
 ) {}

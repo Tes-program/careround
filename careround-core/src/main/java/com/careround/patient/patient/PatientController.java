@@ -31,7 +31,7 @@ public class PatientController {
     private final PatientService patientService;
 
     @PostMapping
-    @PreAuthorize("hasAnyRole('ADMIN', 'DOCTOR', 'SUPERVISOR')")
+    @PreAuthorize("hasRole('ADMIN')")
     @Operation(summary = "Admit patient", description = "Admits a patient into a ward.")
     public ResponseEntity<ApiResponse<PatientResponse>> admitPatient(
             @Valid @RequestBody AdmitPatientRequest request) {
@@ -54,7 +54,7 @@ public class PatientController {
     }
 
     @PatchMapping("/{patientId}/status")
-    @PreAuthorize("hasAnyRole('ADMIN', 'DOCTOR', 'SUPERVISOR')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'DOCTOR')")
     @Operation(summary = "Update patient status", description = "Updates a patient's admission status.")
     public ResponseEntity<ApiResponse<PatientResponse>> updatePatientStatus(
             @PathVariable String patientId,

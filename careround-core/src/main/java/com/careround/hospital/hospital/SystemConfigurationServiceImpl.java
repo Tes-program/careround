@@ -51,8 +51,6 @@ public class SystemConfigurationServiceImpl implements SystemConfigurationServic
         SystemConfiguration config = systemConfigurationRepository.findByHospitalId(hospitalId)
                 .orElseThrow(() -> new ResourceNotFoundException("System configuration not found"));
 
-        config.setAcuityAmberThreshold(request.acuityAmberThreshold());
-        config.setAcuityRedThreshold(request.acuityRedThreshold());
         config.setTaskOverdueReminderMinutes(request.taskOverdueReminderMinutes());
         config.setTaskEscalationMinutes(request.taskEscalationMinutes());
         config.setPushNotificationsEnabled(request.pushNotificationsEnabled());
@@ -88,7 +86,6 @@ public class SystemConfigurationServiceImpl implements SystemConfigurationServic
 
     private SystemConfigResponse toResponse(SystemConfiguration c) {
         return new SystemConfigResponse(c.getId(), c.getHospitalId(),
-                c.getAcuityAmberThreshold(), c.getAcuityRedThreshold(),
                 c.getTaskOverdueReminderMinutes(), c.getTaskEscalationMinutes(),
                 c.isPushNotificationsEnabled());
     }

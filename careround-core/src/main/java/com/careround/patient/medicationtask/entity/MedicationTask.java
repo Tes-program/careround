@@ -57,6 +57,12 @@ public class MedicationTask extends BaseEntity {
     @Column(name = "completed_by_id", length = 36)
     private String completedById;
 
-    @Column(name = "reminder_sent_at")
-    private LocalDateTime reminderSentAt;
+    @Column(name = "actual_dose_given", length = 50)
+    private String actualDoseGiven;
+
+    @Column(name = "pre_reminder_sent_at")
+    private LocalDateTime preReminderSentAt;
+
+    @Column(name = "overdue_alert_sent_at")
+    private LocalDateTime overdueAlertSentAt;
 }

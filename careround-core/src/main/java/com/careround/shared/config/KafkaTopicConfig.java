@@ -13,10 +13,15 @@ public class KafkaTopicConfig {
 
     @Bean public NewTopic patientAdmitted() { return topic("patient-admitted"); }
     @Bean public NewTopic patientDischarged() { return topic("patient-discharged"); }
+    @Bean public NewTopic patientUpdated() { return topic("patient-updated"); }
     @Bean public NewTopic prescriptionConfirmed() { return topic("prescription-confirmed"); }
+    @Bean public NewTopic prescriptionDiscontinued() { return topic("prescription-discontinued"); }
     @Bean public NewTopic medicationChartCreated() { return topic("medication-chart-created"); }
+    @Bean public NewTopic medicationTaskReminder() { return topic("medication-task-reminder"); }
+    @Bean public NewTopic medicationTaskCompleted() { return topic("medication-task-completed"); }
     @Bean public NewTopic medicationTaskOverdue() { return topic("medication-task-overdue"); }
     @Bean public NewTopic clinicalNoteSaved() { return topic("clinical-note-saved"); }
+    @Bean public NewTopic vitalsRecorded() { return topic("vitals-recorded"); }
 
     private NewTopic topic(String name) {
         return TopicBuilder.name(name)

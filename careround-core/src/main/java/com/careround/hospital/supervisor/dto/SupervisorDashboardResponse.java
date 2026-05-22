@@ -8,5 +8,8 @@ public record SupervisorDashboardResponse(
         String specialty,
         int totalBeds,
         int occupiedBeds,
-        List<PatientSummary> patients
+        List<PatientSummary> patients,
+        TaskStats taskStats,
+        List<OverdueAlert> overdueAlerts,
+        List<HourlyTaskCount> hourlyChart
 ) {}

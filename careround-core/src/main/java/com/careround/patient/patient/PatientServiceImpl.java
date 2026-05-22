@@ -10,6 +10,7 @@ import com.careround.patient.patient.dto.UpdatePatientStatusRequest;
 import com.careround.patient.repository.PatientRepository;
 import com.careround.shared.event.PatientAdmittedEvent;
 import com.careround.shared.event.PatientDischargedEvent;
+import com.careround.shared.event.PatientUpdatedEvent;
 import com.careround.shared.exception.AccessDeniedException;
 import com.careround.shared.exception.BusinessRuleException;
 import com.careround.shared.exception.ResourceNotFoundException;
@@ -24,6 +25,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
 import java.util.List;
+import java.util.UUID;
 
 @Service
 @RequiredArgsConstructor
@@ -47,6 +49,8 @@ public class PatientServiceImpl implements PatientService {
             }
         }
 
+        String userId = HospitalContextHolder.getUserId();
+
         Patient patient = new Patient();
         patient.setHospitalId(hospitalId);
         patient.setWardId(request.wardId());
@@ -56,6 +60,14 @@ public class PatientServiceImpl implements PatientService {
         patient.setDateOfBirth(request.dateOfBirth());
         patient.setGender(request.gender());
         patient.setHospitalNumber(request.hospitalNumber());
+        patient.setPhoneNumber(request.phoneNumber());
+        patient.setAddress(request.address());
+        patient.setPreviousConditions(request.previousConditions());
+        patient.setCurrentMedications(request.currentMedications());
+        patient.setAllergies(request.allergies());
+        patient.setEmergencyContactName(request.emergencyContactName());
+        patient.setEmergencyContactPhone(request.emergencyContactPhone());
+        patient.setRegisteredById(userId);
         patient.setAdmissionType(request.admissionType());
         patient.setPrimaryDiagnosis(request.primaryDiagnosis());
         patient.setEstimatedDischargeDate(request.estimatedDischargeDate());
@@ -76,11 +88,8 @@ public class PatientServiceImpl implements PatientService {
     @Transactional(readOnly = true)
     public PatientResponse getPatient(String patientId) {
         String hospitalId = HospitalContextHolder.getHospitalId();
-        Patient patient = patientRepository.findById(patientId)
+        Patient patient = patientRepository.findByIdAndHospitalId(patientId, hospitalId)
                 .orElseThrow(() -> new ResourceNotFoundException("Patient not found"));
-        if (!patient.getHospitalId().equals(hospitalId)) {
-            throw new AccessDeniedException("Access denied: patient belongs to another hospital");
-        }
         return toResponse(patient);
     }
 
@@ -124,6 +133,13 @@ public class PatientServiceImpl implements PatientService {
         }
 
         patient.setStatus(target);
+
+        outboxService.publish("patient-updated",
+                new PatientUpdatedEvent(UUID.randomUUID().toString(), patientId, hospitalId,
+                        patient.getWardId(), target.name(), MDC.get("correlationId"),
+                        LocalDateTime.now(ZoneOffset.UTC)),
+                hospitalId);
+
         log.info("action=updatePatientStatus patientId={} hospitalId={} status={}", patientId, hospitalId, target);
         return toResponse(patient);
     }
@@ -133,6 +149,10 @@ public class PatientServiceImpl implements PatientService {
                 p.getId(), p.getHospitalId(), p.getWardId(),
                 p.getFirstName(), p.getLastName(), p.getHospitalNumber(),
                 p.getDateOfBirth(), p.getGender(), p.getBedNumber(),
+                p.getPhoneNumber(), p.getAddress(),
+                p.getPreviousConditions(), p.getCurrentMedications(), p.getAllergies(),
+                p.getEmergencyContactName(), p.getEmergencyContactPhone(),
+                p.getRegisteredById(),
                 p.getAdmissionType(), p.getPrimaryDiagnosis(),
                 p.getAcuityColor(), p.getEstimatedDischargeDate(),
                 p.getStatus(), p.getAdmissionDate(), p.getCreatedAt(), p.getUpdatedAt());

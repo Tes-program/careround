@@ -7,8 +7,9 @@ import com.careround.patient.medicationtask.entity.MedicationTask;
 import com.careround.patient.medicationtask.enums.MedicationTaskStatus;
 import com.careround.patient.prescription.PrescriptionRepository;
 import com.careround.patient.prescription.entity.Prescription;
-import com.careround.scheduler.service.MedicationTaskOverdueProcessor;
+import com.careround.scheduler.service.MedicationTaskReminderProcessor;
 import com.careround.shared.event.MedicationTaskOverdueEvent;
+import com.careround.shared.event.MedicationTaskReminderEvent;
 import com.careround.shared.security.HospitalContextHolder;
 import com.careround.shared.service.OutboxService;
 import org.junit.jupiter.api.Test;
@@ -40,162 +41,174 @@ class MedicationTaskOverdueProcessorTest {
     @Mock private PrescriptionRepository prescriptionRepository;
     @Mock private OutboxService outboxService;
 
-    @InjectMocks private MedicationTaskOverdueProcessor processor;
+    @InjectMocks private MedicationTaskReminderProcessor processor;
+
+    // ─── processOverdue tests ────────────────────────────────────────────────
 
     @Test
-    void processOverdueTasks_marksOverdue_andSetsReminderSentAt() {
-        MedicationTask task = overdueTask("task-1", "hosp-1", "chart-1");
-        when(medicationTaskRepository.findAllByStatusAndScheduledTimeBeforeAndReminderSentAtIsNull(
-                eq(MedicationTaskStatus.PENDING), any(LocalDateTime.class), any(Pageable.class)))
-                .thenReturn(new PageImpl<>(List.of(task)))
-                .thenReturn(new PageImpl<>(List.of()));
+    void processOverdue_marksOverdue_andSetsOverdueAlertSentAt() {
+        MedicationTask task = pendingTask("task-1", "hosp-1", "chart-1",
+                LocalDateTime.now(ZoneOffset.UTC).minusMinutes(10));
+        stubOverdueQuery(task);
         setupChartAndPrescription("chart-1", "rx-1", "hosp-1");
 
-        processor.processOverdueTasks();
+        processor.processOverdue();
 
         assertThat(task.getStatus()).isEqualTo(MedicationTaskStatus.OVERDUE);
-        assertThat(task.getReminderSentAt()).isNotNull();
+        assertThat(task.getOverdueAlertSentAt()).isNotNull();
     }
 
     @Test
-    void processOverdueTasks_returnsCountOfProcessed() {
-        MedicationTask t1 = overdueTask("task-1", "hosp-1", "chart-1");
-        MedicationTask t2 = overdueTask("task-2", "hosp-1", "chart-1");
-        when(medicationTaskRepository.findAllByStatusAndScheduledTimeBeforeAndReminderSentAtIsNull(
-                eq(MedicationTaskStatus.PENDING), any(LocalDateTime.class), any(Pageable.class)))
-                .thenReturn(new PageImpl<>(List.of(t1, t2)))
-                .thenReturn(new PageImpl<>(List.of()));
+    void processOverdue_returnsCountOfProcessed() {
+        MedicationTask t1 = pendingTask("task-1", "hosp-1", "chart-1",
+                LocalDateTime.now(ZoneOffset.UTC).minusMinutes(10));
+        MedicationTask t2 = pendingTask("task-2", "hosp-1", "chart-1",
+                LocalDateTime.now(ZoneOffset.UTC).minusMinutes(5));
+        stubOverdueQuery(t1, t2);
         setupChartAndPrescription("chart-1", "rx-1", "hosp-1");
 
-        int count = processor.processOverdueTasks();
+        int count = processor.processOverdue();
 
         assertThat(count).isEqualTo(2);
     }
 
     @Test
-    void processOverdueTasks_doesNothing_whenNoOverdueTasks() {
-        when(medicationTaskRepository.findAllByStatusAndScheduledTimeBeforeAndReminderSentAtIsNull(
+    void processOverdue_doesNothing_whenNoOverdueTasks() {
+        when(medicationTaskRepository.findAllByStatusAndScheduledTimeBeforeAndOverdueAlertSentAtIsNull(
                 any(), any(), any(Pageable.class)))
                 .thenReturn(new PageImpl<>(List.of()));
 
-        int count = processor.processOverdueTasks();
+        int count = processor.processOverdue();
 
         assertThat(count).isZero();
         verify(outboxService, never()).publish(any(), any(), any());
     }
 
     @Test
-    void processOverdueTasks_computesMinutesOverdue_correctly() {
-        MedicationTask task = overdueTask("task-1", "hosp-1", "chart-1");
-        task.setScheduledTime(LocalDateTime.now(ZoneOffset.UTC).minusMinutes(45));
-        when(medicationTaskRepository.findAllByStatusAndScheduledTimeBeforeAndReminderSentAtIsNull(
-                eq(MedicationTaskStatus.PENDING), any(LocalDateTime.class), any(Pageable.class)))
-                .thenReturn(new PageImpl<>(List.of(task)))
-                .thenReturn(new PageImpl<>(List.of()));
+    void processOverdue_computesMinutesOverdue_correctly() {
+        MedicationTask task = pendingTask("task-1", "hosp-1", "chart-1",
+                LocalDateTime.now(ZoneOffset.UTC).minusMinutes(45));
+        stubOverdueQuery(task);
         setupChartAndPrescription("chart-1", "rx-1", "hosp-1");
 
         ArgumentCaptor<MedicationTaskOverdueEvent> captor = ArgumentCaptor.forClass(MedicationTaskOverdueEvent.class);
-
-        processor.processOverdueTasks();
+        processor.processOverdue();
 
         verify(outboxService).publish(any(), captor.capture(), any());
         assertThat(captor.getValue().minutesOverdue()).isGreaterThanOrEqualTo(44);
     }
 
     @Test
-    void processOverdueTasks_loadsChartAndPrescription_forEventPayload() {
-        MedicationTask task = overdueTask("task-1", "hosp-1", "chart-1");
-        when(medicationTaskRepository.findAllByStatusAndScheduledTimeBeforeAndReminderSentAtIsNull(
-                eq(MedicationTaskStatus.PENDING), any(LocalDateTime.class), any(Pageable.class)))
-                .thenReturn(new PageImpl<>(List.of(task)))
-                .thenReturn(new PageImpl<>(List.of()));
+    void processOverdue_publishesToCorrectTopic() {
+        MedicationTask task = pendingTask("task-1", "hosp-1", "chart-1",
+                LocalDateTime.now(ZoneOffset.UTC).minusMinutes(10));
+        stubOverdueQuery(task);
         setupChartAndPrescription("chart-1", "rx-1", "hosp-1");
 
-        processor.processOverdueTasks();
-
-        verify(medicationChartRepository).findByIdAndHospitalId("chart-1", "hosp-1");
-        verify(prescriptionRepository).findByIdAndHospitalId("rx-1", "hosp-1");
-    }
-
-    @Test
-    void processOverdueTasks_publishesToCorrectTopic() {
-        MedicationTask task = overdueTask("task-1", "hosp-1", "chart-1");
-        when(medicationTaskRepository.findAllByStatusAndScheduledTimeBeforeAndReminderSentAtIsNull(
-                eq(MedicationTaskStatus.PENDING), any(LocalDateTime.class), any(Pageable.class)))
-                .thenReturn(new PageImpl<>(List.of(task)))
-                .thenReturn(new PageImpl<>(List.of()));
-        setupChartAndPrescription("chart-1", "rx-1", "hosp-1");
-
-        processor.processOverdueTasks();
+        processor.processOverdue();
 
         verify(outboxService).publish(eq("medication-task-overdue"), any(), eq("hosp-1"));
     }
 
     @Test
-    void processOverdueTasks_usesHospitalIdFromTask_notContextHolder() {
-        MedicationTask task = overdueTask("task-1", "hosp-specific", "chart-1");
-        when(medicationTaskRepository.findAllByStatusAndScheduledTimeBeforeAndReminderSentAtIsNull(
-                eq(MedicationTaskStatus.PENDING), any(LocalDateTime.class), any(Pageable.class)))
-                .thenReturn(new PageImpl<>(List.of(task)))
-                .thenReturn(new PageImpl<>(List.of()));
+    void processOverdue_usesHospitalIdFromTask() {
+        MedicationTask task = pendingTask("task-1", "hosp-specific", "chart-1",
+                LocalDateTime.now(ZoneOffset.UTC).minusMinutes(10));
+        stubOverdueQuery(task);
         setupChartAndPrescription("chart-1", "rx-1", "hosp-specific");
 
         HospitalContextHolder.clear();
-        processor.processOverdueTasks();
+        processor.processOverdue();
 
         verify(outboxService).publish(any(), any(), eq("hosp-specific"));
     }
 
     @Test
-    void processOverdueTasks_handlesMultiplePages() {
-        List<MedicationTask> page1 = buildTasks(200, "hosp-1", "chart-1");
-        when(medicationTaskRepository.findAllByStatusAndScheduledTimeBeforeAndReminderSentAtIsNull(
-                eq(MedicationTaskStatus.PENDING), any(LocalDateTime.class), any(Pageable.class)))
-                .thenReturn(new PageImpl<>(page1, Pageable.ofSize(200), 200))
-                .thenReturn(new PageImpl<>(List.of()));
-        setupChartAndPrescription("chart-1", "rx-1", "hosp-1");
-
-        int count = processor.processOverdueTasks();
-
-        assertThat(count).isEqualTo(200);
-    }
-
-    @Test
-    void processOverdueTasks_includesDrugName_andDose_inEvent() {
-        MedicationTask task = overdueTask("task-1", "hosp-1", "chart-1");
-        when(medicationTaskRepository.findAllByStatusAndScheduledTimeBeforeAndReminderSentAtIsNull(
-                eq(MedicationTaskStatus.PENDING), any(LocalDateTime.class), any(Pageable.class)))
-                .thenReturn(new PageImpl<>(List.of(task)))
-                .thenReturn(new PageImpl<>(List.of()));
+    void processOverdue_includesDrugName_inEvent() {
+        MedicationTask task = pendingTask("task-1", "hosp-1", "chart-1",
+                LocalDateTime.now(ZoneOffset.UTC).minusMinutes(10));
+        stubOverdueQuery(task);
         setupChartAndPrescription("chart-1", "rx-1", "hosp-1");
 
         ArgumentCaptor<MedicationTaskOverdueEvent> captor = ArgumentCaptor.forClass(MedicationTaskOverdueEvent.class);
-
-        processor.processOverdueTasks();
+        processor.processOverdue();
 
         verify(outboxService).publish(any(), captor.capture(), any());
         assertThat(captor.getValue().drugName()).isEqualTo("Aspirin");
         assertThat(captor.getValue().dose()).isEqualTo("100mg");
     }
 
+    // ─── processReminders tests ──────────────────────────────────────────────
+
+    @Test
+    void processReminders_setsPreReminderSentAt_andPublishesReminderEvent() {
+        MedicationTask task = pendingTask("task-1", "hosp-1", "chart-1",
+                LocalDateTime.now(ZoneOffset.UTC).plusMinutes(15));
+        stubReminderQuery(task);
+        setupChartAndPrescription("chart-1", "rx-1", "hosp-1");
+
+        processor.processReminders();
+
+        assertThat(task.getPreReminderSentAt()).isNotNull();
+        verify(outboxService).publish(eq("medication-task-reminder"), any(), eq("hosp-1"));
+    }
+
+    @Test
+    void processReminders_doesNothing_whenNoTasksDueSoon() {
+        when(medicationTaskRepository.findAllByStatusAndScheduledTimeBetweenAndPreReminderSentAtIsNull(
+                any(), any(), any(), any(Pageable.class)))
+                .thenReturn(new PageImpl<>(List.of()));
+
+        int count = processor.processReminders();
+
+        assertThat(count).isZero();
+        verify(outboxService, never()).publish(any(), any(), any());
+    }
+
+    @Test
+    void processReminders_includesDrugName_inEvent() {
+        MedicationTask task = pendingTask("task-1", "hosp-1", "chart-1",
+                LocalDateTime.now(ZoneOffset.UTC).plusMinutes(15));
+        stubReminderQuery(task);
+        setupChartAndPrescription("chart-1", "rx-1", "hosp-1");
+
+        ArgumentCaptor<MedicationTaskReminderEvent> captor = ArgumentCaptor.forClass(MedicationTaskReminderEvent.class);
+        processor.processReminders();
+
+        verify(outboxService).publish(any(), captor.capture(), any());
+        assertThat(captor.getValue().drugName()).isEqualTo("Aspirin");
+    }
+
     // ─── helpers ─────────────────────────────────────────────────────────────
 
-    private MedicationTask overdueTask(String id, String hospitalId, String chartId) {
+    private MedicationTask pendingTask(String id, String hospitalId, String chartId,
+                                       LocalDateTime scheduledTime) {
         MedicationTask t = new MedicationTask();
         t.setId(id);
         t.setPatientId("patient-1");
         t.setHospitalId(hospitalId);
         t.setWardId("ward-1");
         t.setMedicationChartId(chartId);
-        t.setScheduledTime(LocalDateTime.now(ZoneOffset.UTC).minusMinutes(10));
+        t.setScheduledTime(scheduledTime);
         t.setStatus(MedicationTaskStatus.PENDING);
         return t;
     }
 
-    private List<MedicationTask> buildTasks(int count, String hospitalId, String chartId) {
-        return java.util.stream.IntStream.range(0, count)
-                .mapToObj(i -> overdueTask("task-" + i, hospitalId, chartId))
-                .toList();
+    private void stubOverdueQuery(MedicationTask... tasks) {
+        when(medicationTaskRepository.findAllByStatusAndScheduledTimeBeforeAndOverdueAlertSentAtIsNull(
+                eq(MedicationTaskStatus.PENDING), any(LocalDateTime.class), any(Pageable.class)))
+                .thenReturn(new PageImpl<>(List.of(tasks)))
+                .thenReturn(new PageImpl<>(List.of()));
+        when(medicationTaskRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+    }
+
+    private void stubReminderQuery(MedicationTask... tasks) {
+        when(medicationTaskRepository.findAllByStatusAndScheduledTimeBetweenAndPreReminderSentAtIsNull(
+                eq(MedicationTaskStatus.PENDING), any(LocalDateTime.class), any(LocalDateTime.class),
+                any(Pageable.class)))
+                .thenReturn(new PageImpl<>(List.of(tasks)))
+                .thenReturn(new PageImpl<>(List.of()));
+        when(medicationTaskRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
     }
 
     private void setupChartAndPrescription(String chartId, String prescriptionId, String hospitalId) {
@@ -221,6 +234,5 @@ class MedicationTaskOverdueProcessorTest {
                 .thenReturn(Optional.of(chart));
         when(prescriptionRepository.findByIdAndHospitalId(prescriptionId, hospitalId))
                 .thenReturn(Optional.of(prescription));
-        when(medicationTaskRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
     }
 }

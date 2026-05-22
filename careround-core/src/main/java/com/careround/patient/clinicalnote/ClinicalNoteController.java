@@ -30,7 +30,7 @@ public class ClinicalNoteController {
     private final ClinicalNoteService clinicalNoteService;
 
     @PostMapping
-    @PreAuthorize("hasAnyRole('DOCTOR', 'NURSE', 'SUPERVISOR')")
+    @PreAuthorize("hasAnyRole('DOCTOR', 'NURSE')")
     @Operation(summary = "Create clinical note", description = "Creates a clinical note for a patient.")
     public ResponseEntity<ApiResponse<ClinicalNoteResponse>> createNote(
             @Valid @RequestBody CreateClinicalNoteRequest request) {

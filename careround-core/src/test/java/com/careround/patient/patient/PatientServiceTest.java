@@ -112,14 +112,11 @@ class PatientServiceTest {
     }
 
     @Test
-    void getPatient_crossTenantAccess_throwsAccessDeniedException() {
-        Patient otherPatient = new Patient();
-        otherPatient.setId(PATIENT_ID);
-        otherPatient.setHospitalId("other-hosp");
-        when(patientRepository.findById(PATIENT_ID)).thenReturn(Optional.of(otherPatient));
+    void getPatient_crossTenantAccess_throwsResourceNotFoundException() {
+        when(patientRepository.findByIdAndHospitalId(PATIENT_ID, HOSPITAL_ID)).thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> patientService.getPatient(PATIENT_ID))
-                .isInstanceOf(AccessDeniedException.class);
+                .isInstanceOf(ResourceNotFoundException.class);
     }
 
     @Test
@@ -175,6 +172,7 @@ class PatientServiceTest {
         return new AdmitPatientRequest(
                 WARD_ID, "John", "Doe",
                 LocalDate.of(1985, 6, 15), "M", "HN-001",
+                null, null, null, null, null, null, null,
                 AdmissionType.EMERGENCY, "Chest pain", "4A", null);
     }
 }

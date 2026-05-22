@@ -25,10 +25,15 @@ public class AuditEventConsumer {
     @KafkaListener(topics = {
             "patient-admitted",
             "patient-discharged",
+            "patient-updated",
             "clinical-note-saved",
             "prescription-confirmed",
+            "prescription-discontinued",
             "medication-chart-created",
-            "medication-task-overdue"
+            "medication-task-reminder",
+            "medication-task-completed",
+            "medication-task-overdue",
+            "vitals-recorded"
     }, groupId = "careround-audit-group")
     @Transactional
     public void listen(ConsumerRecord<String, String> record) {

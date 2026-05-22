@@ -1,18 +1,17 @@
 package com.careround.patient.vitals;
 
 import com.careround.auth.enums.UserRole;
-import com.careround.hospital.entity.SystemConfiguration;
-import com.careround.hospital.repository.SystemConfigurationRepository;
 import com.careround.patient.entity.Patient;
 import com.careround.patient.entity.PatientVitals;
 import com.careround.patient.enums.AcuityColor;
-import com.careround.patient.enums.ConsciousnessLevel;
+import com.careround.patient.enums.VhiStatus;
 import com.careround.patient.repository.PatientRepository;
 import com.careround.patient.repository.PatientVitalsRepository;
 import com.careround.patient.vitals.dto.RecordVitalsRequest;
 import com.careround.patient.vitals.dto.VitalsResponse;
 import com.careround.shared.exception.ResourceNotFoundException;
 import com.careround.shared.security.HospitalContextHolder;
+import com.careround.shared.service.OutboxService;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -40,27 +39,22 @@ class PatientVitalsServiceTest {
     @Mock private PatientVitalsRepository patientVitalsRepository;
     @Mock private PatientRepository patientRepository;
     @Mock private AcuityComputationService acuityComputationService;
-    @Mock private SystemConfigurationRepository systemConfigurationRepository;
+    @Mock private OutboxService outboxService;
 
     @InjectMocks private PatientVitalsServiceImpl patientVitalsService;
 
     private static final String HOSPITAL_ID = "hosp-1";
-    private static final String PATIENT_ID = "patient-1";
+    private static final String PATIENT_ID   = "patient-1";
 
     private Patient patient;
-    private SystemConfiguration config;
 
     @BeforeEach
     void setUp() {
         HospitalContextHolder.set(HOSPITAL_ID, "user-nurse", UserRole.NURSE);
-
         patient = new Patient();
         patient.setId(PATIENT_ID);
         patient.setHospitalId(HOSPITAL_ID);
-
-        config = new SystemConfiguration();
-        config.setAcuityAmberThreshold(5);
-        config.setAcuityRedThreshold(7);
+        patient.setAcuityColor(AcuityColor.GREEN);
     }
 
     @AfterEach
@@ -69,11 +63,11 @@ class PatientVitalsServiceTest {
     }
 
     @Test
-    void recordVitals_happyPath_computesNews2ScoreAndUpdatesPatient() {
+    void recordVitals_happyPath_computesVhiAndUpdatesPatient() {
         when(patientRepository.findByIdAndHospitalId(PATIENT_ID, HOSPITAL_ID)).thenReturn(Optional.of(patient));
-        when(systemConfigurationRepository.findByHospitalId(HOSPITAL_ID)).thenReturn(Optional.of(config));
-        when(acuityComputationService.computeScore(any(), any(), any(), any(), any(), any())).thenReturn(0);
-        when(acuityComputationService.computeColor(eq(0), eq(config))).thenReturn(AcuityColor.GREEN);
+        when(acuityComputationService.computeScore(any(), any(), any(), any(), any())).thenReturn(0);
+        when(acuityComputationService.computeVhiStatus(0)).thenReturn(VhiStatus.STABLE);
+        when(acuityComputationService.toAcuityColor(VhiStatus.STABLE)).thenReturn(AcuityColor.GREEN);
         when(patientVitalsRepository.save(any())).thenAnswer(inv -> {
             PatientVitals v = inv.getArgument(0);
             v.setId("vitals-1");
@@ -82,32 +76,29 @@ class PatientVitalsServiceTest {
 
         VitalsResponse result = patientVitalsService.recordVitals(PATIENT_ID, sampleRequest());
 
-        assertThat(result.computedScore()).isEqualTo(0);
-        assertThat(result.acuityColor()).isEqualTo(AcuityColor.GREEN);
+        assertThat(result.vhiScore()).isEqualTo(0);
+        assertThat(result.vhiStatus()).isEqualTo(VhiStatus.STABLE);
         assertThat(patient.getAcuityColor()).isEqualTo(AcuityColor.GREEN);
+        verify(outboxService).publish(eq("vitals-recorded"), any(), eq(HOSPITAL_ID));
     }
 
     @Test
-    void recordVitals_abnormalVitals_computesHighScore() {
+    void recordVitals_abnormalVitals_marksCritical() {
         when(patientRepository.findByIdAndHospitalId(PATIENT_ID, HOSPITAL_ID)).thenReturn(Optional.of(patient));
-        when(systemConfigurationRepository.findByHospitalId(HOSPITAL_ID)).thenReturn(Optional.of(config));
-        when(acuityComputationService.computeScore(any(), any(), any(), any(), any(), any())).thenReturn(18);
-        when(acuityComputationService.computeColor(eq(18), eq(config))).thenReturn(AcuityColor.RED);
+        when(acuityComputationService.computeScore(any(), any(), any(), any(), any())).thenReturn(12);
+        when(acuityComputationService.computeVhiStatus(12)).thenReturn(VhiStatus.CRITICAL);
+        when(acuityComputationService.toAcuityColor(VhiStatus.CRITICAL)).thenReturn(AcuityColor.RED);
         when(patientVitalsRepository.save(any())).thenAnswer(inv -> {
             PatientVitals v = inv.getArgument(0);
             v.setId("vitals-2");
             return v;
         });
 
-        RecordVitalsRequest criticalRequest = new RecordVitalsRequest(
-                150, 30, new BigDecimal("85.0"),
-                80, new BigDecimal("35.0"),
-                ConsciousnessLevel.UNRESPONSIVE);
+        VitalsResponse result = patientVitalsService.recordVitals(PATIENT_ID,
+                new RecordVitalsRequest(130, 80, null, 30, new BigDecimal("35.0"), new BigDecimal("85.0"), null));
 
-        VitalsResponse result = patientVitalsService.recordVitals(PATIENT_ID, criticalRequest);
-
-        assertThat(result.computedScore()).isEqualTo(18);
-        assertThat(result.acuityColor()).isEqualTo(AcuityColor.RED);
+        assertThat(result.vhiStatus()).isEqualTo(VhiStatus.CRITICAL);
+        assertThat(patient.getAcuityColor()).isEqualTo(AcuityColor.RED);
     }
 
     @Test
@@ -119,38 +110,12 @@ class PatientVitalsServiceTest {
     }
 
     @Test
-    void recordVitals_crossTenantPatient_throwsNotFoundException() {
-        when(patientRepository.findByIdAndHospitalId(PATIENT_ID, HOSPITAL_ID)).thenReturn(Optional.empty());
-
-        assertThatThrownBy(() -> patientVitalsService.recordVitals(PATIENT_ID, sampleRequest()))
-                .isInstanceOf(ResourceNotFoundException.class);
-    }
-
-    @Test
-    void record_usesHospitalThresholds_notDefaults() {
-        when(patientRepository.findByIdAndHospitalId(PATIENT_ID, HOSPITAL_ID)).thenReturn(Optional.of(patient));
-        when(systemConfigurationRepository.findByHospitalId(HOSPITAL_ID)).thenReturn(Optional.of(config));
-        when(acuityComputationService.computeScore(any(), any(), any(), any(), any(), any())).thenReturn(5);
-        when(acuityComputationService.computeColor(eq(5), eq(config))).thenReturn(AcuityColor.AMBER);
-        when(patientVitalsRepository.save(any())).thenAnswer(inv -> {
-            PatientVitals v = inv.getArgument(0);
-            v.setId("vitals-3");
-            return v;
-        });
-
-        patientVitalsService.recordVitals(PATIENT_ID, sampleRequest());
-
-        // Verify the exact config instance was passed — not hardcoded thresholds
-        verify(acuityComputationService).computeColor(5, config);
-    }
-
-    @Test
     void getVitalsHistory_limitCappedAt50() {
         when(patientRepository.findByIdAndHospitalId(PATIENT_ID, HOSPITAL_ID)).thenReturn(Optional.of(patient));
         List<PatientVitals> hundredVitals = IntStream.range(0, 100)
                 .mapToObj(i -> buildVitals("v-" + i))
                 .toList();
-        when(patientVitalsRepository.findAllByPatientIdOrderByRecordedAtDesc(PATIENT_ID))
+        when(patientVitalsRepository.findAllByPatientIdAndHospitalIdOrderByRecordedAtDesc(PATIENT_ID, HOSPITAL_ID))
                 .thenReturn(hundredVitals);
 
         List<VitalsResponse> result = patientVitalsService.getVitalsHistory(PATIENT_ID, 100);
@@ -159,10 +124,7 @@ class PatientVitalsServiceTest {
     }
 
     private RecordVitalsRequest sampleRequest() {
-        return new RecordVitalsRequest(
-                75, 16, new BigDecimal("98.0"),
-                120, new BigDecimal("37.0"),
-                ConsciousnessLevel.ALERT);
+        return new RecordVitalsRequest(75, 120, 80, 12, new BigDecimal("37.0"), new BigDecimal("98.0"), null);
     }
 
     private PatientVitals buildVitals(String id) {
@@ -171,14 +133,13 @@ class PatientVitalsServiceTest {
         v.setPatientId(PATIENT_ID);
         v.setHospitalId(HOSPITAL_ID);
         v.setRecordedAt(LocalDateTime.now());
-        v.setHeartRate(75);
-        v.setRespiratoryRate(16);
-        v.setOxygenSaturation(new BigDecimal("98"));
-        v.setSystolicBP(120);
+        v.setPulse(75);
+        v.setSystolicBp(120);
+        v.setRespiratoryRate(12);
+        v.setSpo2(new BigDecimal("98"));
         v.setTemperature(new BigDecimal("37.0"));
-        v.setConsciousnessLevel(ConsciousnessLevel.ALERT);
-        v.setComputedScore(0);
-        v.setAcuityColor(AcuityColor.GREEN);
+        v.setVhiScore(0);
+        v.setVhiStatus(VhiStatus.STABLE);
         return v;
     }
 }

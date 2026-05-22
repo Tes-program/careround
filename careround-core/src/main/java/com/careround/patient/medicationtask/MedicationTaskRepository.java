@@ -28,9 +28,17 @@ public interface MedicationTaskRepository extends JpaRepository<MedicationTask, 
     long countByWardIdAndHospitalIdAndStatus(
             String wardId, String hospitalId, MedicationTaskStatus status);
 
-    List<MedicationTask> findAllByStatusAndScheduledTimeBeforeAndReminderSentAtIsNull(
-            MedicationTaskStatus status, LocalDateTime threshold);
+    long countByWardIdAndHospitalIdAndStatusAndCompletedAtBetween(
+            String wardId, String hospitalId, MedicationTaskStatus status,
+            LocalDateTime from, LocalDateTime to);
 
-    Page<MedicationTask> findAllByStatusAndScheduledTimeBeforeAndReminderSentAtIsNull(
+    List<MedicationTask> findAllByWardIdAndHospitalIdAndStatusAndScheduledTimeBetweenOrderByScheduledTimeAsc(
+            String wardId, String hospitalId, MedicationTaskStatus status,
+            LocalDateTime from, LocalDateTime to);
+
+    Page<MedicationTask> findAllByStatusAndScheduledTimeBetweenAndPreReminderSentAtIsNull(
+            MedicationTaskStatus status, LocalDateTime from, LocalDateTime to, Pageable pageable);
+
+    Page<MedicationTask> findAllByStatusAndScheduledTimeBeforeAndOverdueAlertSentAtIsNull(
             MedicationTaskStatus status, LocalDateTime threshold, Pageable pageable);
 }

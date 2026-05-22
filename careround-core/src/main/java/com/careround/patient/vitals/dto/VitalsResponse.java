@@ -1,7 +1,6 @@
 package com.careround.patient.vitals.dto;
 
-import com.careround.patient.enums.AcuityColor;
-import com.careround.patient.enums.ConsciousnessLevel;
+import com.careround.patient.enums.VhiStatus;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
@@ -11,13 +10,13 @@ public record VitalsResponse(
         String patientId,
         String hospitalId,
         String recordedById,
-        Integer heartRate,
+        Integer pulse,
+        Integer systolicBp,
+        Integer diastolicBp,
         Integer respiratoryRate,
-        Integer systolicBP,
-        BigDecimal oxygenSaturation,
         BigDecimal temperature,
-        ConsciousnessLevel consciousnessLevel,
-        int computedScore,
-        AcuityColor acuityColor,
+        BigDecimal spo2,
+        int vhiScore,
+        VhiStatus vhiStatus,
         LocalDateTime recordedAt
 ) {}

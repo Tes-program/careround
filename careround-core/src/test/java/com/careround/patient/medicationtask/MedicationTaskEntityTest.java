@@ -15,9 +15,21 @@ class MedicationTaskEntityTest {
     }
 
     @Test
-    void reminderSentAt_defaultsToNull() {
+    void preReminderSentAt_defaultsToNull() {
         MedicationTask task = new MedicationTask();
-        assertThat(task.getReminderSentAt()).isNull();
+        assertThat(task.getPreReminderSentAt()).isNull();
+    }
+
+    @Test
+    void overdueAlertSentAt_defaultsToNull() {
+        MedicationTask task = new MedicationTask();
+        assertThat(task.getOverdueAlertSentAt()).isNull();
+    }
+
+    @Test
+    void actualDoseGiven_defaultsToNull() {
+        MedicationTask task = new MedicationTask();
+        assertThat(task.getActualDoseGiven()).isNull();
     }
 
     @Test

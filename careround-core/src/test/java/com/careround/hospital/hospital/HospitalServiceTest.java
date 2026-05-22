@@ -64,8 +64,8 @@ class HospitalServiceTest {
         ArgumentCaptor<SystemConfiguration> configCaptor = ArgumentCaptor.forClass(SystemConfiguration.class);
         verify(systemConfigurationRepository).save(configCaptor.capture());
         assertThat(configCaptor.getValue().getHospitalId()).isEqualTo("hosp-1");
-        assertThat(configCaptor.getValue().getAcuityAmberThreshold()).isEqualTo(5);
-        assertThat(configCaptor.getValue().getAcuityRedThreshold()).isEqualTo(7);
+        assertThat(configCaptor.getValue().getTaskOverdueReminderMinutes()).isEqualTo(10);
+        assertThat(configCaptor.getValue().getTaskEscalationMinutes()).isEqualTo(20);
     }
 
     @Test

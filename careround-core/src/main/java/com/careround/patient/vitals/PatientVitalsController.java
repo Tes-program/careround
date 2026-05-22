@@ -29,7 +29,7 @@ public class PatientVitalsController {
     private final PatientVitalsService patientVitalsService;
 
     @PostMapping
-    @PreAuthorize("hasAnyRole('NURSE', 'DOCTOR', 'SUPERVISOR')")
+    @PreAuthorize("hasAnyRole('NURSE', 'DOCTOR')")
     @Operation(summary = "Record patient vitals", description = "Records a new set of vital signs for a patient.")
     public ResponseEntity<ApiResponse<VitalsResponse>> recordVitals(
             @PathVariable String patientId,

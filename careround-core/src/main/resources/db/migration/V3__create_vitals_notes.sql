@@ -1,19 +1,19 @@
 CREATE TABLE patient_vitals (
-    id                  VARCHAR(36)  NOT NULL PRIMARY KEY,
-    patient_id          VARCHAR(36)  NOT NULL,
-    hospital_id         VARCHAR(36)  NOT NULL,
-    recorded_by_id      VARCHAR(36)  NOT NULL,
-    heart_rate          INT,
-    respiratory_rate    INT,
-    oxygen_saturation   DECIMAL(5,2),
-    systolic_bp         INT,
-    temperature         DECIMAL(4,1),
-    consciousness_level VARCHAR(20),
-    computed_score      INT          NOT NULL,
-    acuity_color        VARCHAR(10)  NOT NULL,
-    recorded_at         DATETIME     NOT NULL,
-    created_at          DATETIME     NOT NULL,
-    updated_at          DATETIME     NOT NULL
+    id             VARCHAR(36)  NOT NULL PRIMARY KEY,
+    patient_id     VARCHAR(36)  NOT NULL,
+    hospital_id    VARCHAR(36)  NOT NULL,
+    recorded_by_id VARCHAR(36)  NOT NULL,
+    pulse          INT,
+    systolic_bp    INT,
+    diastolic_bp   INT,
+    respiratory_rate INT,
+    temperature    DECIMAL(4,1),
+    spo2           DECIMAL(5,2),
+    vhi_score      INT          NOT NULL,
+    vhi_status     VARCHAR(10)  NOT NULL,
+    recorded_at    DATETIME     NOT NULL,
+    created_at     DATETIME     NOT NULL,
+    updated_at     DATETIME     NOT NULL
 );
 CREATE INDEX idx_vitals_patient_time ON patient_vitals(patient_id, recorded_at DESC);
 

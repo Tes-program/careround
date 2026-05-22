@@ -18,12 +18,6 @@ public class SystemConfiguration extends BaseEntity {
     @Column(name = "hospital_id", nullable = false, unique = true, length = 36)
     private String hospitalId;
 
-    @Column(name = "acuity_amber_threshold", nullable = false)
-    private int acuityAmberThreshold = 5;
-
-    @Column(name = "acuity_red_threshold", nullable = false)
-    private int acuityRedThreshold = 7;
-
     @Column(name = "task_overdue_reminder_minutes", nullable = false)
     private int taskOverdueReminderMinutes = 10;
 

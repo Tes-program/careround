@@ -8,7 +8,7 @@ import java.util.Optional;
 
 public interface PatientVitalsRepository extends JpaRepository<PatientVitals, String> {
 
-    List<PatientVitals> findAllByPatientIdOrderByRecordedAtDesc(String patientId);
+    List<PatientVitals> findAllByPatientIdAndHospitalIdOrderByRecordedAtDesc(String patientId, String hospitalId);
 
-    Optional<PatientVitals> findFirstByPatientIdOrderByRecordedAtDesc(String patientId);
+    Optional<PatientVitals> findFirstByPatientIdAndHospitalIdOrderByRecordedAtDesc(String patientId, String hospitalId);
 }

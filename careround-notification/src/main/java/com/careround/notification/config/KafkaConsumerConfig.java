@@ -1,10 +1,10 @@
 package com.careround.notification.config;
 
-import com.careround.notification.dlt.entity.FailedNotification;
-import com.careround.notification.dlt.repository.FailedNotificationRepository;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.kafka.clients.consumer.ConsumerConfig;
+import org.apache.kafka.clients.producer.ProducerConfig;
 import org.apache.kafka.common.serialization.StringDeserializer;
+import org.apache.kafka.common.serialization.StringSerializer;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -12,11 +12,13 @@ import org.springframework.kafka.annotation.EnableKafka;
 import org.springframework.kafka.config.ConcurrentKafkaListenerContainerFactory;
 import org.springframework.kafka.core.ConsumerFactory;
 import org.springframework.kafka.core.DefaultKafkaConsumerFactory;
+import org.springframework.kafka.core.DefaultKafkaProducerFactory;
+import org.springframework.kafka.core.KafkaTemplate;
+import org.springframework.kafka.core.ProducerFactory;
+import org.springframework.kafka.listener.DeadLetterPublishingRecoverer;
 import org.springframework.kafka.listener.DefaultErrorHandler;
 import org.springframework.util.backoff.ExponentialBackOff;
 
-import java.time.LocalDateTime;
-import java.time.ZoneOffset;
 import java.util.Map;
 
 @Configuration
@@ -42,20 +44,25 @@ public class KafkaConsumerConfig {
     }
 
     @Bean
-    public DefaultErrorHandler notificationErrorHandler(FailedNotificationRepository repo) {
+    public ProducerFactory<String, String> producerFactory() {
+        return new DefaultKafkaProducerFactory<>(Map.of(
+                ProducerConfig.BOOTSTRAP_SERVERS_CONFIG, bootstrapServers,
+                ProducerConfig.KEY_SERIALIZER_CLASS_CONFIG, StringSerializer.class,
+                ProducerConfig.VALUE_SERIALIZER_CLASS_CONFIG, StringSerializer.class
+        ));
+    }
+
+    @Bean
+    public KafkaTemplate<String, String> kafkaTemplate(ProducerFactory<String, String> producerFactory) {
+        return new KafkaTemplate<>(producerFactory);
+    }
+
+    @Bean
+    public DefaultErrorHandler notificationErrorHandler(KafkaTemplate<String, String> kafkaTemplate) {
         ExponentialBackOff backOff = new ExponentialBackOff(1000L, 2.0);
-        backOff.setMaxElapsedTime(7000L); // approx 3 retries: 1s + 2s + 4s
-        return new DefaultErrorHandler((record, ex) -> {
-            log.error("action=NOTIFICATION_CONSUMER_FAILED topic={} partition={} offset={} message={}",
-                    record.topic(), record.partition(), record.offset(), ex.getMessage());
-            FailedNotification fn = new FailedNotification();
-            fn.setEventType(record.topic());
-            fn.setTopic(record.topic());
-            fn.setPayload(record.value() != null ? record.value().toString() : null);
-            fn.setErrorMessage(ex.getMessage());
-            fn.setFailedAt(LocalDateTime.now(ZoneOffset.UTC));
-            repo.save(fn);
-        }, backOff);
+        backOff.setMaxElapsedTime(7000L);
+        DeadLetterPublishingRecoverer recoverer = new DeadLetterPublishingRecoverer(kafkaTemplate);
+        return new DefaultErrorHandler(recoverer, backOff);
     }
 
     @Bean

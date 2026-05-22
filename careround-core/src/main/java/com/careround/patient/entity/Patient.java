@@ -47,6 +47,30 @@ public class Patient extends BaseEntity {
     @Column(name = "hospital_number", nullable = false, unique = true, length = 50)
     private String hospitalNumber;
 
+    @Column(name = "phone_number", length = 50)
+    private String phoneNumber;
+
+    @Column(columnDefinition = "TEXT")
+    private String address;
+
+    @Column(name = "previous_conditions", columnDefinition = "TEXT")
+    private String previousConditions;
+
+    @Column(name = "current_medications", columnDefinition = "TEXT")
+    private String currentMedications;
+
+    @Column(columnDefinition = "TEXT")
+    private String allergies;
+
+    @Column(name = "emergency_contact_name", length = 255)
+    private String emergencyContactName;
+
+    @Column(name = "emergency_contact_phone", length = 50)
+    private String emergencyContactPhone;
+
+    @Column(name = "registered_by_id", length = 36)
+    private String registeredById;
+
     @Column(name = "admission_date", nullable = false)
     private LocalDateTime admissionDate;
 

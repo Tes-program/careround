@@ -19,7 +19,7 @@ class MedicationTaskRepositoryTest {
 
     private MedicationTask buildTask(String wardId, String hospitalId, String nurseId,
                                      MedicationTaskStatus status, LocalDateTime scheduledTime,
-                                     LocalDateTime reminderSentAt) {
+                                     LocalDateTime preReminderSentAt) {
         MedicationTask task = new MedicationTask();
         task.setMedicationChartId("chart-1");
         task.setPatientId("patient-1");
@@ -28,7 +28,7 @@ class MedicationTaskRepositoryTest {
         task.setAssignedNurseId(nurseId);
         task.setScheduledTime(scheduledTime);
         task.setStatus(status);
-        task.setReminderSentAt(reminderSentAt);
+        task.setPreReminderSentAt(preReminderSentAt);
         return task;
     }
 
@@ -105,17 +105,22 @@ class MedicationTaskRepositoryTest {
     }
 
     @Test
-    void findAllByStatusAndScheduledTimeBeforeAndReminderSentAtIsNull_excludesRemindedTasks() {
+    void findAllByStatusAndScheduledTimeBeforeAndOverdueAlertSentAtIsNull_excludesAlertedTasks() {
         LocalDateTime threshold = LocalDateTime.now();
         repository.save(buildTask("ward-1", "hospital-A", "nurse-1",
                 MedicationTaskStatus.PENDING, threshold.minusHours(1), null));
-        repository.save(buildTask("ward-1", "hospital-A", "nurse-1",
-                MedicationTaskStatus.PENDING, threshold.minusHours(1), threshold.minusMinutes(10)));
 
-        List<MedicationTask> results = repository.findAllByStatusAndScheduledTimeBeforeAndReminderSentAtIsNull(
-                MedicationTaskStatus.PENDING, threshold);
+        MedicationTask alerted = buildTask("ward-1", "hospital-A", "nurse-1",
+                MedicationTaskStatus.PENDING, threshold.minusHours(1), null);
+        alerted.setOverdueAlertSentAt(threshold.minusMinutes(10));
+        repository.save(alerted);
 
-        assertThat(results).hasSize(1);
-        assertThat(results.get(0).getReminderSentAt()).isNull();
+        org.springframework.data.domain.Page<MedicationTask> results =
+                repository.findAllByStatusAndScheduledTimeBeforeAndOverdueAlertSentAtIsNull(
+                        MedicationTaskStatus.PENDING, threshold,
+                        org.springframework.data.domain.PageRequest.of(0, 50));
+
+        assertThat(results.getContent()).hasSize(1);
+        assertThat(results.getContent().get(0).getOverdueAlertSentAt()).isNull();
     }
 }

@@ -114,7 +114,7 @@ class ClinicalNoteServiceTest {
     void getPatientNotes_returnsAllNotes() {
         ClinicalNote note = note(NOTE_ID, PATIENT_ID, AUTHOR_ID);
         when(patientRepository.findByIdAndHospitalId(PATIENT_ID, HOSPITAL_ID)).thenReturn(Optional.of(patient()));
-        when(clinicalNoteRepository.findAllByPatientIdOrderByCreatedAtDesc(PATIENT_ID)).thenReturn(List.of(note));
+        when(clinicalNoteRepository.findAllByPatientIdAndHospitalIdOrderByCreatedAtDesc(PATIENT_ID, HOSPITAL_ID)).thenReturn(List.of(note));
 
         List<ClinicalNoteResponse> results = clinicalNoteService.getPatientNotes(PATIENT_ID);
 

@@ -1,7 +1,6 @@
 package com.careround.patient.entity;
 
-import com.careround.patient.enums.AcuityColor;
-import com.careround.patient.enums.ConsciousnessLevel;
+import com.careround.patient.enums.VhiStatus;
 import com.careround.shared.entity.BaseEntity;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -31,31 +30,30 @@ public class PatientVitals extends BaseEntity {
     @Column(name = "recorded_by_id", nullable = false, length = 36)
     private String recordedById;
 
-    @Column(name = "heart_rate")
-    private Integer heartRate;
+    @Column(name = "pulse")
+    private Integer pulse;
+
+    @Column(name = "systolic_bp")
+    private Integer systolicBp;
+
+    @Column(name = "diastolic_bp")
+    private Integer diastolicBp;
 
     @Column(name = "respiratory_rate")
     private Integer respiratoryRate;
 
-    @Column(name = "oxygen_saturation", precision = 5, scale = 2)
-    private BigDecimal oxygenSaturation;
-
-    @Column(name = "systolic_bp")
-    private Integer systolicBP;
-
     @Column(precision = 4, scale = 1)
     private BigDecimal temperature;
 
-    @Enumerated(EnumType.STRING)
-    @Column(name = "consciousness_level", length = 20)
-    private ConsciousnessLevel consciousnessLevel;
+    @Column(name = "spo2", precision = 5, scale = 2)
+    private BigDecimal spo2;
 
-    @Column(name = "computed_score", nullable = false)
-    private int computedScore;
+    @Column(name = "vhi_score", nullable = false)
+    private int vhiScore;
 
     @Enumerated(EnumType.STRING)
-    @Column(name = "acuity_color", nullable = false, length = 10)
-    private AcuityColor acuityColor;
+    @Column(name = "vhi_status", nullable = false, length = 10)
+    private VhiStatus vhiStatus;
 
     @Column(name = "recorded_at", nullable = false)
     private LocalDateTime recordedAt;

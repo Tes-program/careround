@@ -69,7 +69,7 @@ public class UserController {
     }
 
     @PutMapping("/me/device-token")
-    @PreAuthorize("hasAnyRole('NURSE', 'DOCTOR', 'SUPERVISOR')")
+    @PreAuthorize("isAuthenticated()")
     @Operation(summary = "Update device token", description = "Registers or updates the FCM device token for the authenticated user.")
     public ResponseEntity<Void> updateDeviceToken(@Valid @RequestBody UpdateDeviceTokenRequest request) {
         userService.updateDeviceToken(

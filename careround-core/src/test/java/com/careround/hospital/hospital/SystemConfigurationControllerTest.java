@@ -39,7 +39,7 @@ class SystemConfigurationControllerTest {
     @BeforeEach
     void setUp() {
         HospitalContextHolder.set("hosp-1", "user-1", UserRole.ADMIN);
-        sampleConfig = new SystemConfigResponse("cfg-1", "hosp-1", 5, 7, 10, 20, true);
+        sampleConfig = new SystemConfigResponse("cfg-1", "hosp-1", 10, 20, true);
     }
 
     @AfterEach
@@ -54,7 +54,7 @@ class SystemConfigurationControllerTest {
         mockMvc.perform(get("/api/v1/system-config")
                         .with(user("admin").roles("ADMIN")))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.acuityAmberThreshold").value(5));
+                .andExpect(jsonPath("$.data.taskOverdueReminderMinutes").value(10));
     }
 
     @Test
@@ -72,7 +72,7 @@ class SystemConfigurationControllerTest {
                         .with(user("admin").roles("ADMIN"))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(
-                                new UpdateSystemConfigRequest(6, 8, 45, 30, true))))
+                                new UpdateSystemConfigRequest(45, 30, true))))
                 .andExpect(status().isOk());
     }
 
@@ -82,7 +82,7 @@ class SystemConfigurationControllerTest {
                         .with(user("doctor").roles("DOCTOR"))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(
-                                new UpdateSystemConfigRequest(6, 8, 45, 30, true))))
+                                new UpdateSystemConfigRequest(45, 30, true))))
                 .andExpect(status().isForbidden());
     }
 }

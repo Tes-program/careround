@@ -15,8 +15,6 @@ CREATE TABLE hospital (
 CREATE TABLE system_configuration (
     id                            VARCHAR(36) NOT NULL PRIMARY KEY,
     hospital_id                   VARCHAR(36) NOT NULL,
-    acuity_amber_threshold        INT         NOT NULL DEFAULT 5,
-    acuity_red_threshold          INT         NOT NULL DEFAULT 7,
     task_overdue_reminder_minutes INT         NOT NULL DEFAULT 10,
     task_escalation_minutes       INT         NOT NULL DEFAULT 20,
     push_notifications_enabled    BOOLEAN     NOT NULL DEFAULT TRUE,

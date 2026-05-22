@@ -8,6 +8,8 @@ import com.careround.patient.entity.Patient;
 import com.careround.patient.enums.AcuityColor;
 import com.careround.patient.enums.AdmissionType;
 import com.careround.patient.enums.PatientStatus;
+import com.careround.patient.medicationtask.MedicationTaskRepository;
+import com.careround.patient.medicationtask.enums.MedicationTaskStatus;
 import com.careround.patient.repository.PatientRepository;
 import com.careround.shared.exception.ResourceNotFoundException;
 import com.careround.shared.security.HospitalContextHolder;
@@ -27,6 +29,8 @@ import java.util.Optional;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -35,6 +39,7 @@ class SupervisorDashboardServiceTest {
 
     @Mock private WardRepository wardRepository;
     @Mock private PatientRepository patientRepository;
+    @Mock private MedicationTaskRepository medicationTaskRepository;
 
     @InjectMocks private SupervisorDashboardServiceImpl service;
 
@@ -45,6 +50,15 @@ class SupervisorDashboardServiceTest {
     @BeforeEach
     void setUp() {
         HospitalContextHolder.set(HOSPITAL_ID, USER_ID, UserRole.SUPERVISOR);
+        lenient().when(medicationTaskRepository.countByWardIdAndHospitalIdAndStatus(any(), any(), any())).thenReturn(0L);
+        lenient().when(medicationTaskRepository.countByWardIdAndHospitalIdAndStatusAndCompletedAtBetween(
+                any(), any(), eq(MedicationTaskStatus.COMPLETED), any(), any())).thenReturn(0L);
+        lenient().when(medicationTaskRepository.findAllByWardIdAndHospitalIdAndStatusIn(any(), any(), any()))
+                .thenReturn(List.of());
+        lenient().when(medicationTaskRepository
+                .findAllByWardIdAndHospitalIdAndStatusAndScheduledTimeBetweenOrderByScheduledTimeAsc(
+                        any(), any(), any(), any(), any()))
+                .thenReturn(List.of());
     }
 
     @AfterEach

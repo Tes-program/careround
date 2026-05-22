@@ -50,6 +50,7 @@ class PatientControllerTest {
                 "p-1", "hosp-1", "ward-1",
                 "John", "Doe", "HN001",
                 LocalDate.of(1985, 6, 15), "M", "4A",
+                null, null, null, null, null, null, null, null,
                 AdmissionType.EMERGENCY, "Chest pain",
                 AcuityColor.GREEN, null,
                 PatientStatus.ADMITTED, LocalDateTime.now(),
@@ -62,15 +63,24 @@ class PatientControllerTest {
     }
 
     @Test
-    void admitPatient_asDoctor_returns201() throws Exception {
+    void admitPatient_asAdmin_returns201() throws Exception {
         when(patientService.admitPatient(any())).thenReturn(sample);
 
         mockMvc.perform(post("/api/v1/patients")
-                        .with(user("doctor").roles("DOCTOR"))
+                        .with(user("admin").roles("ADMIN"))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(admitRequest())))
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.data.firstName").value("John"));
+    }
+
+    @Test
+    void admitPatient_asDoctor_returns403() throws Exception {
+        mockMvc.perform(post("/api/v1/patients")
+                        .with(user("doctor").roles("DOCTOR"))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(admitRequest())))
+                .andExpect(status().isForbidden());
     }
 
     @Test
@@ -118,6 +128,7 @@ class PatientControllerTest {
         return new AdmitPatientRequest(
                 "ward-1", "John", "Doe",
                 LocalDate.of(1985, 6, 15), "M", "HN001",
+                null, null, null, null, null, null, null,
                 AdmissionType.EMERGENCY, "Chest pain", "4A", null);
     }
 }

@@ -67,7 +67,7 @@ public class ClinicalNoteServiceImpl implements ClinicalNoteService {
         String hospitalId = HospitalContextHolder.getHospitalId();
         patientRepository.findByIdAndHospitalId(patientId, hospitalId)
                 .orElseThrow(() -> new ResourceNotFoundException("Patient not found"));
-        return clinicalNoteRepository.findAllByPatientIdOrderByCreatedAtDesc(patientId)
+        return clinicalNoteRepository.findAllByPatientIdAndHospitalIdOrderByCreatedAtDesc(patientId, hospitalId)
                 .stream().map(this::toResponse).toList();
     }
 

@@ -1,5 +1,6 @@
 package com.careround.patient.medicationtask;
 
+import com.careround.patient.medicationtask.dto.CompleteTaskRequest;
 import com.careround.patient.medicationtask.dto.TaskListResponse;
 import com.careround.shared.dto.ApiResponse;
 import io.swagger.v3.oas.annotations.Operation;
@@ -10,6 +11,7 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PutMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
@@ -30,10 +32,13 @@ public class MedicationTaskController {
     }
 
     @PutMapping("/{taskId}/complete")
-    @PreAuthorize("hasAnyRole('NURSE', 'DOCTOR')")
+    @PreAuthorize("hasRole('NURSE')")
     @Operation(summary = "Mark a medication task as complete")
-    public ResponseEntity<ApiResponse<Void>> completeTask(@PathVariable String taskId) {
-        medicationTaskService.complete(taskId);
+    public ResponseEntity<ApiResponse<Void>> completeTask(
+            @PathVariable String taskId,
+            @RequestBody(required = false) CompleteTaskRequest request) {
+        String actualDoseGiven = request != null ? request.actualDoseGiven() : null;
+        medicationTaskService.complete(taskId, actualDoseGiven);
         return ResponseEntity.ok(ApiResponse.ok("Task completed", null));
     }
 }

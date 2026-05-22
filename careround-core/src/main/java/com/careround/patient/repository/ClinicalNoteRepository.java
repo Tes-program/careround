@@ -7,5 +7,5 @@ import java.util.List;
 
 public interface ClinicalNoteRepository extends JpaRepository<ClinicalNote, String> {
 
-    List<ClinicalNote> findAllByPatientIdOrderByCreatedAtDesc(String patientId);
+    List<ClinicalNote> findAllByPatientIdAndHospitalIdOrderByCreatedAtDesc(String patientId, String hospitalId);
 }

@@ -1,8 +1,7 @@
 package com.careround.patient.vitals;
 
 import com.careround.auth.enums.UserRole;
-import com.careround.patient.enums.AcuityColor;
-import com.careround.patient.enums.ConsciousnessLevel;
+import com.careround.patient.enums.VhiStatus;
 import com.careround.patient.vitals.dto.RecordVitalsRequest;
 import com.careround.patient.vitals.dto.VitalsResponse;
 import com.careround.shared.config.SecurityConfig;
@@ -48,9 +47,9 @@ class PatientVitalsControllerTest {
         HospitalContextHolder.set("hosp-1", "user-1", UserRole.NURSE);
         sample = new VitalsResponse(
                 "v-1", "p-1", "hosp-1", "user-1",
-                75, 16, 120,
-                new BigDecimal("98.0"), new BigDecimal("37.0"),
-                ConsciousnessLevel.ALERT, 0, AcuityColor.GREEN, LocalDateTime.now());
+                75, 120, 80, 12,
+                new BigDecimal("37.0"), new BigDecimal("98.0"),
+                0, VhiStatus.STABLE, LocalDateTime.now());
     }
 
     @AfterEach
@@ -67,7 +66,7 @@ class PatientVitalsControllerTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(sampleRequest())))
                 .andExpect(status().isCreated())
-                .andExpect(jsonPath("$.data.heartRate").value(75));
+                .andExpect(jsonPath("$.data.pulse").value(75));
     }
 
     @Test
@@ -91,21 +90,14 @@ class PatientVitalsControllerTest {
 
     @Test
     void recordVitals_missingRequiredFields_returns400() throws Exception {
-        String invalid = """
-                {"heartRate":75}
-                """;
-
         mockMvc.perform(post("/api/v1/patients/p-1/vitals")
                         .with(user("nurse").roles("NURSE"))
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(invalid))
+                        .content("{\"pulse\":75}"))
                 .andExpect(status().isBadRequest());
     }
 
     private RecordVitalsRequest sampleRequest() {
-        return new RecordVitalsRequest(
-                75, 16, new BigDecimal("98.0"),
-                120, new BigDecimal("37.0"),
-                ConsciousnessLevel.ALERT);
+        return new RecordVitalsRequest(75, 120, 80, 12, new BigDecimal("37.0"), new BigDecimal("98.0"), null);
     }
 }
