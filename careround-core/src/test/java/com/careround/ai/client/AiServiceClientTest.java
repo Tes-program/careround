@@ -1,28 +1,21 @@
 package com.careround.ai.client;
 
-import com.careround.ai.dto.ClinicalNoteContent;
-import com.careround.ai.dto.ExtractedPrescription;
-import com.careround.ai.dto.ProcessVoiceNoteResponse;
-import com.careround.shared.exception.AiServiceException;
 import com.careround.shared.exception.AiServiceUnavailableException;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.MediaType;
 import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.test.web.client.MockRestServiceServer;
 import org.springframework.web.client.RestClient;
+import org.springframework.web.reactive.function.client.WebClient;
 
 import java.io.IOException;
-import java.time.LocalDateTime;
-import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.Mockito.mock;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.requestTo;
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withException;
-import static org.springframework.test.web.client.response.MockRestResponseCreators.withServerError;
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withSuccess;
 
 class AiServiceClientTest {
@@ -31,13 +24,13 @@ class AiServiceClientTest {
 
     private AiServiceClient client;
     private MockRestServiceServer mockServer;
-    private final ObjectMapper objectMapper = new ObjectMapper().registerModule(new JavaTimeModule());
 
     @BeforeEach
     void setUp() {
         RestClient.Builder builder = RestClient.builder().baseUrl(BASE_URL);
         mockServer = MockRestServiceServer.bindTo(builder).build();
-        client = new AiServiceClient(builder.build());
+        WebClient webClient = mock(WebClient.class);
+        client = new AiServiceClient(builder.build(), webClient);
     }
 
     @Test
@@ -68,60 +61,16 @@ class AiServiceClientTest {
     }
 
     @Test
-    void processVoiceNote_throwsAiServiceUnavailable_whenNotReady() {
+    void streamVoiceNote_throwsAiServiceUnavailable_whenNotReady() {
         mockServer.expect(requestTo(BASE_URL + "/health"))
                 .andRespond(withSuccess("{\"status\":\"loading\"}", MediaType.APPLICATION_JSON));
 
         MockMultipartFile audio = new MockMultipartFile("audio", "voice.m4a",
                 "audio/mp4", "audio-bytes".getBytes());
 
-        assertThatThrownBy(() -> client.processVoiceNote(audio, "patient-1", LocalDateTime.now()))
+        assertThatThrownBy(() -> client.streamVoiceNote(audio, "patient-1", "ward_round"))
                 .isInstanceOf(AiServiceUnavailableException.class)
                 .hasMessageContaining("not ready");
-
-        mockServer.verify();
-    }
-
-    @Test
-    void processVoiceNote_throwsAiServiceException_onNon2xxResponse() {
-        mockServer.expect(requestTo(BASE_URL + "/health"))
-                .andRespond(withSuccess("{\"status\":\"ready\"}", MediaType.APPLICATION_JSON));
-        mockServer.expect(requestTo(BASE_URL + "/process-voice-note"))
-                .andRespond(withServerError());
-
-        MockMultipartFile audio = new MockMultipartFile("audio", "voice.m4a",
-                "audio/mp4", "audio-bytes".getBytes());
-
-        assertThatThrownBy(() -> client.processVoiceNote(audio, "patient-1", LocalDateTime.now()))
-                .isInstanceOf(AiServiceException.class);
-
-        mockServer.verify();
-    }
-
-    @Test
-    void processVoiceNote_returnsDeserializedResponse_onSuccess() throws Exception {
-        ProcessVoiceNoteResponse expected = new ProcessVoiceNoteResponse(
-                "Patient reports chest pain",
-                new ClinicalNoteContent("chest pain", "HR 100", "angina", "aspirin"),
-                List.of(new ExtractedPrescription("Aspirin", "100mg", "oral",
-                        "daily", 24, 7, List.of()))
-        );
-        String json = objectMapper.writeValueAsString(expected);
-
-        mockServer.expect(requestTo(BASE_URL + "/health"))
-                .andRespond(withSuccess("{\"status\":\"ready\"}", MediaType.APPLICATION_JSON));
-        mockServer.expect(requestTo(BASE_URL + "/process-voice-note"))
-                .andRespond(withSuccess(json, MediaType.APPLICATION_JSON));
-
-        MockMultipartFile audio = new MockMultipartFile("audio", "voice.m4a",
-                "audio/mp4", "audio-bytes".getBytes());
-
-        ProcessVoiceNoteResponse result = client.processVoiceNote(audio, "patient-1", LocalDateTime.now());
-
-        assertThat(result.rawTranscription()).isEqualTo("Patient reports chest pain");
-        assertThat(result.clinicalNote().subjective()).isEqualTo("chest pain");
-        assertThat(result.prescriptions()).hasSize(1);
-        assertThat(result.prescriptions().get(0).drugName()).isEqualTo("Aspirin");
 
         mockServer.verify();
     }

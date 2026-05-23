@@ -71,4 +71,4 @@ careround:
   ai:
     service-url: ${AI_SERVICE_URL:http://localhost:8000}
     connect-timeout-seconds: 5
-    read-timeout-seconds: 120
+    read-timeout-seconds: 300

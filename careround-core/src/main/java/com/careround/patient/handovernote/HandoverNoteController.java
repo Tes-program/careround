@@ -4,6 +4,7 @@ import com.careround.patient.handovernote.dto.CreateHandoverNoteRequest;
 import com.careround.patient.handovernote.dto.HandoverNoteResponse;
 import com.careround.shared.dto.ApiResponse;
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -31,6 +32,7 @@ public class HandoverNoteController {
     @PreAuthorize("hasAnyRole('NURSE', 'DOCTOR')")
     @Operation(summary = "Add handover note", description = "Adds a handover or nursing report note for a patient.")
     public ResponseEntity<ApiResponse<HandoverNoteResponse>> create(
+            @Parameter(description = "Patient UUID", example = "550e8400-e29b-41d4-a716-446655440000")
             @PathVariable String patientId,
             @Valid @RequestBody CreateHandoverNoteRequest request) {
         return ResponseEntity.status(HttpStatus.CREATED)
@@ -39,8 +41,10 @@ public class HandoverNoteController {
     }
 
     @GetMapping
+    @PreAuthorize("isAuthenticated()")
     @Operation(summary = "List handover notes", description = "Returns handover notes for a patient, newest first.")
     public ResponseEntity<ApiResponse<List<HandoverNoteResponse>>> list(
+            @Parameter(description = "Patient UUID", example = "550e8400-e29b-41d4-a716-446655440000")
             @PathVariable String patientId) {
         return ResponseEntity.ok(ApiResponse.ok(handoverNoteService.list(patientId)));
     }

@@ -42,13 +42,15 @@ public class PatientController {
     @GetMapping("/{id}")
     @Operation(summary = "Get patient", description = "Returns patient details by id.")
     public ResponseEntity<ApiResponse<PatientResponse>> getPatient(
-            @Parameter(description = "Patient id") @PathVariable("id") String patientId) {
+            @Parameter(description = "Patient UUID", example = "550e8400-e29b-41d4-a716-446655440000")
+            @PathVariable("id") String patientId) {
         return ResponseEntity.ok(ApiResponse.ok(patientService.getPatient(patientId)));
     }
 
     @GetMapping("/ward/{wardId}")
     @Operation(summary = "List ward patients", description = "Returns admitted patients in a ward.")
     public ResponseEntity<ApiResponse<List<PatientResponse>>> getPatientsByWard(
+            @Parameter(description = "Ward UUID", example = "550e8400-e29b-41d4-a716-446655440000")
             @PathVariable String wardId) {
         return ResponseEntity.ok(ApiResponse.ok(patientService.getPatientsByWard(wardId)));
     }
@@ -57,6 +59,7 @@ public class PatientController {
     @PreAuthorize("hasAnyRole('ADMIN', 'DOCTOR')")
     @Operation(summary = "Update patient status", description = "Updates a patient's admission status.")
     public ResponseEntity<ApiResponse<PatientResponse>> updatePatientStatus(
+            @Parameter(description = "Patient UUID", example = "550e8400-e29b-41d4-a716-446655440000")
             @PathVariable String patientId,
             @Valid @RequestBody UpdatePatientStatusRequest request) {
         return ResponseEntity.ok(ApiResponse.ok("Status updated", patientService.updatePatientStatus(patientId, request)));

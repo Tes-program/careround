@@ -4,6 +4,7 @@ import com.careround.patient.medicationtask.dto.CompleteTaskRequest;
 import com.careround.patient.medicationtask.dto.TaskListResponse;
 import com.careround.shared.dto.ApiResponse;
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
@@ -27,14 +28,20 @@ public class MedicationTaskController {
     @GetMapping
     @PreAuthorize("hasAnyRole('NURSE', 'DOCTOR', 'SUPERVISOR')")
     @Operation(summary = "Get task list for a ward", description = "Returns medication tasks grouped by urgency.")
-    public ResponseEntity<ApiResponse<TaskListResponse>> getTaskList(@RequestParam String wardId) {
+    public ResponseEntity<ApiResponse<TaskListResponse>> getTaskList(
+            @Parameter(description = "Ward UUID", example = "550e8400-e29b-41d4-a716-446655440000")
+            @RequestParam String wardId) {
         return ResponseEntity.ok(ApiResponse.ok(medicationTaskService.getTaskList(wardId)));
     }
 
     @PutMapping("/{taskId}/complete")
     @PreAuthorize("hasRole('NURSE')")
-    @Operation(summary = "Mark a medication task as complete")
+    @Operation(
+            summary = "Mark a medication task as complete",
+            description = "Marks a task as administered. Optionally include the actual dose given in the request body — omit the body entirely if the prescribed dose was given as-is."
+    )
     public ResponseEntity<ApiResponse<Void>> completeTask(
+            @Parameter(description = "Medication task UUID", example = "550e8400-e29b-41d4-a716-446655440000")
             @PathVariable String taskId,
             @RequestBody(required = false) CompleteTaskRequest request) {
         String actualDoseGiven = request != null ? request.actualDoseGiven() : null;

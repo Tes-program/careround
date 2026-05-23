@@ -3,6 +3,7 @@ package com.careround.hospital.supervisor;
 import com.careround.hospital.supervisor.dto.SupervisorDashboardResponse;
 import com.careround.shared.dto.ApiResponse;
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
@@ -24,6 +25,7 @@ public class SupervisorDashboardController {
     @PreAuthorize("hasRole('SUPERVISOR')")
     @Operation(summary = "Supervisor dashboard", description = "Returns ward patients sorted by acuity for the supervisor view.")
     public ResponseEntity<ApiResponse<SupervisorDashboardResponse>> getDashboard(
+            @Parameter(description = "Ward UUID to fetch the dashboard for", example = "550e8400-e29b-41d4-a716-446655440000")
             @RequestParam String wardId) {
         SupervisorDashboardResponse response = supervisorDashboardService.getDashboard(wardId);
         return ResponseEntity.ok(ApiResponse.ok(response));

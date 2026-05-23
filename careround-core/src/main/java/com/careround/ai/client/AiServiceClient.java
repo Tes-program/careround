@@ -1,18 +1,24 @@
 package com.careround.ai.client;
 
-import com.careround.ai.dto.ProcessVoiceNoteResponse;
 import com.careround.shared.exception.AiServiceException;
 import com.careround.shared.exception.AiServiceUnavailableException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.http.MediaType;
+import org.springframework.http.codec.ServerSentEvent;
 import org.springframework.stereotype.Component;
 import org.springframework.util.LinkedMultiValueMap;
 import org.springframework.util.MultiValueMap;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.multipart.MultipartFile;
+import org.springframework.web.reactive.function.BodyInserters;
+import org.springframework.web.reactive.function.client.WebClient;
+import org.springframework.web.reactive.function.client.WebClientResponseException;
+import reactor.core.publisher.Flux;
 
 import java.time.LocalDateTime;
+import java.time.ZoneOffset;
 import java.util.Map;
 
 @Component
@@ -21,6 +27,7 @@ import java.util.Map;
 public class AiServiceClient {
 
     private final RestClient aiRestClient;
+    private final WebClient aiWebClient;
 
     public boolean isReady() {
         try {
@@ -36,29 +43,29 @@ public class AiServiceClient {
         }
     }
 
-    public ProcessVoiceNoteResponse processVoiceNote(MultipartFile audio, String patientId,
-                                                      LocalDateTime admissionDate) {
+    public Flux<ServerSentEvent<String>> streamVoiceNote(MultipartFile audio, String patientId, String mode) {
         if (!isReady()) {
             throw new AiServiceUnavailableException("AI service is not ready");
         }
 
         try {
-            MultiValueMap<String, Object> body = new LinkedMultiValueMap<>();
-            body.add("audio", audio.getResource());
-            body.add("patientId", patientId);
-            body.add("admissionDate", admissionDate.toString());
+            MultiValueMap<String, Object> formData = new LinkedMultiValueMap<>();
+            formData.add("audio", audio.getResource());
+            formData.add("patient_id", patientId);
+            formData.add("current_time", LocalDateTime.now(ZoneOffset.UTC).toString());
+            formData.add("mode", mode);
 
-            return aiRestClient.post()
+            return aiWebClient.post()
                     .uri("/process-voice-note")
                     .contentType(MediaType.MULTIPART_FORM_DATA)
-                    .body(body)
+                    .body(BodyInserters.fromMultipartData(formData))
                     .retrieve()
-                    .onStatus(status -> !status.is2xxSuccessful(),
-                            (req, resp) -> {
-                                throw new AiServiceException(
-                                        "AI service returned error: " + resp.getStatusCode());
-                            })
-                    .body(ProcessVoiceNoteResponse.class);
+                    .onStatus(status -> !status.is2xxSuccessful(), (resp) ->
+                            resp.bodyToMono(String.class).map(body ->
+                                    new AiServiceException("AI service returned error " + resp.statusCode() + ": " + body)))
+                    .bodyToFlux(new ParameterizedTypeReference<ServerSentEvent<String>>() {})
+                    .doOnError(WebClientResponseException.ServiceUnavailable.class, e ->
+                            log.warn("action=AI_STREAM status=503 patientId={}", patientId));
         } catch (AiServiceUnavailableException | AiServiceException e) {
             throw e;
         } catch (Exception e) {

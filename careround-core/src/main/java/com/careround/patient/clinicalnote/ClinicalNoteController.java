@@ -6,6 +6,7 @@ import com.careround.patient.clinicalnote.dto.ConfirmNoteResponse;
 import com.careround.patient.clinicalnote.dto.CreateClinicalNoteRequest;
 import com.careround.shared.dto.ApiResponse;
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -40,8 +41,11 @@ public class ClinicalNoteController {
 
     @PostMapping("/confirm")
     @PreAuthorize("hasRole('DOCTOR')")
-    @Operation(summary = "Confirm clinical note with prescriptions",
-            description = "Atomically saves a confirmed clinical note and its associated prescriptions.")
+    @Operation(
+            summary = "Confirm clinical note with prescriptions",
+            description = "Atomically saves a confirmed clinical note and its associated prescriptions. " +
+                    "Triggers the async prescription → chart → task creation chain via Kafka."
+    )
     public ResponseEntity<ApiResponse<ConfirmNoteResponse>> confirmNote(
             @Valid @RequestBody ConfirmNoteRequest request) {
         return ResponseEntity.status(HttpStatus.CREATED)
@@ -49,8 +53,11 @@ public class ClinicalNoteController {
     }
 
     @GetMapping("/patient/{patientId}")
-    @Operation(summary = "List patient clinical notes", description = "Returns clinical notes for a patient.")
-    public ResponseEntity<ApiResponse<List<ClinicalNoteResponse>>> getPatientNotes(@PathVariable String patientId) {
+    @PreAuthorize("isAuthenticated()")
+    @Operation(summary = "List patient clinical notes", description = "Returns clinical notes for a patient, newest first.")
+    public ResponseEntity<ApiResponse<List<ClinicalNoteResponse>>> getPatientNotes(
+            @Parameter(description = "Patient UUID", example = "550e8400-e29b-41d4-a716-446655440000")
+            @PathVariable String patientId) {
         return ResponseEntity.ok(ApiResponse.ok(clinicalNoteService.getPatientNotes(patientId)));
     }
 }

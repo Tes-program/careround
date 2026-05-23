@@ -6,6 +6,7 @@ import com.careround.hospital.ward.dto.WardResponse;
 import com.careround.shared.dto.ApiResponse;
 import com.careround.shared.security.HospitalContextHolder;
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -49,7 +50,9 @@ public class WardController {
 
     @GetMapping("/{id}")
     @Operation(summary = "Get ward", description = "Returns a ward by id.")
-    public ResponseEntity<ApiResponse<WardResponse>> getById(@PathVariable String id) {
+    public ResponseEntity<ApiResponse<WardResponse>> getById(
+            @Parameter(description = "Ward UUID", example = "550e8400-e29b-41d4-a716-446655440000")
+            @PathVariable String id) {
         WardResponse response = wardService.getById(HospitalContextHolder.getHospitalId(), id);
         return ResponseEntity.ok(ApiResponse.ok(response));
     }
@@ -58,7 +61,9 @@ public class WardController {
     @PreAuthorize("hasAnyRole('ADMIN', 'SUPERVISOR')")
     @Operation(summary = "Update ward", description = "Updates a ward by id.")
     public ResponseEntity<ApiResponse<WardResponse>> update(
-            @PathVariable String id, @RequestBody UpdateWardRequest request) {
+            @Parameter(description = "Ward UUID", example = "550e8400-e29b-41d4-a716-446655440000")
+            @PathVariable String id,
+            @Valid @RequestBody UpdateWardRequest request) {
         WardResponse response = wardService.update(HospitalContextHolder.getHospitalId(), id, request);
         return ResponseEntity.ok(ApiResponse.ok("Ward updated", response));
     }
@@ -66,7 +71,9 @@ public class WardController {
     @DeleteMapping("/{id}")
     @PreAuthorize("hasRole('ADMIN')")
     @Operation(summary = "Delete ward", description = "Deletes a ward by id.")
-    public ResponseEntity<ApiResponse<Void>> delete(@PathVariable String id) {
+    public ResponseEntity<ApiResponse<Void>> delete(
+            @Parameter(description = "Ward UUID", example = "550e8400-e29b-41d4-a716-446655440000")
+            @PathVariable String id) {
         wardService.delete(HospitalContextHolder.getHospitalId(), id);
         return ResponseEntity.ok(ApiResponse.ok("Ward deleted", null));
     }

@@ -7,6 +7,7 @@ import com.careround.auth.service.UserService;
 import com.careround.shared.dto.ApiResponse;
 import com.careround.shared.security.HospitalContextHolder;
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -55,7 +56,9 @@ public class UserController {
     @GetMapping("/{id}")
     @PreAuthorize("hasRole('ADMIN')")
     @Operation(summary = "Get user by id", description = "Returns a tenant user by id.")
-    public ResponseEntity<ApiResponse<UserResponse>> getUserById(@PathVariable String id) {
+    public ResponseEntity<ApiResponse<UserResponse>> getUserById(
+            @Parameter(description = "User UUID", example = "550e8400-e29b-41d4-a716-446655440000")
+            @PathVariable String id) {
         UserResponse user = userService.getById(HospitalContextHolder.getHospitalId(), id);
         return ResponseEntity.ok(ApiResponse.ok(user));
     }
@@ -63,7 +66,9 @@ public class UserController {
     @PutMapping("/{id}/deactivate")
     @PreAuthorize("hasRole('ADMIN')")
     @Operation(summary = "Deactivate user", description = "Deactivates a tenant user account.")
-    public ResponseEntity<ApiResponse<Void>> deactivateUser(@PathVariable String id) {
+    public ResponseEntity<ApiResponse<Void>> deactivateUser(
+            @Parameter(description = "User UUID", example = "550e8400-e29b-41d4-a716-446655440000")
+            @PathVariable String id) {
         userService.deactivate(HospitalContextHolder.getHospitalId(), id);
         return ResponseEntity.ok(ApiResponse.ok("User deactivated", null));
     }

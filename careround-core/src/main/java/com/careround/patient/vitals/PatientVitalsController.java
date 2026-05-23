@@ -4,6 +4,7 @@ import com.careround.patient.vitals.dto.RecordVitalsRequest;
 import com.careround.patient.vitals.dto.VitalsResponse;
 import com.careround.shared.dto.ApiResponse;
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -32,6 +33,7 @@ public class PatientVitalsController {
     @PreAuthorize("hasAnyRole('NURSE', 'DOCTOR')")
     @Operation(summary = "Record patient vitals", description = "Records a new set of vital signs for a patient.")
     public ResponseEntity<ApiResponse<VitalsResponse>> recordVitals(
+            @Parameter(description = "Patient UUID", example = "550e8400-e29b-41d4-a716-446655440000")
             @PathVariable String patientId,
             @Valid @RequestBody RecordVitalsRequest request) {
         VitalsResponse response = patientVitalsService.recordVitals(patientId, request);
@@ -39,9 +41,11 @@ public class PatientVitalsController {
     }
 
     @GetMapping
-    @Operation(summary = "List vitals history", description = "Returns recent vital sign entries for a patient.")
+    @Operation(summary = "List vitals history", description = "Returns recent vital sign entries for a patient, newest first.")
     public ResponseEntity<ApiResponse<List<VitalsResponse>>> getVitalsHistory(
+            @Parameter(description = "Patient UUID", example = "550e8400-e29b-41d4-a716-446655440000")
             @PathVariable String patientId,
+            @Parameter(description = "Maximum number of entries to return", example = "10")
             @RequestParam(defaultValue = "10") int limit) {
         return ResponseEntity.ok(ApiResponse.ok(patientVitalsService.getVitalsHistory(patientId, limit)));
     }
@@ -49,6 +53,7 @@ public class PatientVitalsController {
     @GetMapping("/latest")
     @Operation(summary = "Get latest vitals", description = "Returns the most recent vital sign entry for a patient.")
     public ResponseEntity<ApiResponse<VitalsResponse>> getLatestVitals(
+            @Parameter(description = "Patient UUID", example = "550e8400-e29b-41d4-a716-446655440000")
             @PathVariable String patientId) {
         return ResponseEntity.ok(ApiResponse.ok(patientVitalsService.getLatestVitals(patientId)));
     }
