@@ -1,5 +1,6 @@
 package com.careround.ai.client;
 
+import com.careround.ai.dto.ExtractedPrescription;
 import com.careround.shared.exception.AiServiceException;
 import com.careround.shared.exception.AiServiceUnavailableException;
 import lombok.RequiredArgsConstructor;
@@ -19,6 +20,7 @@ import reactor.core.publisher.Flux;
 
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
+import java.util.List;
 import java.util.Map;
 
 @Component
@@ -70,6 +72,30 @@ public class AiServiceClient {
             throw e;
         } catch (Exception e) {
             throw new AiServiceException("AI service call failed: " + e.getMessage());
+        }
+    }
+
+    public List<ExtractedPrescription> extractPrescriptionsFromText(String noteText, String patientId) {
+        if (!isReady()) {
+            throw new AiServiceUnavailableException("AI service is not ready");
+        }
+        try {
+            Map<String, String> body = Map.of(
+                    "note_text", noteText,
+                    "patient_id", patientId,
+                    "current_time", LocalDateTime.now(ZoneOffset.UTC).toString()
+            );
+            List<ExtractedPrescription> result = aiRestClient.post()
+                    .uri("/extract-prescriptions")
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .body(body)
+                    .retrieve()
+                    .body(new ParameterizedTypeReference<>() {});
+            return result != null ? result : List.of();
+        } catch (AiServiceUnavailableException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new AiServiceException("AI prescription extraction failed: " + e.getMessage());
         }
     }
 }

@@ -10,6 +10,7 @@ import com.careround.patient.prescription.dto.CreatePrescriptionRequest;
 import com.careround.patient.repository.ClinicalNoteRepository;
 import com.careround.patient.repository.PatientRepository;
 import com.careround.shared.security.HospitalContextHolder;
+import com.careround.ai.client.AiServiceClient;
 import com.careround.shared.service.OutboxService;
 import com.careround.test.DataJpaH2Test;
 import org.junit.jupiter.api.AfterEach;
@@ -38,6 +39,7 @@ class ClinicalNoteConfirmRollbackTest {
     @Autowired private PatientRepository patientRepository;
 
     @MockitoBean private OutboxService outboxService;
+    @MockitoBean private AiServiceClient aiServiceClient;
 
     private static final String HOSPITAL_ID = "hosp-rollback";
     private static final String PATIENT_ID = "patient-rollback";
@@ -70,7 +72,7 @@ class ClinicalNoteConfirmRollbackTest {
 
         ConfirmNoteRequest request = new ConfirmNoteRequest(
                 PATIENT_ID, NoteType.WARD_ROUND_NOTE,
-                "Ward round note", null, false, null,
+                "Ward round note", null, false, null, false,
                 List.of(prescriptionReq("Aspirin")));
 
         assertThatThrownBy(() -> clinicalNoteService.confirm(request))

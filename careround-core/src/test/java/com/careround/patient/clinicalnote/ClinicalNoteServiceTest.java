@@ -15,6 +15,7 @@ import com.careround.patient.repository.ClinicalNoteRepository;
 import com.careround.patient.repository.PatientRepository;
 import com.careround.shared.exception.ResourceNotFoundException;
 import com.careround.shared.security.HospitalContextHolder;
+import com.careround.ai.client.AiServiceClient;
 import com.careround.shared.service.OutboxService;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -44,6 +45,7 @@ class ClinicalNoteServiceTest {
     @Mock private PatientRepository patientRepository;
     @Mock private PrescriptionRepository prescriptionRepository;
     @Mock private OutboxService outboxService;
+    @Mock private AiServiceClient aiServiceClient;
 
     @InjectMocks private ClinicalNoteServiceImpl clinicalNoteService;
 
@@ -214,7 +216,7 @@ class ClinicalNoteServiceTest {
 
         ConfirmNoteRequest aiRequest = new ConfirmNoteRequest(
                 PATIENT_ID, NoteType.PROGRESS_NOTE, "AI content", "raw voice",
-                true, "claude-sonnet-4-6", List.of());
+                true, "claude-sonnet-4-6", false, List.of());
 
         clinicalNoteService.confirm(aiRequest);
 
@@ -272,7 +274,7 @@ class ClinicalNoteServiceTest {
 
     private ConfirmNoteRequest confirmRequest(List<CreatePrescriptionRequest> prescriptions) {
         return new ConfirmNoteRequest(PATIENT_ID, NoteType.WARD_ROUND_NOTE,
-                "Ward round note", null, false, null, prescriptions);
+                "Ward round note", null, false, null, false, prescriptions);
     }
 
     private CreatePrescriptionRequest prescriptionReq(String drug) {

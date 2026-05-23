@@ -22,6 +22,11 @@ public class KafkaTopicConfig {
     @Bean public NewTopic medicationTaskOverdue() { return topic("medication-task-overdue"); }
     @Bean public NewTopic clinicalNoteSaved() { return topic("clinical-note-saved"); }
     @Bean public NewTopic vitalsRecorded() { return topic("vitals-recorded"); }
+    @Bean public NewTopic hospitalOnboardingRequested() { return topic("hospital-onboarding-requested"); }
+    @Bean public NewTopic hospitalOnboardingReviewed() { return topic("hospital-onboarding-reviewed"); }
+    @Bean public NewTopic hospitalProvisioned() { return topic("hospital-provisioned"); }
+    @Bean public NewTopic userActivationRequested() { return topic("user-activation-requested"); }
+    @Bean public NewTopic manualMedicationAdded() { return topic("manual-medication-added"); }
 
     private NewTopic topic(String name) {
         return TopicBuilder.name(name)

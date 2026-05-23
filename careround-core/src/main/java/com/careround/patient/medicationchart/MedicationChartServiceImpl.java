@@ -1,5 +1,7 @@
 package com.careround.patient.medicationchart;
 
+import com.careround.auth.enums.UserRole;
+import com.careround.auth.repository.UserRepository;
 import com.careround.patient.medicationchart.dto.AddManualMedicationRequest;
 import com.careround.patient.medicationchart.dto.MedicationChartResponse;
 import com.careround.patient.medicationchart.dto.UpdateMedicationChartRequest;
@@ -13,7 +15,7 @@ import com.careround.patient.prescription.entity.Prescription;
 import com.careround.patient.prescription.enums.PrescriptionStatus;
 import com.careround.patient.entity.Patient;
 import com.careround.patient.repository.PatientRepository;
-import com.careround.shared.event.PrescriptionConfirmedEvent;
+import com.careround.shared.event.ManualMedicationAddedEvent;
 import com.careround.shared.exception.BusinessRuleException;
 import com.careround.shared.exception.ResourceNotFoundException;
 import com.careround.shared.security.HospitalContextHolder;
@@ -26,7 +28,9 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 @Service
@@ -38,6 +42,7 @@ public class MedicationChartServiceImpl implements MedicationChartService {
     private final PrescriptionRepository prescriptionRepository;
     private final MedicationTaskRepository medicationTaskRepository;
     private final PatientRepository patientRepository;
+    private final UserRepository userRepository;
     private final OutboxService outboxService;
 
     @Override
@@ -93,6 +98,8 @@ public class MedicationChartServiceImpl implements MedicationChartService {
         chart.setStatus(MedicationChartStatus.ACTIVE);
         MedicationChart savedChart = medicationChartRepository.save(chart);
 
+        Map<String, Long> nursePendingCounts = loadNursePendingCounts(hospitalId, patient.getWardId());
+
         for (LocalDateTime time : request.administrationTimes()) {
             MedicationTask task = new MedicationTask();
             task.setMedicationChartId(savedChart.getId());
@@ -101,13 +108,16 @@ public class MedicationChartServiceImpl implements MedicationChartService {
             task.setWardId(patient.getWardId());
             task.setScheduledTime(time);
             task.setStatus(MedicationTaskStatus.PENDING);
+            String nurseId = pickLeastLoadedNurse(nursePendingCounts);
+            task.setAssignedNurseId(nurseId);
+            if (nurseId != null) nursePendingCounts.merge(nurseId, 1L, Long::sum);
             medicationTaskRepository.save(task);
         }
 
-        outboxService.publish("prescription-confirmed",
-                new PrescriptionConfirmedEvent(UUID.randomUUID().toString(),
-                        savedPrescription.getId(), patientId, hospitalId,
-                        MDC.get("correlationId"), now),
+        outboxService.publish("manual-medication-added",
+                new ManualMedicationAddedEvent(UUID.randomUUID().toString(),
+                        savedPrescription.getId(), patientId,
+                        hospitalId, MDC.get("correlationId"), now),
                 hospitalId);
 
         log.info("action=MANUAL_MEDICATION_ADDED patientId={} hospitalId={} drug={}",
@@ -136,6 +146,23 @@ public class MedicationChartServiceImpl implements MedicationChartService {
 
         log.info("action=CHART_DISCONTINUED chartId={} hospitalId={}", chartId, hospitalId);
         return toResponse(medicationChartRepository.save(chart));
+    }
+
+    private Map<String, Long> loadNursePendingCounts(String hospitalId, String wardId) {
+        if (wardId == null) return new HashMap<>();
+        Map<String, Long> counts = new HashMap<>();
+        userRepository.findAllByHospitalIdAndRoleAndWardIdAndIsActiveTrue(hospitalId, UserRole.NURSE, wardId)
+                .forEach(nurse -> counts.put(nurse.getId(),
+                        medicationTaskRepository.countByAssignedNurseIdAndHospitalIdAndStatus(
+                                nurse.getId(), hospitalId, MedicationTaskStatus.PENDING)));
+        return counts;
+    }
+
+    private String pickLeastLoadedNurse(Map<String, Long> nursePendingCounts) {
+        return nursePendingCounts.entrySet().stream()
+                .min(Map.Entry.comparingByValue())
+                .map(Map.Entry::getKey)
+                .orElse(null);
     }
 
     private MedicationChart findChart(String chartId, String hospitalId) {

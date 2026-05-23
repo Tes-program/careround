@@ -29,7 +29,12 @@ public class OutboxPollerProcessor {
             "prescription-confirmed",
             "clinical-note-saved",
             "medication-chart-created",
-            "medication-task-overdue"
+            "medication-task-overdue",
+            "hospital-onboarding-requested",
+            "hospital-onboarding-reviewed",
+            "hospital-provisioned",
+            "user-activation-requested",
+            "manual-medication-added"
     );
 
     private final OutboxEventRepository outboxEventRepository;

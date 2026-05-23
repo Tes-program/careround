@@ -33,7 +33,8 @@ public class AuditEventConsumer {
             "medication-task-reminder",
             "medication-task-completed",
             "medication-task-overdue",
-            "vitals-recorded"
+            "vitals-recorded",
+            "manual-medication-added"
     }, groupId = "careround-audit-group")
     @Transactional
     public void listen(ConsumerRecord<String, String> record) {

@@ -15,5 +15,6 @@ public record ConfirmNoteRequest(
         String rawTranscription,
         boolean isAiGenerated,
         String aiModelUsed,
+        boolean extractPrescriptionsFromAi,
         @NotNull @Valid List<CreatePrescriptionRequest> prescriptions
 ) {}

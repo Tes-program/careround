@@ -1,5 +1,7 @@
 package com.careround.patient.clinicalnote;
 
+import com.careround.ai.client.AiServiceClient;
+import com.careround.ai.dto.ExtractedPrescription;
 import com.careround.patient.clinicalnote.dto.ClinicalNoteResponse;
 import com.careround.patient.clinicalnote.dto.ConfirmNoteRequest;
 import com.careround.patient.clinicalnote.dto.ConfirmNoteResponse;
@@ -21,8 +23,11 @@ import org.slf4j.MDC;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.LocalTime;
 import java.time.ZoneOffset;
+import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
@@ -36,6 +41,7 @@ public class ClinicalNoteServiceImpl implements ClinicalNoteService {
     private final PatientRepository patientRepository;
     private final PrescriptionRepository prescriptionRepository;
     private final OutboxService outboxService;
+    private final AiServiceClient aiServiceClient;
 
     @Override
     @Transactional
@@ -97,7 +103,17 @@ public class ClinicalNoteServiceImpl implements ClinicalNoteService {
         List<String> prescriptionIds = new ArrayList<>();
         LocalDateTime now = LocalDateTime.now(ZoneOffset.UTC);
 
-        for (CreatePrescriptionRequest pr : request.prescriptions()) {
+        List<CreatePrescriptionRequest> prescriptions = request.prescriptions();
+        if (request.extractPrescriptionsFromAi() && prescriptions.isEmpty()) {
+            List<ExtractedPrescription> extracted = aiServiceClient.extractPrescriptionsFromText(
+                    request.content(), request.patientId());
+            prescriptions = extracted.stream()
+                    .map(ep -> toCreatePrescriptionRequest(ep, now))
+                    .toList();
+            log.info("action=AI_PRESCRIPTION_EXTRACTION noteId={} count={}", savedNote.getId(), prescriptions.size());
+        }
+
+        for (CreatePrescriptionRequest pr : prescriptions) {
             Prescription prescription = new Prescription();
             prescription.setPatientId(request.patientId());
             prescription.setHospitalId(hospitalId);
@@ -131,6 +147,30 @@ public class ClinicalNoteServiceImpl implements ClinicalNoteService {
         log.info("action=confirmNote noteId={} prescriptions={} patientId={}",
                 savedNote.getId(), prescriptionIds.size(), request.patientId());
         return new ConfirmNoteResponse(savedNote.getId(), prescriptionIds);
+    }
+
+    private CreatePrescriptionRequest toCreatePrescriptionRequest(ExtractedPrescription ep, LocalDateTime baseTime) {
+        List<LocalDateTime> adminTimes = ep.administrationTimes().stream()
+                .map(s -> parseAdminTime(s, baseTime.toLocalDate()))
+                .toList();
+        LocalDateTime startTime = adminTimes.isEmpty() ? baseTime : adminTimes.get(0);
+        int freqHours = (ep.frequencyHours() == null || ep.frequencyHours() <= 0) ? 24 : ep.frequencyHours();
+        int totalDoses = (ep.totalDoses() == null || ep.totalDoses() <= 0)
+                ? (adminTimes.isEmpty() ? 1 : adminTimes.size()) : ep.totalDoses();
+        List<LocalDateTime> times = adminTimes.isEmpty() ? List.of(startTime) : adminTimes;
+        return new CreatePrescriptionRequest(
+                ep.drugName(), ep.dose(), ep.route(), ep.frequencyString(),
+                freqHours, totalDoses, startTime, times);
+    }
+
+    private LocalDateTime parseAdminTime(String value, LocalDate baseDate) {
+        try {
+            return LocalDateTime.parse(value);
+        } catch (DateTimeParseException ignored) {}
+        try {
+            return LocalDateTime.of(baseDate, LocalTime.parse(value));
+        } catch (DateTimeParseException ignored) {}
+        return LocalDateTime.of(baseDate, LocalTime.NOON);
     }
 
     private ClinicalNoteResponse toResponse(ClinicalNote n) {

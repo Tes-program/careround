@@ -1,5 +1,6 @@
 package com.careround.kafka.consumer;
 
+import com.careround.auth.repository.UserRepository;
 import com.careround.patient.medicationtask.MedicationTaskRepository;
 import com.careround.patient.medicationtask.entity.MedicationTask;
 import com.careround.patient.medicationtask.enums.MedicationTaskStatus;
@@ -38,6 +39,7 @@ class MedicationChartCreatedConsumerTest {
     @Mock private ProcessedEventRepository processedEventRepository;
     @Mock private PrescriptionRepository prescriptionRepository;
     @Mock private MedicationTaskRepository medicationTaskRepository;
+    @Mock private UserRepository userRepository;
     @Spy private ObjectMapper objectMapper = JsonMapper.builder().findAndAddModules().build();
 
     @InjectMocks private MedicationChartCreatedConsumer consumer;

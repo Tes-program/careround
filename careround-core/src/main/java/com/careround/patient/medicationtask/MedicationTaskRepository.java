@@ -41,4 +41,7 @@ public interface MedicationTaskRepository extends JpaRepository<MedicationTask, 
 
     Page<MedicationTask> findAllByStatusAndScheduledTimeBeforeAndOverdueAlertSentAtIsNull(
             MedicationTaskStatus status, LocalDateTime threshold, Pageable pageable);
+
+    long countByAssignedNurseIdAndHospitalIdAndStatus(
+            String assignedNurseId, String hospitalId, MedicationTaskStatus status);
 }
