@@ -9,8 +9,8 @@ import lombok.Setter;
 @Setter
 @AllArgsConstructor
 public class LoginRequest {
-    @NotBlank(message = "Hospital ID is required")
-    private String hospitalId;
+    @NotBlank(message = "Hospital code is required")
+    private String hospitalCode;
 
     @NotBlank(message = "Email is required")
     @Email(message = "Email must be valid")

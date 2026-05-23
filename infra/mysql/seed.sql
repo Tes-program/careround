@@ -16,6 +16,8 @@ TRUNCATE TABLE patient;
 TRUNCATE TABLE ward;
 TRUNCATE TABLE system_configuration;
 TRUNCATE TABLE refresh_tokens;
+TRUNCATE TABLE activation_token;
+TRUNCATE TABLE hospital_onboarding_request;
 TRUNCATE TABLE users;
 TRUNCATE TABLE hospital;
 
@@ -24,6 +26,13 @@ SET FOREIGN_KEY_CHECKS = 1;
 -- ============================================================
 -- 1. HOSPITAL
 -- ============================================================
+-- Sentinel record required for PLATFORM_ADMIN login (hospitalCode: "PLATFORM")
+INSERT INTO hospital (id, name, code, address, contact_email, contact_phone, is_active, created_at, updated_at) VALUES
+('00000000-0000-0000-0000-000000000000',
+ 'CareRound Platform', 'PLATFORM',
+ '', 'platform@careround.com', '',
+ TRUE, '2026-01-01 00:00:00', '2026-01-01 00:00:00');
+
 INSERT INTO hospital (id, name, code, address, contact_email, contact_phone, is_active, created_at, updated_at) VALUES
 ('10000000-0000-0000-0000-000000000001',
  'City General Hospital', 'CGH',
@@ -750,6 +759,13 @@ INSERT INTO users (id, hospital_id, first_name, last_name, email, password_hash,
  '$2a$10$cBQPTiKg7gtasDFZ1HLo8OWT.HsIGrPQhn526wOWJpVDSx.g7WnWG',
  'NURSE', TRUE, '2026-01-01 09:00:00', '2026-01-01 09:00:00');
 
+-- Platform admin (sentinel hospitalId, not a tenant)
+INSERT INTO users (id, hospital_id, first_name, last_name, email, password_hash, role, is_active, created_at, updated_at) VALUES
+('f0000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000000',
+ 'Platform', 'Admin', 'admin@careround.com',
+ '$2a$10$cBQPTiKg7gtasDFZ1HLo8OWT.HsIGrPQhn526wOWJpVDSx.g7WnWG',
+ 'PLATFORM_ADMIN', TRUE, '2026-01-01 08:00:00', '2026-01-01 08:00:00');
+
 -- ============================================================
 -- 4b. WARDS
 -- ============================================================
@@ -1248,4 +1264,8 @@ INSERT INTO handover_note (id, patient_id, hospital_id, author_id, content, crea
 --   n.eze@ligh.gov.ng              NURSE
 --   c.obiora@ligh.gov.ng           NURSE
 --   a.balogun@ligh.gov.ng          NURSE
+--
+--   --- PLATFORM_ADMIN (system-wide, no hospital tenant) ---
+--   admin@careround.com            PLATFORM_ADMIN
+--     hospitalId: 00000000-0000-0000-0000-000000000000 (sentinel)
 -- ============================================================

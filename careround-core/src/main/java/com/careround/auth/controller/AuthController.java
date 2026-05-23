@@ -1,11 +1,14 @@
 package com.careround.auth.controller;
 
-import com.careround.auth.dto.*;
+import com.careround.auth.dto.ActivateAccountRequest;
+import com.careround.auth.dto.ChangePasswordRequest;
+import com.careround.auth.dto.JwtResponse;
+import com.careround.auth.dto.LoginRequest;
+import com.careround.auth.dto.RefreshTokenRequest;
 import com.careround.auth.service.AuthService;
 import com.careround.shared.dto.ApiResponse;
 import com.careround.shared.security.HospitalContextHolder;
 import io.swagger.v3.oas.annotations.Operation;
-import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
@@ -25,9 +28,9 @@ public class AuthController {
     @PostMapping("/login")
     @Operation(summary = "Log in a tenant user")
     @ApiResponses({
-        @ApiResponse(responseCode = "200", description = "Login successful, tokens returned"),
-        @ApiResponse(responseCode = "400", description = "Invalid request body"),
-        @ApiResponse(responseCode = "401", description = "Bad credentials")
+        @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "Login successful, tokens returned"),
+        @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "400", description = "Invalid request body"),
+        @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "401", description = "Bad credentials")
     })
     public ResponseEntity<ApiResponse<JwtResponse>> login(
             @Valid @RequestBody LoginRequest request) {
@@ -38,8 +41,8 @@ public class AuthController {
     @PostMapping("/refresh")
     @Operation(summary = "Refresh tenant JWTs")
     @ApiResponses({
-        @ApiResponse(responseCode = "200", description = "New access and refresh tokens returned"),
-        @ApiResponse(responseCode = "400", description = "Invalid or expired refresh token")
+        @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "New access and refresh tokens returned"),
+        @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "400", description = "Invalid or expired refresh token")
     })
     public ResponseEntity<ApiResponse<JwtResponse>> refresh(
             @Valid @RequestBody RefreshTokenRequest request) {
@@ -50,8 +53,8 @@ public class AuthController {
     @PostMapping("/logout")
     @Operation(summary = "Log out a tenant user")
     @ApiResponses({
-        @ApiResponse(responseCode = "200", description = "Logged out, refresh token invalidated"),
-        @ApiResponse(responseCode = "400", description = "Invalid refresh token")
+        @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "Logged out, refresh token invalidated"),
+        @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "400", description = "Invalid refresh token")
     })
     public ResponseEntity<ApiResponse<Void>> logout(
             @Valid @RequestBody RefreshTokenRequest request) {
@@ -59,13 +62,26 @@ public class AuthController {
         return ResponseEntity.ok(ApiResponse.ok("Logged out successfully", null));
     }
 
+    @PostMapping("/activate-account")
+    @Operation(summary = "Activate a provisioned hospital admin account")
+    @ApiResponses({
+        @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "Account activated"),
+        @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "400", description = "Invalid request or token"),
+        @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "422", description = "Token expired")
+    })
+    public ResponseEntity<ApiResponse<Void>> activateAccount(
+            @Valid @RequestBody ActivateAccountRequest request) {
+        authService.activateAccount(request);
+        return ResponseEntity.ok(ApiResponse.ok("Account activated successfully. You may now log in.", null));
+    }
+
     @PostMapping("/change-password")
     @PreAuthorize("hasAnyRole('ADMIN', 'DOCTOR', 'NURSE', 'SUPERVISOR')")
     @Operation(summary = "Change the current user's password")
     @ApiResponses({
-        @ApiResponse(responseCode = "200", description = "Password changed successfully"),
-        @ApiResponse(responseCode = "400", description = "Invalid request or wrong current password"),
-        @ApiResponse(responseCode = "403", description = "Insufficient role")
+        @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "Password changed successfully"),
+        @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "400", description = "Invalid request or wrong current password"),
+        @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "403", description = "Insufficient role")
     })
     public ResponseEntity<ApiResponse<Void>> changePassword(
             @Valid @RequestBody ChangePasswordRequest request) {

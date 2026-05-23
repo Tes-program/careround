@@ -1,5 +1,6 @@
 package com.careround.auth.controller;
 
+import com.careround.auth.dto.AssignWardRequest;
 import com.careround.auth.dto.CreateUserRequest;
 import com.careround.auth.dto.UpdateDeviceTokenRequest;
 import com.careround.auth.dto.UserResponse;
@@ -71,6 +72,17 @@ public class UserController {
             @PathVariable String id) {
         userService.deactivate(HospitalContextHolder.getHospitalId(), id);
         return ResponseEntity.ok(ApiResponse.ok("User deactivated", null));
+    }
+
+    @PutMapping("/{id}/ward-assignment")
+    @PreAuthorize("hasRole('ADMIN')")
+    @Operation(summary = "Assign nurse to ward", description = "Assigns a user to a specific ward within the hospital tenant.")
+    public ResponseEntity<ApiResponse<UserResponse>> assignWard(
+            @Parameter(description = "User UUID") @PathVariable String id,
+            @Valid @RequestBody AssignWardRequest request) {
+        UserResponse user = userService.assignWard(
+                HospitalContextHolder.getHospitalId(), id, request.wardId());
+        return ResponseEntity.ok(ApiResponse.ok("Ward assigned successfully", user));
     }
 
     @PutMapping("/me/device-token")

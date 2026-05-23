@@ -21,4 +21,5 @@ public class UserResponse {
     private String fcmToken;
     private boolean isActive;
     private LocalDateTime createdAt;
+    private String wardId;
 }

@@ -53,7 +53,7 @@ class UserServiceTest {
     void create_withUniqueEmail_shouldSaveAndReturnUser() {
         CreateUserRequest request = new CreateUserRequest(
                 "Jane", "Doe", "jane.doe@hospital.com",
-                "password123", UserRole.NURSE);
+                "password123", UserRole.NURSE, null);
 
         when(userRepository.existsByHospitalIdAndEmail("hospital-456", "jane.doe@hospital.com"))
                 .thenReturn(false);
@@ -82,7 +82,7 @@ class UserServiceTest {
                 .thenReturn(true);
 
         assertThatThrownBy(() -> userService.create("hospital-456",
-                new CreateUserRequest("J", "S", "john.smith@hospital.com", "pass", UserRole.NURSE)))
+                new CreateUserRequest("J", "S", "john.smith@hospital.com", "pass", UserRole.NURSE, null)))
                 .isInstanceOf(BusinessRuleException.class)
                 .hasMessageContaining("already exists");
     }

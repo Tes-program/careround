@@ -15,4 +15,6 @@ public interface UserService {
     List<UserResponse> listByHospital(String hospitalId);
 
     void updateDeviceToken(String userId, String hospitalId, String deviceToken);
+
+    UserResponse assignWard(String hospitalId, String userId, String wardId);
 }

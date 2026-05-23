@@ -47,4 +47,7 @@ public class User extends BaseEntity {
 
     @Column(name = "fcm_token", length = 512)
     private String fcmToken;
+
+    @Column(name = "ward_id", length = 36)
+    private String wardId;
 }

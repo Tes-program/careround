@@ -45,7 +45,7 @@ class UserControllerTest {
         sampleUser = new UserResponse(
                 "user-123", "hospital-456", "Jane", "Doe",
                 "jane.doe@hospital.com", UserRole.NURSE, null,
-                true, LocalDateTime.now());
+                true, LocalDateTime.now(), null);
     }
 
     @AfterEach
@@ -62,7 +62,7 @@ class UserControllerTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(new CreateUserRequest(
                                 "Jane", "Doe", "jane.doe@hospital.com",
-                                "password123", UserRole.NURSE))))
+                                "password123", UserRole.NURSE, null))))
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.data.email").value("jane.doe@hospital.com"))
                 .andExpect(jsonPath("$.data.role").value("NURSE"));
@@ -74,7 +74,7 @@ class UserControllerTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(new CreateUserRequest(
                                 "Jane", "Doe", "jane.doe@hospital.com",
-                                "password123", UserRole.NURSE))))
+                                "password123", UserRole.NURSE, null))))
                 .andExpect(status().isUnauthorized());
     }
 

@@ -1,6 +1,7 @@
 package com.careround.auth.repository;
 
 import com.careround.auth.entity.User;
+import com.careround.auth.enums.UserRole;
 import org.springframework.data.jpa.repository.JpaRepository;
 
 import java.util.List;
@@ -19,5 +20,8 @@ public interface UserRepository extends JpaRepository<User, String> {
     Optional<User> findByHospitalIdAndEmailAndIsActiveTrue(String hospitalId, String email);
 
     long countByHospitalIdAndIsActiveTrue(String hospitalId);
+
+    List<User> findAllByHospitalIdAndRoleAndWardIdAndIsActiveTrue(
+            String hospitalId, UserRole role, String wardId);
 
 }

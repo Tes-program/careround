@@ -8,4 +8,6 @@ public interface HospitalRepository extends JpaRepository<Hospital, String> {
     boolean existsByContactEmail(String contactEmail);
 
     boolean existsByCode(String code);
+
+    java.util.Optional<Hospital> findByCodeIgnoreCaseAndIsActiveTrue(String code);
 }

@@ -39,6 +39,12 @@ public class GlobalExceptionHandler {
                 .body(error(404, "Not Found", "Resource not found", request));
     }
 
+    @ExceptionHandler(BadCredentialsException.class)
+    public ResponseEntity<ErrorResponse> handleBadCredentials(BadCredentialsException ex, HttpServletRequest request) {
+        return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                .body(error(401, "Unauthorized", ex.getMessage(), request));
+    }
+
     @ExceptionHandler(AccessDeniedException.class)
     public ResponseEntity<ErrorResponse> handleAccessDenied(AccessDeniedException ex, HttpServletRequest request) {
         return ResponseEntity.status(HttpStatus.FORBIDDEN)

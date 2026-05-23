@@ -5,7 +5,6 @@ import com.careround.hospital.hospital.dto.UpdateSystemConfigRequest;
 import com.careround.shared.dto.ApiResponse;
 import com.careround.shared.security.HospitalContextHolder;
 import io.swagger.v3.oas.annotations.Operation;
-import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
@@ -30,8 +29,8 @@ public class SystemConfigurationController {
     @PreAuthorize("hasRole('ADMIN')")
     @Operation(summary = "Get system configuration", description = "Returns the authenticated hospital's configuration.")
     @ApiResponses({
-        @ApiResponse(responseCode = "200", description = "Configuration returned"),
-        @ApiResponse(responseCode = "403", description = "Insufficient role")
+        @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "Configuration returned"),
+        @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "403", description = "Insufficient role")
     })
     public ResponseEntity<ApiResponse<SystemConfigResponse>> get() {
         SystemConfigResponse response = systemConfigurationService
@@ -43,9 +42,9 @@ public class SystemConfigurationController {
     @PreAuthorize("hasRole('ADMIN')")
     @Operation(summary = "Update system configuration", description = "Updates the authenticated hospital's configuration.")
     @ApiResponses({
-        @ApiResponse(responseCode = "200", description = "Configuration updated"),
-        @ApiResponse(responseCode = "400", description = "Invalid request body"),
-        @ApiResponse(responseCode = "403", description = "Insufficient role")
+        @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "Configuration updated"),
+        @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "400", description = "Invalid request body"),
+        @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "403", description = "Insufficient role")
     })
     public ResponseEntity<ApiResponse<SystemConfigResponse>> update(
             @Valid @RequestBody UpdateSystemConfigRequest request) {

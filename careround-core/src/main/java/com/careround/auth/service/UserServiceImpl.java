@@ -4,6 +4,7 @@ import com.careround.auth.dto.CreateUserRequest;
 import com.careround.auth.dto.UserResponse;
 import com.careround.auth.entity.User;
 import com.careround.auth.repository.UserRepository;
+import com.careround.hospital.repository.WardRepository;
 import com.careround.shared.exception.BusinessRuleException;
 import com.careround.shared.exception.ResourceNotFoundException;
 import lombok.RequiredArgsConstructor;
@@ -19,6 +20,7 @@ import java.util.Locale;
 public class UserServiceImpl implements UserService {
 
     private final UserRepository userRepository;
+    private final WardRepository wardRepository;
     private final PasswordEncoder passwordEncoder;
 
     @Override
@@ -38,6 +40,7 @@ public class UserServiceImpl implements UserService {
         user.setEmail(email);
         user.setPasswordHash(passwordEncoder.encode(request.getPassword()));
         user.setRole(request.getRole());
+        user.setWardId(request.getWardId());
         user.setActive(true);
 
         return toResponse(userRepository.save(user));
@@ -69,6 +72,17 @@ public class UserServiceImpl implements UserService {
     }
 
     @Override
+    @Transactional
+    public UserResponse assignWard(String hospitalId, String userId, String wardId) {
+        User user = userRepository.findByIdAndHospitalId(userId, hospitalId)
+                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
+        wardRepository.findByIdAndHospitalId(wardId, hospitalId)
+                .orElseThrow(() -> new ResourceNotFoundException("Ward not found"));
+        user.setWardId(wardId);
+        return toResponse(userRepository.save(user));
+    }
+
+    @Override
     @Transactional(readOnly = true)
     public List<UserResponse> listByHospital(String hospitalId) {
         return userRepository.findAllByHospitalIdAndIsActiveTrue(hospitalId)
@@ -87,7 +101,8 @@ public class UserServiceImpl implements UserService {
                 user.getRole(),
                 user.getFcmToken(),
                 user.isActive(),
-                user.getCreatedAt()
+                user.getCreatedAt(),
+                user.getWardId()
         );
     }
 }
