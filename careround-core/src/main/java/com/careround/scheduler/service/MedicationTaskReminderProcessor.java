@@ -1,5 +1,6 @@
 package com.careround.scheduler.service;
 
+import com.careround.auth.repository.UserRepository;
 import com.careround.patient.medicationchart.MedicationChartRepository;
 import com.careround.patient.medicationchart.entity.MedicationChart;
 import com.careround.patient.medicationtask.MedicationTaskRepository;
@@ -7,6 +8,7 @@ import com.careround.patient.medicationtask.entity.MedicationTask;
 import com.careround.patient.medicationtask.enums.MedicationTaskStatus;
 import com.careround.patient.prescription.PrescriptionRepository;
 import com.careround.patient.prescription.entity.Prescription;
+import com.careround.patient.repository.PatientRepository;
 import com.careround.shared.event.MedicationTaskOverdueEvent;
 import com.careround.shared.event.MedicationTaskReminderEvent;
 import com.careround.shared.exception.ResourceNotFoundException;
@@ -37,6 +39,8 @@ public class MedicationTaskReminderProcessor {
     private final MedicationTaskRepository medicationTaskRepository;
     private final MedicationChartRepository medicationChartRepository;
     private final PrescriptionRepository prescriptionRepository;
+    private final PatientRepository patientRepository;
+    private final UserRepository userRepository;
     private final OutboxService outboxService;
 
     @Transactional
@@ -107,12 +111,38 @@ public class MedicationTaskReminderProcessor {
 
         long minutesOverdue = ChronoUnit.MINUTES.between(task.getScheduledTime(), now);
 
+        String patientName = resolvePatientName(task.getPatientId(), hospitalId);
+        String deviceToken  = resolveNurseFcmToken(task.getAssignedNurseId(), hospitalId);
+
         outboxService.publish("medication-task-overdue",
                 new MedicationTaskOverdueEvent(UUID.randomUUID().toString(),
                         task.getId(), task.getPatientId(), task.getWardId(), hospitalId,
                         task.getAssignedNurseId(), prescription.getDrugName(), prescription.getDose(),
-                        task.getScheduledTime(), minutesOverdue, MDC.get("correlationId"), now),
+                        task.getScheduledTime(), minutesOverdue, MDC.get("correlationId"), now,
+                        patientName, deviceToken),
                 hospitalId);
+    }
+
+    /** Returns "FirstName LastName", or null when patient record not found. */
+    private String resolvePatientName(String patientId, String hospitalId) {
+        if (patientId == null) return null;
+        return patientRepository.findByIdAndHospitalId(patientId, hospitalId)
+                .map(p -> p.getFirstName() + " " + p.getLastName())
+                .orElseGet(() -> {
+                    log.warn("action=PATIENT_NOT_FOUND patientId={} — patientName will be null", patientId);
+                    return null;
+                });
+    }
+
+    /** Returns the nurse's FCM token, or null when user record not found or token unset. */
+    private String resolveNurseFcmToken(String nurseId, String hospitalId) {
+        if (nurseId == null) return null;
+        return userRepository.findByIdAndHospitalId(nurseId, hospitalId)
+                .map(u -> u.getFcmToken())
+                .orElseGet(() -> {
+                    log.warn("action=NURSE_NOT_FOUND nurseId={} — deviceToken will be null", nurseId);
+                    return null;
+                });
     }
 
     private Prescription lookupPrescription(MedicationTask task, String hospitalId) {

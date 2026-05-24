@@ -15,6 +15,8 @@ public interface PatientService {
 
     List<PatientResponse> getAllPatients(PatientStatus status, String nameQuery);
 
+    List<PatientResponse> getPatients(String hospitalId, String wardId, PatientStatus status);
+
     List<PatientResponse> getPatientsByWard(String wardId, String nameQuery);
 
     PatientResponse updatePatientStatus(String patientId, UpdatePatientStatusRequest request);

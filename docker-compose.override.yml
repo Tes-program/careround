@@ -1,0 +1,18 @@
+# Development override — keeps Spring Boot app containers behind the "app" profile
+# so that `docker-compose up` (no flags) ONLY starts infrastructure.
+#
+# Start infra only (for IntelliJ / local dev):
+#   docker-compose up -d
+#
+# Start everything (after rebuilding images):
+#   docker-compose --profile app up -d --build
+
+services:
+  careround-core:
+    profiles: [app]
+
+  careround-notification:
+    profiles: [app]
+
+  careround-audit:
+    profiles: [app]

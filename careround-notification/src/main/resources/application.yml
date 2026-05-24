@@ -74,7 +74,9 @@ careround:
     service-account-jwt: ${CAREROUND_SERVICE_ACCOUNT_JWT:}
 
 firebase:
-  service-account-path: ${FIREBASE_SERVICE_ACCOUNT_PATH:config/firebase-service-account.json}
+  service-account-path: ${FIREBASE_SERVICE_ACCOUNT_PATH:classpath:firebase-service-account.json}
+  project-id: ${FIREBASE_PROJECT_ID:careround-mobile}
+  enabled: ${FIREBASE_ENABLED:true}
 
 logging:
   level:

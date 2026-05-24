@@ -163,6 +163,7 @@ public class UserServiceImpl implements UserService {
                 user.getFcmToken(),
                 user.isActive(),
                 user.getCreatedAt(),
+                user.getUpdatedAt(),
                 user.getWardId()
         );
     }

@@ -46,10 +46,11 @@ class PatientVitalsControllerTest {
     void setUp() {
         HospitalContextHolder.set("hosp-1", "user-1", UserRole.NURSE);
         sample = new VitalsResponse(
-                "v-1", "p-1", "hosp-1", "user-1",
+                "v-1", "p-1", "hosp-1", "user-1", "Test Nurse",
                 75, 120, 80, 12,
                 new BigDecimal("37.0"), new BigDecimal("98.0"),
-                0, VhiStatus.STABLE, LocalDateTime.now());
+                0, VhiStatus.STABLE, LocalDateTime.now(),
+                LocalDateTime.now(), LocalDateTime.now());
     }
 
     @AfterEach

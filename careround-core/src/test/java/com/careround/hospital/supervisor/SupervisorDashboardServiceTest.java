@@ -59,6 +59,10 @@ class SupervisorDashboardServiceTest {
                 .findAllByWardIdAndHospitalIdAndStatusAndScheduledTimeBetweenOrderByScheduledTimeAsc(
                         any(), any(), any(), any(), any()))
                 .thenReturn(List.of());
+        lenient().when(medicationTaskRepository
+                .findAllByWardIdAndHospitalIdAndStatusAndCompletedAtBetweenOrderByCompletedAtAsc(
+                        any(), any(), eq(MedicationTaskStatus.COMPLETED), any(), any()))
+                .thenReturn(List.of());
     }
 
     @AfterEach

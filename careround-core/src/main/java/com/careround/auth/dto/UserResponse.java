@@ -1,6 +1,7 @@
 package com.careround.auth.dto;
 
 import com.careround.auth.enums.UserRole;
+import com.fasterxml.jackson.annotation.JsonProperty;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.Setter;
@@ -19,7 +20,9 @@ public class UserResponse {
     private String email;
     private UserRole role;
     private String fcmToken;
+    @JsonProperty("active")
     private boolean isActive;
     private LocalDateTime createdAt;
+    private LocalDateTime updatedAt;
     private String wardId;
 }

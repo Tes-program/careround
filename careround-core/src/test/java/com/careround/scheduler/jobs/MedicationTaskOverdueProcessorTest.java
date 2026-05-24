@@ -1,5 +1,8 @@
 package com.careround.scheduler.jobs;
 
+import com.careround.auth.entity.User;
+import com.careround.auth.repository.UserRepository;
+import com.careround.patient.entity.Patient;
 import com.careround.patient.medicationchart.MedicationChartRepository;
 import com.careround.patient.medicationchart.entity.MedicationChart;
 import com.careround.patient.medicationtask.MedicationTaskRepository;
@@ -7,6 +10,7 @@ import com.careround.patient.medicationtask.entity.MedicationTask;
 import com.careround.patient.medicationtask.enums.MedicationTaskStatus;
 import com.careround.patient.prescription.PrescriptionRepository;
 import com.careround.patient.prescription.entity.Prescription;
+import com.careround.patient.repository.PatientRepository;
 import com.careround.scheduler.service.MedicationTaskReminderProcessor;
 import com.careround.shared.event.MedicationTaskOverdueEvent;
 import com.careround.shared.event.MedicationTaskReminderEvent;
@@ -38,8 +42,10 @@ class MedicationTaskOverdueProcessorTest {
 
     @Mock private MedicationTaskRepository medicationTaskRepository;
     @Mock private MedicationChartRepository medicationChartRepository;
-    @Mock private PrescriptionRepository prescriptionRepository;
-    @Mock private OutboxService outboxService;
+    @Mock private PrescriptionRepository    prescriptionRepository;
+    @Mock private PatientRepository         patientRepository;
+    @Mock private UserRepository            userRepository;
+    @Mock private OutboxService             outboxService;
 
     @InjectMocks private MedicationTaskReminderProcessor processor;
 
@@ -51,6 +57,7 @@ class MedicationTaskOverdueProcessorTest {
                 LocalDateTime.now(ZoneOffset.UTC).minusMinutes(10));
         stubOverdueQuery(task);
         setupChartAndPrescription("chart-1", "rx-1", "hosp-1");
+        stubPatientAndNurse("patient-1", "hosp-1", "nurse-1");
 
         processor.processOverdue();
 
@@ -66,6 +73,7 @@ class MedicationTaskOverdueProcessorTest {
                 LocalDateTime.now(ZoneOffset.UTC).minusMinutes(5));
         stubOverdueQuery(t1, t2);
         setupChartAndPrescription("chart-1", "rx-1", "hosp-1");
+        stubPatientAndNurse("patient-1", "hosp-1", "nurse-1");
 
         int count = processor.processOverdue();
 
@@ -90,8 +98,10 @@ class MedicationTaskOverdueProcessorTest {
                 LocalDateTime.now(ZoneOffset.UTC).minusMinutes(45));
         stubOverdueQuery(task);
         setupChartAndPrescription("chart-1", "rx-1", "hosp-1");
+        stubPatientAndNurse("patient-1", "hosp-1", "nurse-1");
 
-        ArgumentCaptor<MedicationTaskOverdueEvent> captor = ArgumentCaptor.forClass(MedicationTaskOverdueEvent.class);
+        ArgumentCaptor<MedicationTaskOverdueEvent> captor =
+                ArgumentCaptor.forClass(MedicationTaskOverdueEvent.class);
         processor.processOverdue();
 
         verify(outboxService).publish(any(), captor.capture(), any());
@@ -104,6 +114,7 @@ class MedicationTaskOverdueProcessorTest {
                 LocalDateTime.now(ZoneOffset.UTC).minusMinutes(10));
         stubOverdueQuery(task);
         setupChartAndPrescription("chart-1", "rx-1", "hosp-1");
+        stubPatientAndNurse("patient-1", "hosp-1", "nurse-1");
 
         processor.processOverdue();
 
@@ -116,6 +127,7 @@ class MedicationTaskOverdueProcessorTest {
                 LocalDateTime.now(ZoneOffset.UTC).minusMinutes(10));
         stubOverdueQuery(task);
         setupChartAndPrescription("chart-1", "rx-1", "hosp-specific");
+        stubPatientAndNurse("patient-1", "hosp-specific", "nurse-1");
 
         HospitalContextHolder.clear();
         processor.processOverdue();
@@ -129,13 +141,53 @@ class MedicationTaskOverdueProcessorTest {
                 LocalDateTime.now(ZoneOffset.UTC).minusMinutes(10));
         stubOverdueQuery(task);
         setupChartAndPrescription("chart-1", "rx-1", "hosp-1");
+        stubPatientAndNurse("patient-1", "hosp-1", "nurse-1");
 
-        ArgumentCaptor<MedicationTaskOverdueEvent> captor = ArgumentCaptor.forClass(MedicationTaskOverdueEvent.class);
+        ArgumentCaptor<MedicationTaskOverdueEvent> captor =
+                ArgumentCaptor.forClass(MedicationTaskOverdueEvent.class);
         processor.processOverdue();
 
         verify(outboxService).publish(any(), captor.capture(), any());
         assertThat(captor.getValue().drugName()).isEqualTo("Aspirin");
         assertThat(captor.getValue().dose()).isEqualTo("100mg");
+    }
+
+    @Test
+    void processOverdue_includesPatientName_andDeviceToken_inEvent() {
+        MedicationTask task = pendingTask("task-1", "hosp-1", "chart-1",
+                LocalDateTime.now(ZoneOffset.UTC).minusMinutes(10));
+        stubOverdueQuery(task);
+        setupChartAndPrescription("chart-1", "rx-1", "hosp-1");
+        stubPatientAndNurse("patient-1", "hosp-1", "nurse-1");
+
+        ArgumentCaptor<MedicationTaskOverdueEvent> captor =
+                ArgumentCaptor.forClass(MedicationTaskOverdueEvent.class);
+        processor.processOverdue();
+
+        verify(outboxService).publish(any(), captor.capture(), any());
+        assertThat(captor.getValue().patientName()).isEqualTo("Alice Smith");
+        assertThat(captor.getValue().deviceToken()).isEqualTo("fcm-token-nurse-1");
+    }
+
+    @Test
+    void processOverdue_setsNullPatientName_whenPatientNotFound() {
+        MedicationTask task = pendingTask("task-1", "hosp-1", "chart-1",
+                LocalDateTime.now(ZoneOffset.UTC).minusMinutes(10));
+        stubOverdueQuery(task);
+        setupChartAndPrescription("chart-1", "rx-1", "hosp-1");
+
+        when(patientRepository.findByIdAndHospitalId("patient-1", "hosp-1"))
+                .thenReturn(Optional.empty());
+        when(userRepository.findByIdAndHospitalId("nurse-1", "hosp-1"))
+                .thenReturn(Optional.empty());
+
+        ArgumentCaptor<MedicationTaskOverdueEvent> captor =
+                ArgumentCaptor.forClass(MedicationTaskOverdueEvent.class);
+        processor.processOverdue();
+
+        verify(outboxService).publish(any(), captor.capture(), any());
+        assertThat(captor.getValue().patientName()).isNull();
+        assertThat(captor.getValue().deviceToken()).isNull();
     }
 
     // ─── processReminders tests ──────────────────────────────────────────────
@@ -172,7 +224,8 @@ class MedicationTaskOverdueProcessorTest {
         stubReminderQuery(task);
         setupChartAndPrescription("chart-1", "rx-1", "hosp-1");
 
-        ArgumentCaptor<MedicationTaskReminderEvent> captor = ArgumentCaptor.forClass(MedicationTaskReminderEvent.class);
+        ArgumentCaptor<MedicationTaskReminderEvent> captor =
+                ArgumentCaptor.forClass(MedicationTaskReminderEvent.class);
         processor.processReminders();
 
         verify(outboxService).publish(any(), captor.capture(), any());
@@ -188,6 +241,7 @@ class MedicationTaskOverdueProcessorTest {
         t.setPatientId("patient-1");
         t.setHospitalId(hospitalId);
         t.setWardId("ward-1");
+        t.setAssignedNurseId("nurse-1");
         t.setMedicationChartId(chartId);
         t.setScheduledTime(scheduledTime);
         t.setStatus(MedicationTaskStatus.PENDING);
@@ -234,5 +288,18 @@ class MedicationTaskOverdueProcessorTest {
                 .thenReturn(Optional.of(chart));
         when(prescriptionRepository.findByIdAndHospitalId(prescriptionId, hospitalId))
                 .thenReturn(Optional.of(prescription));
+    }
+
+    private void stubPatientAndNurse(String patientId, String hospitalId, String nurseId) {
+        Patient patient = new Patient();
+        patient.setFirstName("Alice");
+        patient.setLastName("Smith");
+        when(patientRepository.findByIdAndHospitalId(patientId, hospitalId))
+                .thenReturn(Optional.of(patient));
+
+        User nurse = new User();
+        nurse.setFcmToken("fcm-token-" + nurseId);
+        when(userRepository.findByIdAndHospitalId(nurseId, hospitalId))
+                .thenReturn(Optional.of(nurse));
     }
 }

@@ -2,11 +2,14 @@ package com.careround.patient.clinicalnote;
 
 import com.careround.ai.client.AiServiceClient;
 import com.careround.ai.dto.ExtractedPrescription;
+import com.careround.patient.clinicalnote.dto.ClinicalNoteContent;
 import com.careround.patient.clinicalnote.dto.ClinicalNoteResponse;
 import com.careround.patient.clinicalnote.dto.ConfirmNoteRequest;
 import com.careround.patient.clinicalnote.dto.ConfirmNoteResponse;
+import com.careround.patient.clinicalnote.dto.ConfirmWardRoundNoteRequest;
 import com.careround.patient.clinicalnote.dto.CreateClinicalNoteRequest;
 import com.careround.patient.entity.ClinicalNote;
+import com.careround.patient.enums.NoteType;
 import com.careround.patient.prescription.PrescriptionRepository;
 import com.careround.patient.prescription.dto.CreatePrescriptionRequest;
 import com.careround.patient.prescription.entity.Prescription;
@@ -174,6 +177,70 @@ public class ClinicalNoteServiceImpl implements ClinicalNoteService {
             return LocalDateTime.of(baseDate, LocalTime.parse(value));
         } catch (DateTimeParseException ignored) {}
         return LocalDateTime.of(baseDate, LocalTime.NOON);
+    }
+
+    @Override
+    @Transactional
+    public ConfirmNoteResponse confirmWardRoundNote(String hospitalId, String patientId,
+                                                    String doctorId, ConfirmWardRoundNoteRequest request) {
+        patientRepository.findByIdAndHospitalId(patientId, hospitalId)
+                .orElseThrow(() -> new ResourceNotFoundException("Patient not found"));
+
+        ClinicalNoteContent soap = request.clinicalNote();
+        String soapContent = "S: " + soap.subjective()
+                + "\nO: " + soap.objective()
+                + "\nA: " + soap.assessment()
+                + "\nP: " + soap.plan();
+
+        LocalDateTime now = LocalDateTime.now(ZoneOffset.UTC);
+
+        ClinicalNote note = new ClinicalNote();
+        note.setPatientId(patientId);
+        note.setHospitalId(hospitalId);
+        note.setAuthorId(doctorId);
+        note.setNoteType(NoteType.WARD_ROUND_NOTE);
+        note.setContent(soapContent);
+        note.setRawTranscription(request.rawTranscription());
+        note.setAiGenerated(true);
+        note.setConfirmedByDoctorAt(now);
+        ClinicalNote savedNote = clinicalNoteRepository.save(note);
+
+        List<String> prescriptionIds = new ArrayList<>();
+
+        for (CreatePrescriptionRequest pr : request.prescriptions()) {
+            Prescription prescription = new Prescription();
+            prescription.setPatientId(patientId);
+            prescription.setHospitalId(hospitalId);
+            prescription.setClinicalNoteId(savedNote.getId());
+            prescription.setDrugName(pr.drugName());
+            prescription.setDose(pr.dose());
+            prescription.setRoute(pr.route());
+            prescription.setFrequencyString(pr.frequencyString());
+            prescription.setFrequencyHours(pr.frequencyHours());
+            prescription.setTotalDoses(pr.totalDoses());
+            prescription.setStartTime(pr.startTime());
+            prescription.setAdministrationTimes(pr.administrationTimes());
+            prescription.setConfirmedById(doctorId);
+            prescription.setConfirmedAt(now);
+            Prescription savedPrescription = prescriptionRepository.save(prescription);
+            prescriptionIds.add(savedPrescription.getId());
+
+            outboxService.publish("prescription-confirmed",
+                    new PrescriptionConfirmedEvent(UUID.randomUUID().toString(),
+                            savedPrescription.getId(), patientId,
+                            hospitalId, MDC.get("correlationId"), now),
+                    hospitalId);
+        }
+
+        outboxService.publish("clinical-note-saved",
+                new ClinicalNoteSavedEvent(UUID.randomUUID().toString(),
+                        savedNote.getId(), patientId,
+                        hospitalId, MDC.get("correlationId"), now),
+                hospitalId);
+
+        log.info("action=confirmWardRoundNote noteId={} prescriptions={} patientId={}",
+                savedNote.getId(), prescriptionIds.size(), patientId);
+        return new ConfirmNoteResponse(savedNote.getId(), prescriptionIds);
     }
 
     private ClinicalNoteResponse toResponse(ClinicalNote n) {

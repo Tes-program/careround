@@ -1,10 +1,14 @@
 package com.careround.patient.patient;
 
+import com.careround.patient.clinicalnote.ClinicalNoteService;
+import com.careround.patient.clinicalnote.dto.ConfirmNoteResponse;
+import com.careround.patient.clinicalnote.dto.ConfirmWardRoundNoteRequest;
 import com.careround.patient.enums.PatientStatus;
 import com.careround.patient.patient.dto.AdmitPatientRequest;
 import com.careround.patient.patient.dto.PatientResponse;
 import com.careround.patient.patient.dto.UpdatePatientStatusRequest;
 import com.careround.shared.dto.ApiResponse;
+import com.careround.shared.security.HospitalContextHolder;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -31,6 +35,7 @@ import java.util.List;
 public class PatientController {
 
     private final PatientService patientService;
+    private final ClinicalNoteService clinicalNoteService;
 
     @PostMapping
     @PreAuthorize("hasRole('ADMIN')")
@@ -42,12 +47,23 @@ public class PatientController {
     }
 
     @GetMapping
-    @Operation(summary = "List all patients", description = "Returns all patients for the hospital ordered by most recently admitted first. Optional ?status= filters by status; optional ?q= searches by first or last name.")
+    @PreAuthorize("hasAnyRole('ADMIN','DOCTOR','NURSE','SUPERVISOR')")
+    @Operation(summary = "List all patients",
+            description = "Returns patients for the hospital. Optional ?wardId= filters by ward; " +
+                    "optional ?status= filters by status; optional ?q= searches by name (ignored when wardId is set).")
     public ResponseEntity<ApiResponse<List<PatientResponse>>> getAllPatients(
+            @Parameter(description = "Optional ward filter")
+            @RequestParam(required = false) String wardId,
             @Parameter(description = "Optional status filter")
             @RequestParam(required = false) PatientStatus status,
             @Parameter(description = "Optional name search (first or last name, case-insensitive)")
             @RequestParam(required = false) String q) {
+        String hospitalId = HospitalContextHolder.getHospitalId();
+        // When wardId is supplied, or when no name-search is needed, use the ward-aware path
+        if (wardId != null || q == null || q.isBlank()) {
+            return ResponseEntity.ok(ApiResponse.ok(patientService.getPatients(hospitalId, wardId, status)));
+        }
+        // Fall back to name-search path (wardId not applicable here)
         return ResponseEntity.ok(ApiResponse.ok(patientService.getAllPatients(status, q)));
     }
 
@@ -67,6 +83,21 @@ public class PatientController {
             @Parameter(description = "Optional name search (first or last name, case-insensitive)")
             @RequestParam(required = false) String q) {
         return ResponseEntity.ok(ApiResponse.ok(patientService.getPatientsByWard(wardId, q)));
+    }
+
+    @PostMapping("/{patientId}/notes/confirm")
+    @PreAuthorize("hasRole('DOCTOR')")
+    @Operation(summary = "Confirm ward-round note with prescriptions",
+            description = "Atomically saves a confirmed ward-round clinical note and its associated prescriptions " +
+                    "under the patient resource. Triggers the async prescription → chart → task chain via Kafka.")
+    public ResponseEntity<ApiResponse<ConfirmNoteResponse>> confirmNote(
+            @Parameter(description = "Patient UUID") @PathVariable String patientId,
+            @Valid @RequestBody ConfirmWardRoundNoteRequest request) {
+        String doctorId = HospitalContextHolder.getUserId();
+        String hospitalId = HospitalContextHolder.getHospitalId();
+        ConfirmNoteResponse response = clinicalNoteService.confirmWardRoundNote(hospitalId, patientId, doctorId, request);
+        return ResponseEntity.status(HttpStatus.CREATED)
+                .body(ApiResponse.ok("Ward round note confirmed", response));
     }
 
     @PatchMapping("/{patientId}/status")

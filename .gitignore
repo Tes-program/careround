@@ -44,3 +44,5 @@ local.properties
 Thumbs.db
 README.md
 CLAUDE.md
+
+**/firebase-service-account.json

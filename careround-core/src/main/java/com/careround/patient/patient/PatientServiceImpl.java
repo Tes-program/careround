@@ -110,6 +110,23 @@ public class PatientServiceImpl implements PatientService {
 
     @Override
     @Transactional(readOnly = true)
+    public List<PatientResponse> getPatients(String hospitalId, String wardId, PatientStatus status) {
+        List<Patient> patients;
+        if (wardId != null && !wardId.isBlank() && status != null) {
+            patients = patientRepository.findAllByHospitalIdAndWardIdAndStatusOrderByAdmissionDateDesc(
+                    hospitalId, wardId, status);
+        } else if (wardId != null && !wardId.isBlank()) {
+            patients = patientRepository.findAllByHospitalIdAndWardIdOrderByAdmissionDateDesc(hospitalId, wardId);
+        } else if (status != null) {
+            patients = patientRepository.findAllByHospitalIdAndStatusOrderByAdmissionDateDesc(hospitalId, status);
+        } else {
+            patients = patientRepository.findAllByHospitalIdOrderByAdmissionDateDesc(hospitalId);
+        }
+        return patients.stream().map(this::toResponse).toList();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
     public List<PatientResponse> getPatientsByWard(String wardId, String nameQuery) {
         String hospitalId = HospitalContextHolder.getHospitalId();
         wardRepository.findByIdAndHospitalId(wardId, hospitalId)
