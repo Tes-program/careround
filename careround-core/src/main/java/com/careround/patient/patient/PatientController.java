@@ -6,6 +6,7 @@ import com.careround.patient.clinicalnote.dto.ConfirmWardRoundNoteRequest;
 import com.careround.patient.enums.PatientStatus;
 import com.careround.patient.patient.dto.AdmitPatientRequest;
 import com.careround.patient.patient.dto.PatientResponse;
+import com.careround.patient.patient.dto.UpdatePatientRequest;
 import com.careround.patient.patient.dto.UpdatePatientStatusRequest;
 import com.careround.shared.dto.ApiResponse;
 import com.careround.shared.security.HospitalContextHolder;
@@ -21,6 +22,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -98,6 +100,16 @@ public class PatientController {
         ConfirmNoteResponse response = clinicalNoteService.confirmWardRoundNote(hospitalId, patientId, doctorId, request);
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(ApiResponse.ok("Ward round note confirmed", response));
+    }
+
+    @PutMapping("/{patientId}")
+    @PreAuthorize("hasRole('ADMIN')")
+    @Operation(summary = "Update patient", description = "Updates a patient's personal and admission information.")
+    public ResponseEntity<ApiResponse<PatientResponse>> updatePatient(
+            @Parameter(description = "Patient UUID", example = "550e8400-e29b-41d4-a716-446655440000")
+            @PathVariable String patientId,
+            @Valid @RequestBody UpdatePatientRequest request) {
+        return ResponseEntity.ok(ApiResponse.ok("Patient updated", patientService.updatePatient(patientId, request)));
     }
 
     @PatchMapping("/{patientId}/status")

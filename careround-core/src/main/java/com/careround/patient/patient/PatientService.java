@@ -3,6 +3,7 @@ package com.careround.patient.patient;
 import com.careround.patient.enums.PatientStatus;
 import com.careround.patient.patient.dto.AdmitPatientRequest;
 import com.careround.patient.patient.dto.PatientResponse;
+import com.careround.patient.patient.dto.UpdatePatientRequest;
 import com.careround.patient.patient.dto.UpdatePatientStatusRequest;
 
 import java.util.List;
@@ -18,6 +19,8 @@ public interface PatientService {
     List<PatientResponse> getPatients(String hospitalId, String wardId, PatientStatus status);
 
     List<PatientResponse> getPatientsByWard(String wardId, String nameQuery);
+
+    PatientResponse updatePatient(String patientId, UpdatePatientRequest request);
 
     PatientResponse updatePatientStatus(String patientId, UpdatePatientStatusRequest request);
 }

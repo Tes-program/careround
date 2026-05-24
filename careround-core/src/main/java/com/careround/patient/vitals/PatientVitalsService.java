@@ -9,6 +9,8 @@ public interface PatientVitalsService {
 
     VitalsResponse recordVitals(String patientId, RecordVitalsRequest request);
 
+    VitalsResponse updateVitals(String patientId, String vitalsId, RecordVitalsRequest request);
+
     List<VitalsResponse> getVitalsHistory(String patientId, int limit);
 
     VitalsResponse getLatestVitals(String patientId);

@@ -11,4 +11,6 @@ public interface PatientVitalsRepository extends JpaRepository<PatientVitals, St
     List<PatientVitals> findAllByPatientIdAndHospitalIdOrderByRecordedAtDesc(String patientId, String hospitalId);
 
     Optional<PatientVitals> findFirstByPatientIdAndHospitalIdOrderByRecordedAtDesc(String patientId, String hospitalId);
+
+    Optional<PatientVitals> findByIdAndPatientIdAndHospitalId(String id, String patientId, String hospitalId);
 }

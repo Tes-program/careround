@@ -88,6 +88,44 @@ public class PatientVitalsServiceImpl implements PatientVitalsService {
     }
 
     @Override
+    @Transactional
+    public VitalsResponse updateVitals(String patientId, String vitalsId, RecordVitalsRequest request) {
+        String hospitalId = HospitalContextHolder.getHospitalId();
+
+        patientRepository.findByIdAndHospitalId(patientId, hospitalId)
+                .orElseThrow(() -> new ResourceNotFoundException("Patient not found"));
+
+        PatientVitals vitals = patientVitalsRepository.findByIdAndPatientIdAndHospitalId(vitalsId, patientId, hospitalId)
+                .orElseThrow(() -> new ResourceNotFoundException("Vitals record not found"));
+
+        int score = acuityComputationService.computeScore(
+                request.pulse(), request.systolicBp(),
+                request.respiratoryRate(), request.temperature(), request.spo2());
+        VhiStatus vhiStatus = acuityComputationService.computeVhiStatus(score);
+
+        vitals.setPulse(request.pulse());
+        vitals.setSystolicBp(request.systolicBp());
+        vitals.setDiastolicBp(request.diastolicBp());
+        vitals.setRespiratoryRate(request.respiratoryRate());
+        vitals.setTemperature(request.temperature());
+        vitals.setSpo2(request.spo2());
+        vitals.setVhiScore(score);
+        vitals.setVhiStatus(vhiStatus);
+
+        // Only update the patient's acuity color if this is the latest vitals record
+        patientVitalsRepository.findFirstByPatientIdAndHospitalIdOrderByRecordedAtDesc(patientId, hospitalId)
+                .filter(latest -> latest.getId().equals(vitalsId))
+                .ifPresent(ignored -> {
+                    patientRepository.findByIdAndHospitalId(patientId, hospitalId).ifPresent(patient ->
+                            patient.setAcuityColor(acuityComputationService.toAcuityColor(vhiStatus)));
+                });
+
+        log.info("action=updateVitals vitalsId={} patientId={} hospitalId={} vhiScore={} vhiStatus={}",
+                vitalsId, patientId, hospitalId, score, vhiStatus);
+        return toResponse(vitals);
+    }
+
+    @Override
     @Transactional(readOnly = true)
     public List<VitalsResponse> getVitalsHistory(String patientId, int limit) {
         String hospitalId = HospitalContextHolder.getHospitalId();

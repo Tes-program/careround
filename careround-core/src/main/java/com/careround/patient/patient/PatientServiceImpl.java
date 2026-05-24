@@ -6,6 +6,7 @@ import com.careround.patient.entity.Patient;
 import com.careround.patient.enums.PatientStatus;
 import com.careround.patient.patient.dto.AdmitPatientRequest;
 import com.careround.patient.patient.dto.PatientResponse;
+import com.careround.patient.patient.dto.UpdatePatientRequest;
 import com.careround.patient.patient.dto.UpdatePatientStatusRequest;
 import com.careround.patient.repository.PatientRepository;
 import com.careround.shared.event.PatientAdmittedEvent;
@@ -139,6 +140,46 @@ public class PatientServiceImpl implements PatientService {
 
     @Override
     @Transactional
+    public PatientResponse updatePatient(String patientId, UpdatePatientRequest request) {
+        String hospitalId = HospitalContextHolder.getHospitalId();
+        Patient patient = patientRepository.findByIdAndHospitalId(patientId, hospitalId)
+                .orElseThrow(() -> new ResourceNotFoundException("Patient not found"));
+
+        if (request.wardId() != null) {
+            Ward ward = wardRepository.findByIdAndHospitalId(request.wardId(), hospitalId)
+                    .orElseThrow(() -> new ResourceNotFoundException("Ward not found"));
+            if (!ward.getHospitalId().equals(hospitalId)) {
+                throw new AccessDeniedException("Ward does not belong to this hospital");
+            }
+        }
+
+        patient.setFirstName(request.firstName());
+        patient.setLastName(request.lastName());
+        patient.setDateOfBirth(request.dateOfBirth());
+        patient.setGender(request.gender());
+        patient.setAdmissionType(request.admissionType());
+        patient.setWardId(request.wardId());
+        patient.setBedNumber(request.bedNumber());
+        patient.setPhoneNumber(request.phoneNumber());
+        patient.setAddress(request.address());
+        patient.setPreviousConditions(request.previousConditions());
+        patient.setCurrentMedications(request.currentMedications());
+        patient.setAllergies(request.allergies());
+        patient.setEmergencyContactName(request.emergencyContactName());
+        patient.setEmergencyContactPhone(request.emergencyContactPhone());
+
+        outboxService.publish("patient-updated",
+                new PatientUpdatedEvent(UUID.randomUUID().toString(), patientId, hospitalId,
+                        patient.getWardId(), patient.getStatus().name(), MDC.get("correlationId"),
+                        LocalDateTime.now(ZoneOffset.UTC)),
+                hospitalId);
+
+        log.info("action=updatePatient patientId={} hospitalId={}", patientId, hospitalId);
+        return toResponse(patient);
+    }
+
+    @Override
+    @Transactional
     public PatientResponse updatePatientStatus(String patientId, UpdatePatientStatusRequest request) {
         String hospitalId = HospitalContextHolder.getHospitalId();
         Patient patient = patientRepository.findByIdAndHospitalId(patientId, hospitalId)
@@ -147,11 +188,8 @@ public class PatientServiceImpl implements PatientService {
         PatientStatus current = patient.getStatus();
         PatientStatus target = request.status();
 
-        if (target == PatientStatus.ADMITTED) {
-            throw new BusinessRuleException("Cannot transition to ADMITTED");
-        }
-        if (current == PatientStatus.DISCHARGED) {
-            throw new BusinessRuleException("Patient is already discharged");
+        if (current == target) {
+            throw new BusinessRuleException("Patient is already " + target.name().toLowerCase());
         }
 
         if (target == PatientStatus.DISCHARGED) {
@@ -162,6 +200,12 @@ public class PatientServiceImpl implements PatientService {
                     hospitalId);
             patient.setWardId(null);
             patient.setBedNumber(null);
+        } else if (target == PatientStatus.ADMITTED) {
+            patient.setAdmissionDate(LocalDateTime.now(ZoneOffset.UTC));
+            outboxService.publish("patient-admitted",
+                    new PatientAdmittedEvent(UUID.randomUUID().toString(), hospitalId, patientId,
+                            patient.getWardId(), MDC.get("correlationId")),
+                    hospitalId);
         }
 
         patient.setStatus(target);
@@ -172,7 +216,7 @@ public class PatientServiceImpl implements PatientService {
                         LocalDateTime.now(ZoneOffset.UTC)),
                 hospitalId);
 
-        log.info("action=updatePatientStatus patientId={} hospitalId={} status={}", patientId, hospitalId, target);
+        log.info("action=updatePatientStatus patientId={} hospitalId={} from={} to={}", patientId, hospitalId, current, target);
         return toResponse(patient);
     }
 
