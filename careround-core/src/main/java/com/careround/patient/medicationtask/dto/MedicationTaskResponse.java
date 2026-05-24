@@ -19,5 +19,13 @@ public record MedicationTaskResponse(
         LocalDateTime preReminderSentAt,
         LocalDateTime overdueAlertSentAt,
         LocalDateTime createdAt,
-        LocalDateTime updatedAt
+        LocalDateTime updatedAt,
+        String patientFirstName,
+        String patientLastName,
+        String bedNumber,
+        String drugName,
+        String dose,
+        String route,
+        Long minutesOverdue,
+        String completedByName
 ) {}

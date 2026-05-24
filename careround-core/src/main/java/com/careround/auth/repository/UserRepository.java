@@ -17,6 +17,8 @@ public interface UserRepository extends JpaRepository<User, String> {
 
     boolean existsByHospitalIdAndEmail(String hospitalId, String email);
 
+    boolean existsByHospitalIdAndEmailAndIdNot(String hospitalId, String email, String excludeId);
+
     Optional<User> findByHospitalIdAndEmailAndIsActiveTrue(String hospitalId, String email);
 
     long countByHospitalIdAndIsActiveTrue(String hospitalId);

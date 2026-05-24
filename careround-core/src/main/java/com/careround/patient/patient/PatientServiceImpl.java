@@ -95,14 +95,29 @@ public class PatientServiceImpl implements PatientService {
 
     @Override
     @Transactional(readOnly = true)
-    public List<PatientResponse> getPatientsByWard(String wardId) {
+    public List<PatientResponse> getAllPatients(PatientStatus status, String nameQuery) {
+        String hospitalId = HospitalContextHolder.getHospitalId();
+        List<Patient> patients;
+        if (nameQuery != null && !nameQuery.isBlank()) {
+            patients = patientRepository.searchByHospitalAndName(hospitalId, status, nameQuery.trim());
+        } else if (status != null) {
+            patients = patientRepository.findAllByHospitalIdAndStatusOrderByAdmissionDateDesc(hospitalId, status);
+        } else {
+            patients = patientRepository.findAllByHospitalIdOrderByAdmissionDateDesc(hospitalId);
+        }
+        return patients.stream().map(this::toResponse).toList();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<PatientResponse> getPatientsByWard(String wardId, String nameQuery) {
         String hospitalId = HospitalContextHolder.getHospitalId();
         wardRepository.findByIdAndHospitalId(wardId, hospitalId)
                 .orElseThrow(() -> new ResourceNotFoundException("Ward not found"));
-        return patientRepository
-                .findAllByHospitalIdAndWardIdAndStatusOrderByAdmissionDateAsc(
-                        hospitalId, wardId, PatientStatus.ADMITTED)
-                .stream().map(this::toResponse).toList();
+        List<Patient> patients = (nameQuery != null && !nameQuery.isBlank())
+                ? patientRepository.searchAdmittedByWardAndName(hospitalId, wardId, PatientStatus.ADMITTED, nameQuery.trim())
+                : patientRepository.findAllByHospitalIdAndWardIdAndStatusOrderByAdmissionDateDesc(hospitalId, wardId, PatientStatus.ADMITTED);
+        return patients.stream().map(this::toResponse).toList();
     }
 
     @Override

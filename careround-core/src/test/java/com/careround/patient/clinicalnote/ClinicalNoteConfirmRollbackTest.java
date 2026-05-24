@@ -72,7 +72,7 @@ class ClinicalNoteConfirmRollbackTest {
 
         ConfirmNoteRequest request = new ConfirmNoteRequest(
                 PATIENT_ID, NoteType.WARD_ROUND_NOTE,
-                "Ward round note", null, false, null, false,
+                "Ward round note", null, false, null, false, null,
                 List.of(prescriptionReq("Aspirin")));
 
         assertThatThrownBy(() -> clinicalNoteService.confirm(request))

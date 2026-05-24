@@ -216,7 +216,7 @@ class ClinicalNoteServiceTest {
 
         ConfirmNoteRequest aiRequest = new ConfirmNoteRequest(
                 PATIENT_ID, NoteType.PROGRESS_NOTE, "AI content", "raw voice",
-                true, "claude-sonnet-4-6", false, List.of());
+                true, "claude-sonnet-4-6", false, null, List.of());
 
         clinicalNoteService.confirm(aiRequest);
 
@@ -274,7 +274,7 @@ class ClinicalNoteServiceTest {
 
     private ConfirmNoteRequest confirmRequest(List<CreatePrescriptionRequest> prescriptions) {
         return new ConfirmNoteRequest(PATIENT_ID, NoteType.WARD_ROUND_NOTE,
-                "Ward round note", null, false, null, false, prescriptions);
+                "Ward round note", null, false, null, false, null, prescriptions);
     }
 
     private CreatePrescriptionRequest prescriptionReq(String drug) {

@@ -1,6 +1,7 @@
 package com.careround.patient.prescription;
 
 import com.careround.patient.prescription.dto.PrescriptionResponse;
+import com.careround.patient.prescription.dto.UpdatePrescriptionRequest;
 import com.careround.patient.prescription.entity.Prescription;
 import com.careround.patient.prescription.enums.PrescriptionStatus;
 import com.careround.shared.event.PrescriptionDiscontinuedEvent;
@@ -34,6 +35,31 @@ public class PrescriptionServiceImpl implements PrescriptionService {
         return prescriptionRepository
                 .findAllByPatientIdAndHospitalIdAndStatus(patientId, hospitalId, PrescriptionStatus.ACTIVE)
                 .stream().map(this::toResponse).toList();
+    }
+
+    @Override
+    @Transactional
+    public PrescriptionResponse update(String prescriptionId, UpdatePrescriptionRequest request) {
+        String hospitalId = HospitalContextHolder.getHospitalId();
+
+        Prescription prescription = prescriptionRepository.findByIdAndHospitalId(prescriptionId, hospitalId)
+                .orElseThrow(() -> new ResourceNotFoundException("Prescription not found: " + prescriptionId));
+
+        if (prescription.getStatus() != PrescriptionStatus.ACTIVE) {
+            throw new BusinessRuleException("Only ACTIVE prescriptions can be updated");
+        }
+
+        if (request.drugName() != null) prescription.setDrugName(request.drugName());
+        if (request.dose() != null) prescription.setDose(request.dose());
+        if (request.route() != null) prescription.setRoute(request.route());
+        if (request.frequencyString() != null) prescription.setFrequencyString(request.frequencyString());
+        if (request.frequencyHours() != null) prescription.setFrequencyHours(request.frequencyHours());
+        if (request.totalDoses() != null) prescription.setTotalDoses(request.totalDoses());
+        if (request.startTime() != null) prescription.setStartTime(request.startTime());
+        if (request.administrationTimes() != null) prescription.setAdministrationTimes(request.administrationTimes());
+
+        log.info("action=PRESCRIPTION_UPDATED prescriptionId={} hospitalId={}", prescriptionId, hospitalId);
+        return toResponse(prescriptionRepository.save(prescription));
     }
 
     @Override

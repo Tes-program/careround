@@ -105,10 +105,13 @@ public class ClinicalNoteServiceImpl implements ClinicalNoteService {
 
         List<CreatePrescriptionRequest> prescriptions = request.prescriptions();
         if (request.extractPrescriptionsFromAi() && prescriptions.isEmpty()) {
+            LocalDateTime aiBaseTime = request.defaultPrescriptionStartTime() != null
+                    ? request.defaultPrescriptionStartTime()
+                    : now;
             List<ExtractedPrescription> extracted = aiServiceClient.extractPrescriptionsFromText(
                     request.content(), request.patientId());
             prescriptions = extracted.stream()
-                    .map(ep -> toCreatePrescriptionRequest(ep, now))
+                    .map(ep -> toCreatePrescriptionRequest(ep, aiBaseTime))
                     .toList();
             log.info("action=AI_PRESCRIPTION_EXTRACTION noteId={} count={}", savedNote.getId(), prescriptions.size());
         }

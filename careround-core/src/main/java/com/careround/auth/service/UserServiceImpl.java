@@ -1,6 +1,8 @@
 package com.careround.auth.service;
 
 import com.careround.auth.dto.CreateUserRequest;
+import com.careround.auth.dto.UpdateProfileRequest;
+import com.careround.auth.dto.UpdateUserRequest;
 import com.careround.auth.dto.UserResponse;
 import com.careround.auth.entity.User;
 import com.careround.auth.repository.UserRepository;
@@ -52,6 +54,65 @@ public class UserServiceImpl implements UserService {
         return userRepository.findByIdAndHospitalId(userId, hospitalId)
                 .map(this::toResponse)
                 .orElseThrow(() -> new ResourceNotFoundException("User not found"));
+    }
+
+    @Override
+    @Transactional
+    public UserResponse updateUser(String hospitalId, String userId, UpdateUserRequest request) {
+        User user = userRepository.findByIdAndHospitalId(userId, hospitalId)
+                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
+
+        if (request.getEmail() != null && !request.getEmail().isBlank()) {
+            String newEmail = request.getEmail().toLowerCase(Locale.ROOT);
+            if (userRepository.existsByHospitalIdAndEmailAndIdNot(hospitalId, newEmail, userId)) {
+                throw new BusinessRuleException("Email '" + newEmail + "' is already in use");
+            }
+            user.setEmail(newEmail);
+        }
+        if (request.getFirstName() != null && !request.getFirstName().isBlank()) {
+            user.setFirstName(request.getFirstName());
+        }
+        if (request.getLastName() != null && !request.getLastName().isBlank()) {
+            user.setLastName(request.getLastName());
+        }
+        if (request.getRole() != null) {
+            user.setRole(request.getRole());
+        }
+        return toResponse(userRepository.save(user));
+    }
+
+    @Override
+    @Transactional
+    public UserResponse reactivate(String hospitalId, String userId) {
+        User user = userRepository.findByIdAndHospitalId(userId, hospitalId)
+                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
+        if (user.isActive()) {
+            throw new BusinessRuleException("User is already active");
+        }
+        user.setActive(true);
+        return toResponse(userRepository.save(user));
+    }
+
+    @Override
+    @Transactional
+    public UserResponse updateProfile(String hospitalId, String userId, UpdateProfileRequest request) {
+        User user = userRepository.findByIdAndHospitalId(userId, hospitalId)
+                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
+
+        if (request.getEmail() != null && !request.getEmail().isBlank()) {
+            String newEmail = request.getEmail().toLowerCase(Locale.ROOT);
+            if (userRepository.existsByHospitalIdAndEmailAndIdNot(hospitalId, newEmail, userId)) {
+                throw new BusinessRuleException("Email '" + newEmail + "' is already in use");
+            }
+            user.setEmail(newEmail);
+        }
+        if (request.getFirstName() != null && !request.getFirstName().isBlank()) {
+            user.setFirstName(request.getFirstName());
+        }
+        if (request.getLastName() != null && !request.getLastName().isBlank()) {
+            user.setLastName(request.getLastName());
+        }
+        return toResponse(userRepository.save(user));
     }
 
     @Override

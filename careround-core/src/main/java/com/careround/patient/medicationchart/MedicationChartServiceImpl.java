@@ -1,8 +1,10 @@
 package com.careround.patient.medicationchart;
 
+import com.careround.auth.entity.User;
 import com.careround.auth.enums.UserRole;
 import com.careround.auth.repository.UserRepository;
 import com.careround.patient.medicationchart.dto.AddManualMedicationRequest;
+import com.careround.patient.medicationchart.dto.AdministrationSlotResponse;
 import com.careround.patient.medicationchart.dto.MedicationChartResponse;
 import com.careround.patient.medicationchart.dto.UpdateMedicationChartRequest;
 import com.careround.patient.medicationchart.entity.MedicationChart;
@@ -171,9 +173,48 @@ public class MedicationChartServiceImpl implements MedicationChartService {
     }
 
     private MedicationChartResponse toResponse(MedicationChart c) {
+        Prescription prescription = prescriptionRepository.findByIdAndHospitalId(
+                c.getPrescriptionId(), c.getHospitalId()).orElse(null);
+
+        String confirmedByName = null;
+        if (prescription != null && prescription.getConfirmedById() != null) {
+            confirmedByName = userRepository.findByIdAndHospitalId(
+                            prescription.getConfirmedById(), c.getHospitalId())
+                    .map(u -> u.getFirstName() + " " + u.getLastName())
+                    .orElse(null);
+        }
+
+        List<AdministrationSlotResponse> slots = medicationTaskRepository
+                .findAllByMedicationChartId(c.getId())
+                .stream()
+                .sorted(java.util.Comparator.comparing(t -> t.getScheduledTime()))
+                .map(t -> {
+                    String completedByName = null;
+                    if (t.getCompletedById() != null) {
+                        completedByName = userRepository.findByIdAndHospitalId(
+                                        t.getCompletedById(), c.getHospitalId())
+                                .map(u -> u.getFirstName() + " " + u.getLastName())
+                                .orElse(null);
+                    }
+                    return new AdministrationSlotResponse(
+                            t.getId(), t.getScheduledTime(), t.getStatus(),
+                            t.getCompletedAt(), completedByName, t.getActualDoseGiven());
+                })
+                .toList();
+
         return new MedicationChartResponse(
                 c.getId(), c.getPatientId(), c.getHospitalId(),
                 c.getPrescriptionId(), c.getStatus(), c.getNurseNotes(),
-                c.getCreatedAt(), c.getUpdatedAt());
+                c.getCreatedAt(), c.getUpdatedAt(),
+                prescription != null ? prescription.getDrugName() : null,
+                prescription != null ? prescription.getDose() : null,
+                prescription != null ? prescription.getRoute() : null,
+                prescription != null ? prescription.getFrequencyString() : null,
+                prescription != null ? prescription.getFrequencyHours() : null,
+                prescription != null ? prescription.getTotalDoses() : null,
+                prescription != null ? prescription.getStartTime() : null,
+                prescription != null ? prescription.getConfirmedById() : null,
+                confirmedByName,
+                slots);
     }
 }

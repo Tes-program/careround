@@ -6,6 +6,7 @@ import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 
+import java.time.LocalDateTime;
 import java.util.List;
 
 public record ConfirmNoteRequest(
@@ -16,5 +17,6 @@ public record ConfirmNoteRequest(
         boolean isAiGenerated,
         String aiModelUsed,
         boolean extractPrescriptionsFromAi,
+        LocalDateTime defaultPrescriptionStartTime,
         @NotNull @Valid List<CreatePrescriptionRequest> prescriptions
 ) {}

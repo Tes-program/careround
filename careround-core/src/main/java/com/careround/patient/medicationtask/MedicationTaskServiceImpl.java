@@ -1,9 +1,17 @@
 package com.careround.patient.medicationtask;
 
+import com.careround.auth.entity.User;
+import com.careround.auth.repository.UserRepository;
+import com.careround.patient.entity.Patient;
+import com.careround.patient.medicationchart.MedicationChartRepository;
+import com.careround.patient.medicationchart.entity.MedicationChart;
 import com.careround.patient.medicationtask.dto.MedicationTaskResponse;
 import com.careround.patient.medicationtask.dto.TaskListResponse;
 import com.careround.patient.medicationtask.entity.MedicationTask;
 import com.careround.patient.medicationtask.enums.MedicationTaskStatus;
+import com.careround.patient.prescription.PrescriptionRepository;
+import com.careround.patient.prescription.entity.Prescription;
+import com.careround.patient.repository.PatientRepository;
 import com.careround.shared.event.MedicationTaskCompletedEvent;
 import com.careround.shared.exception.ResourceNotFoundException;
 import com.careround.shared.security.HospitalContextHolder;
@@ -16,8 +24,14 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
+import java.time.temporal.ChronoUnit;
 import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
 import java.util.UUID;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -27,6 +41,10 @@ public class MedicationTaskServiceImpl implements MedicationTaskService {
     private static final int DUE_SOON_MINUTES = 30;
 
     private final MedicationTaskRepository medicationTaskRepository;
+    private final PatientRepository patientRepository;
+    private final MedicationChartRepository medicationChartRepository;
+    private final PrescriptionRepository prescriptionRepository;
+    private final UserRepository userRepository;
     private final OutboxService outboxService;
 
     @Override
@@ -40,21 +58,41 @@ public class MedicationTaskServiceImpl implements MedicationTaskService {
         LocalDateTime now = LocalDateTime.now(ZoneOffset.UTC);
         LocalDateTime dueSoonThreshold = now.plusMinutes(DUE_SOON_MINUTES);
 
+        // Batch-load enrichment data to avoid N+1 queries
+        Set<String> patientIds = tasks.stream().map(MedicationTask::getPatientId).collect(Collectors.toSet());
+        Set<String> chartIds = tasks.stream().map(MedicationTask::getMedicationChartId).collect(Collectors.toSet());
+        Set<String> completedByIds = tasks.stream()
+                .map(MedicationTask::getCompletedById).filter(Objects::nonNull).collect(Collectors.toSet());
+
+        Map<String, Patient> patients = patientRepository.findAllById(patientIds)
+                .stream().collect(Collectors.toMap(Patient::getId, Function.identity()));
+
+        Map<String, MedicationChart> charts = medicationChartRepository.findAllById(chartIds)
+                .stream().collect(Collectors.toMap(MedicationChart::getId, Function.identity()));
+
+        Set<String> prescriptionIds = charts.values().stream()
+                .map(MedicationChart::getPrescriptionId).collect(Collectors.toSet());
+        Map<String, Prescription> prescriptions = prescriptionRepository.findAllById(prescriptionIds)
+                .stream().collect(Collectors.toMap(Prescription::getId, Function.identity()));
+
+        Map<String, String> userNames = userRepository.findAllById(completedByIds)
+                .stream().collect(Collectors.toMap(User::getId, u -> u.getFirstName() + " " + u.getLastName()));
+
         List<MedicationTaskResponse> overdue = tasks.stream()
                 .filter(t -> t.getStatus() == MedicationTaskStatus.OVERDUE)
-                .map(this::toResponse)
+                .map(t -> toEnrichedResponse(t, patients, charts, prescriptions, userNames, now))
                 .toList();
 
         List<MedicationTaskResponse> dueSoon = tasks.stream()
                 .filter(t -> t.getStatus() == MedicationTaskStatus.PENDING
                         && t.getScheduledTime().isBefore(dueSoonThreshold))
-                .map(this::toResponse)
+                .map(t -> toEnrichedResponse(t, patients, charts, prescriptions, userNames, now))
                 .toList();
 
         List<MedicationTaskResponse> upcoming = tasks.stream()
                 .filter(t -> t.getStatus() == MedicationTaskStatus.PENDING
                         && !t.getScheduledTime().isBefore(dueSoonThreshold))
-                .map(this::toResponse)
+                .map(t -> toEnrichedResponse(t, patients, charts, prescriptions, userNames, now))
                 .toList();
 
         return new TaskListResponse(overdue, dueSoon, upcoming);
@@ -89,12 +127,35 @@ public class MedicationTaskServiceImpl implements MedicationTaskService {
         log.info("action=TASK_COMPLETED taskId={} completedBy={}", taskId, userId);
     }
 
-    private MedicationTaskResponse toResponse(MedicationTask t) {
+    private MedicationTaskResponse toEnrichedResponse(MedicationTask t,
+            Map<String, Patient> patients,
+            Map<String, MedicationChart> charts,
+            Map<String, Prescription> prescriptions,
+            Map<String, String> userNames,
+            LocalDateTime now) {
+        Patient patient = patients.get(t.getPatientId());
+        MedicationChart chart = charts.get(t.getMedicationChartId());
+        Prescription prescription = chart != null ? prescriptions.get(chart.getPrescriptionId()) : null;
+
+        Long minutesOverdue = null;
+        if (t.getStatus() == MedicationTaskStatus.OVERDUE) {
+            long diff = ChronoUnit.MINUTES.between(t.getScheduledTime(), now);
+            minutesOverdue = diff > 0 ? diff : 0L;
+        }
+
         return new MedicationTaskResponse(
                 t.getId(), t.getMedicationChartId(), t.getPatientId(), t.getHospitalId(),
                 t.getWardId(), t.getAssignedNurseId(), t.getScheduledTime(), t.getStatus(),
                 t.getCompletedAt(), t.getCompletedById(), t.getActualDoseGiven(),
                 t.getPreReminderSentAt(), t.getOverdueAlertSentAt(),
-                t.getCreatedAt(), t.getUpdatedAt());
+                t.getCreatedAt(), t.getUpdatedAt(),
+                patient != null ? patient.getFirstName() : null,
+                patient != null ? patient.getLastName() : null,
+                patient != null ? patient.getBedNumber() : null,
+                prescription != null ? prescription.getDrugName() : null,
+                prescription != null ? prescription.getDose() : null,
+                prescription != null ? prescription.getRoute() : null,
+                minutesOverdue,
+                t.getCompletedById() != null ? userNames.get(t.getCompletedById()) : null);
     }
 }

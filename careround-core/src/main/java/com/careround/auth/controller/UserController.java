@@ -3,6 +3,8 @@ package com.careround.auth.controller;
 import com.careround.auth.dto.AssignWardRequest;
 import com.careround.auth.dto.CreateUserRequest;
 import com.careround.auth.dto.UpdateDeviceTokenRequest;
+import com.careround.auth.dto.UpdateProfileRequest;
+import com.careround.auth.dto.UpdateUserRequest;
 import com.careround.auth.dto.UserResponse;
 import com.careround.auth.service.UserService;
 import com.careround.shared.dto.ApiResponse;
@@ -62,6 +64,36 @@ public class UserController {
             @PathVariable String id) {
         UserResponse user = userService.getById(HospitalContextHolder.getHospitalId(), id);
         return ResponseEntity.ok(ApiResponse.ok(user));
+    }
+
+    @PutMapping("/me")
+    @Operation(summary = "Update own profile", description = "Allows the authenticated user to update their own first name, last name, or email.")
+    public ResponseEntity<ApiResponse<UserResponse>> updateProfile(
+            @Valid @RequestBody UpdateProfileRequest request) {
+        UserResponse user = userService.updateProfile(
+                HospitalContextHolder.getHospitalId(),
+                HospitalContextHolder.getUserId(),
+                request);
+        return ResponseEntity.ok(ApiResponse.ok("Profile updated", user));
+    }
+
+    @PutMapping("/{id}")
+    @PreAuthorize("hasRole('ADMIN')")
+    @Operation(summary = "Update user", description = "Admin updates a tenant user's name, email, or role. Only provided fields are changed.")
+    public ResponseEntity<ApiResponse<UserResponse>> updateUser(
+            @Parameter(description = "User UUID") @PathVariable String id,
+            @Valid @RequestBody UpdateUserRequest request) {
+        UserResponse user = userService.updateUser(HospitalContextHolder.getHospitalId(), id, request);
+        return ResponseEntity.ok(ApiResponse.ok("User updated", user));
+    }
+
+    @PutMapping("/{id}/reactivate")
+    @PreAuthorize("hasRole('ADMIN')")
+    @Operation(summary = "Reactivate user", description = "Reactivates a previously deactivated tenant user account.")
+    public ResponseEntity<ApiResponse<UserResponse>> reactivateUser(
+            @Parameter(description = "User UUID") @PathVariable String id) {
+        UserResponse user = userService.reactivate(HospitalContextHolder.getHospitalId(), id);
+        return ResponseEntity.ok(ApiResponse.ok("User reactivated", user));
     }
 
     @PutMapping("/{id}/deactivate")
