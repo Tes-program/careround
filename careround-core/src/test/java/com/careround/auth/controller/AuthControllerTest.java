@@ -46,7 +46,8 @@ class AuthControllerTest {
             1_500_000L,
             "user-123",
             "hospital-456",
-            "DOCTOR"
+            "DOCTOR",
+            null
     );
 
     // ── POST /api/v1/auth/login ────────────────────────────────────────────────

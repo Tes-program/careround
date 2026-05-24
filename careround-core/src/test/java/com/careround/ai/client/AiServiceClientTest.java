@@ -68,7 +68,7 @@ class AiServiceClientTest {
         MockMultipartFile audio = new MockMultipartFile("audio", "voice.m4a",
                 "audio/mp4", "audio-bytes".getBytes());
 
-        assertThatThrownBy(() -> client.streamVoiceNote(audio, "patient-1", "ward_round"))
+        assertThatThrownBy(() -> client.streamVoiceNote(audio, "patient-1", null, "ward_round"))
                 .isInstanceOf(AiServiceUnavailableException.class)
                 .hasMessageContaining("not ready");
 
