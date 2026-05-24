@@ -200,7 +200,7 @@ class MedicationTaskServiceTest {
     // ─── helpers ─────────────────────────────────────────────────────────────
 
     private void stubCompletedTasks(List<MedicationTask> tasks) {
-        when(medicationTaskRepository.findAllByWardIdAndHospitalIdAndStatusAndScheduledTimeBetweenOrderByScheduledTimeAsc(
+        when(medicationTaskRepository.findAllByWardIdAndHospitalIdAndStatusAndCompletedAtBetweenOrderByCompletedAtAsc(
                 eq(WARD_ID), eq(HOSPITAL_ID), eq(MedicationTaskStatus.COMPLETED), any(), any()))
                 .thenReturn(tasks);
     }

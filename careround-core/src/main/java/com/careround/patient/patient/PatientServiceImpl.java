@@ -188,6 +188,10 @@ public class PatientServiceImpl implements PatientService {
         PatientStatus current = patient.getStatus();
         PatientStatus target = request.status();
 
+        if (target == PatientStatus.ADMITTED && current == PatientStatus.ADMITTED) {
+            throw new BusinessRuleException("Cannot transition to ADMITTED");
+        }
+
         if (current == target) {
             throw new BusinessRuleException("Patient is already " + target.name().toLowerCase());
         }

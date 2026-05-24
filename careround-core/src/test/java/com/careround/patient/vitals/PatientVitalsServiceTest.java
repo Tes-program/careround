@@ -1,6 +1,7 @@
 package com.careround.patient.vitals;
 
 import com.careround.auth.enums.UserRole;
+import com.careround.auth.repository.UserRepository;
 import com.careround.patient.entity.Patient;
 import com.careround.patient.entity.PatientVitals;
 import com.careround.patient.enums.AcuityColor;
@@ -38,6 +39,7 @@ class PatientVitalsServiceTest {
 
     @Mock private PatientVitalsRepository patientVitalsRepository;
     @Mock private PatientRepository patientRepository;
+    @Mock private UserRepository userRepository;
     @Mock private AcuityComputationService acuityComputationService;
     @Mock private OutboxService outboxService;
 
