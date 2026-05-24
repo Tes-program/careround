@@ -50,6 +50,12 @@ public class MedicationChartCreatedConsumer {
 
         String hospitalId = event.hospitalId();
 
+        if (event.wardId() == null) {
+            log.error("action=TASKS_SKIPPED reason=NO_WARD_ID chartId={} prescriptionId={} patientId={}",
+                    event.medicationChartId(), event.prescriptionId(), event.patientId());
+            throw new IllegalStateException("Cannot create medication tasks: patient " + event.patientId() + " has no ward assigned");
+        }
+
         Prescription prescription = prescriptionRepository.findByIdAndHospitalId(event.prescriptionId(), hospitalId)
                 .orElseThrow(() -> new ResourceNotFoundException("Prescription not found: " + event.prescriptionId()));
 

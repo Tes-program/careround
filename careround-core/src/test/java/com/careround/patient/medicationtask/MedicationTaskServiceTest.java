@@ -1,11 +1,16 @@
 package com.careround.patient.medicationtask;
 
 import com.careround.auth.enums.UserRole;
+import com.careround.auth.repository.UserRepository;
+import com.careround.patient.medicationchart.MedicationChartRepository;
 import com.careround.patient.medicationtask.dto.TaskListResponse;
 import com.careround.patient.medicationtask.entity.MedicationTask;
 import com.careround.patient.medicationtask.enums.MedicationTaskStatus;
+import com.careround.patient.prescription.PrescriptionRepository;
+import com.careround.patient.repository.PatientRepository;
 import com.careround.shared.exception.ResourceNotFoundException;
 import com.careround.shared.security.HospitalContextHolder;
+import com.careround.shared.service.OutboxService;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -29,6 +34,11 @@ import static org.mockito.Mockito.when;
 class MedicationTaskServiceTest {
 
     @Mock private MedicationTaskRepository medicationTaskRepository;
+    @Mock private PatientRepository patientRepository;
+    @Mock private MedicationChartRepository medicationChartRepository;
+    @Mock private PrescriptionRepository prescriptionRepository;
+    @Mock private UserRepository userRepository;
+    @Mock private OutboxService outboxService;
 
     @InjectMocks private MedicationTaskServiceImpl medicationTaskService;
 

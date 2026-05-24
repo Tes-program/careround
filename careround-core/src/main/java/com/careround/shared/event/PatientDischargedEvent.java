@@ -3,6 +3,7 @@ package com.careround.shared.event;
 import java.time.LocalDateTime;
 
 public record PatientDischargedEvent(
+        String eventId,
         String hospitalId,
         String patientId,
         String wardId,
