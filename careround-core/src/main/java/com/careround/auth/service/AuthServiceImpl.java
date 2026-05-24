@@ -117,7 +117,8 @@ public class AuthServiceImpl implements AuthService {
                 jwtService.getAccessTokenExpiryMs(),
                 user.getId(),
                 user.getHospitalId(),
-                user.getRole().name()
+                user.getRole().name(),
+                user.getWardId()
         );
     }
 

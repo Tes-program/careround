@@ -16,4 +16,5 @@ public class JwtResponse {
     public String userId;
     public String hospitalId;
     public String role;
+    public String wardId;
 }

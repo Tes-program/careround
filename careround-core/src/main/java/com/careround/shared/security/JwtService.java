@@ -13,7 +13,7 @@ import org.springframework.util.StringUtils;
 
 import javax.crypto.SecretKey;
 import java.util.Date;
-import java.util.Map;
+import java.util.HashMap;
 
 @Service
 @Slf4j
@@ -32,19 +32,18 @@ public class JwtService {
 
     public String generateAccessToken(User user) {
         return buildToken(user.getId(), user.getEmail(), user.getHospitalId(), user.getRole().name(),
-                accessTokenExpiryMs,
-                "access");
+                user.getWardId(), accessTokenExpiryMs, "access");
     }
 
-    private String buildToken(String userId, String email, String hospitalId, String role, long expiryMs,
-                              String tokenType) {
+    private String buildToken(String userId, String email, String hospitalId, String role, String wardId,
+                              long expiryMs, String tokenType) {
         var now = new Date();
-        var claims = Map.of(
-                "hospitalId", hospitalId,
-                "role", role,
-                "email", email,
-                "tokenType", tokenType
-        );
+        var claims = new HashMap<String, Object>();
+        claims.put("hospitalId", hospitalId);
+        claims.put("role", role);
+        claims.put("email", email);
+        claims.put("tokenType", tokenType);
+        if (wardId != null) claims.put("wardId", wardId);
 
         var builder = Jwts.builder()
                 .subject(userId)
@@ -53,7 +52,6 @@ public class JwtService {
                 .expiration(new Date(now.getTime() + expiryMs))
                 .signWith(signingKey());
 
-        builder.claim("role", role);
         return builder.compact();
     }
 
