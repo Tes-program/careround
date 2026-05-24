@@ -14,6 +14,7 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -38,6 +39,18 @@ public class PatientVitalsController {
             @Valid @RequestBody RecordVitalsRequest request) {
         VitalsResponse response = patientVitalsService.recordVitals(patientId, request);
         return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.ok("Vitals recorded", response));
+    }
+
+    @PutMapping("/{vitalsId}")
+    @PreAuthorize("hasAnyRole('NURSE', 'DOCTOR')")
+    @Operation(summary = "Update vitals record", description = "Updates an existing vital signs record and recalculates the VHI score and status.")
+    public ResponseEntity<ApiResponse<VitalsResponse>> updateVitals(
+            @Parameter(description = "Patient UUID", example = "550e8400-e29b-41d4-a716-446655440000")
+            @PathVariable String patientId,
+            @Parameter(description = "Vitals record UUID", example = "550e8400-e29b-41d4-a716-446655440000")
+            @PathVariable String vitalsId,
+            @Valid @RequestBody RecordVitalsRequest request) {
+        return ResponseEntity.ok(ApiResponse.ok("Vitals updated", patientVitalsService.updateVitals(patientId, vitalsId, request)));
     }
 
     @GetMapping
