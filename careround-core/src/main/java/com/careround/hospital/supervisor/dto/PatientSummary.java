@@ -1,12 +1,14 @@
 package com.careround.hospital.supervisor.dto;
 
-import java.time.LocalDateTime;
-
+/**
+ * Per-patient summary on the supervisor dashboard.
+ * {@code admissionDate} is an ISO-8601 UTC string, e.g. "2026-05-20T08:30:00Z".
+ */
 public record PatientSummary(
         String patientId,
         String firstName,
         String lastName,
         String acuityColor,
-        LocalDateTime admissionDate,
+        String admissionDate,
         String wardId
 ) {}

@@ -1,5 +1,8 @@
 package com.careround.hospital.supervisor.dto;
 
-import java.time.LocalDateTime;
-
-public record HourlyTaskCount(LocalDateTime hour, int taskCount) {}
+/**
+ * One hourly data-point in the supervisor task chart.
+ * {@code hour} is an ISO-8601 UTC datetime string for the start of the hour,
+ * e.g. "2026-05-20T10:00:00Z".
+ */
+public record HourlyTaskCount(String hour, int taskCount) {}

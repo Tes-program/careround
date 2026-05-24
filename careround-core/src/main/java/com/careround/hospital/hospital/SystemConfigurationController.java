@@ -26,7 +26,7 @@ public class SystemConfigurationController {
     private final SystemConfigurationService systemConfigurationService;
 
     @GetMapping
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasAnyRole('ADMIN','DOCTOR','NURSE','SUPERVISOR')")
     @Operation(summary = "Get system configuration", description = "Returns the authenticated hospital's configuration.")
     @ApiResponses({
         @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "Configuration returned"),

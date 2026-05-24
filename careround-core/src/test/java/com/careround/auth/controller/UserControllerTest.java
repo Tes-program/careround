@@ -45,7 +45,7 @@ class UserControllerTest {
         sampleUser = new UserResponse(
                 "user-123", "hospital-456", "Jane", "Doe",
                 "jane.doe@hospital.com", UserRole.NURSE, null,
-                true, LocalDateTime.now(), null);
+                true, LocalDateTime.now(), LocalDateTime.now(), null);
     }
 
     @AfterEach

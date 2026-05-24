@@ -30,7 +30,7 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class SupervisorDashboardServiceImpl implements SupervisorDashboardService {
 
-    private static final int HOURLY_CHART_HOURS = 12;
+    private static final int HOURLY_CHART_HOURS = 24;
 
     private final WardRepository wardRepository;
     private final PatientRepository patientRepository;
@@ -56,7 +56,8 @@ public class SupervisorDashboardServiceImpl implements SupervisorDashboardServic
                         p.getFirstName(),
                         p.getLastName(),
                         p.getAcuityColor() != null ? p.getAcuityColor().name() : null,
-                        p.getAdmissionDate(),
+                        p.getAdmissionDate() != null
+                                ? p.getAdmissionDate().atOffset(ZoneOffset.UTC).toString() : null,
                         p.getWardId()))
                 .toList();
 
@@ -97,30 +98,38 @@ public class SupervisorDashboardServiceImpl implements SupervisorDashboardServic
                     Patient p = patientById.get(t.getPatientId());
                     String patientName = p != null
                             ? p.getFirstName() + " " + p.getLastName() : "Unknown";
-                    long minutesOverdue = ChronoUnit.MINUTES.between(t.getScheduledTime(), now);
+                    long minutesOverdueLong = ChronoUnit.MINUTES.between(t.getScheduledTime(), now);
+                    int minutesOverdue = minutesOverdueLong > Integer.MAX_VALUE
+                            ? Integer.MAX_VALUE : (int) minutesOverdueLong;
+                    String scheduledTimeStr = t.getScheduledTime() != null
+                            ? t.getScheduledTime().atOffset(ZoneOffset.UTC).toString() : null;
                     return new OverdueAlert(t.getId(), t.getPatientId(), patientName,
-                            t.getAssignedNurseId(), t.getScheduledTime(), minutesOverdue);
+                            t.getAssignedNurseId(), scheduledTimeStr, minutesOverdue);
                 })
+                .sorted(java.util.Comparator.comparingInt(OverdueAlert::minutesOverdue).reversed())
                 .toList();
     }
 
     private List<HourlyTaskCount> buildHourlyChart(String wardId, String hospitalId) {
-        LocalDateTime now = LocalDateTime.now(ZoneOffset.UTC).truncatedTo(ChronoUnit.HOURS);
-        LocalDateTime windowEnd = now.plusHours(HOURLY_CHART_HOURS);
+        LocalDateTime startOfDay = LocalDateTime.now(ZoneOffset.UTC).truncatedTo(ChronoUnit.DAYS);
+        LocalDateTime endOfDay = startOfDay.plusDays(1);
 
-        List<MedicationTask> upcoming = medicationTaskRepository
-                .findAllByWardIdAndHospitalIdAndStatusAndScheduledTimeBetweenOrderByScheduledTimeAsc(
-                        wardId, hospitalId, MedicationTaskStatus.PENDING, now, windowEnd);
+        List<MedicationTask> completedToday = medicationTaskRepository
+                .findAllByWardIdAndHospitalIdAndStatusAndCompletedAtBetweenOrderByCompletedAtAsc(
+                        wardId, hospitalId, MedicationTaskStatus.COMPLETED, startOfDay, endOfDay);
+        if (completedToday == null) completedToday = List.of();
 
-        Map<LocalDateTime, Long> countsByHour = upcoming.stream()
+        Map<LocalDateTime, Long> countsByHour = completedToday.stream()
+                .filter(t -> t.getCompletedAt() != null)
                 .collect(Collectors.groupingBy(
-                        t -> t.getScheduledTime().truncatedTo(ChronoUnit.HOURS),
+                        t -> t.getCompletedAt().truncatedTo(ChronoUnit.HOURS),
                         Collectors.counting()));
 
         List<HourlyTaskCount> chart = new ArrayList<>();
         for (int i = 0; i < HOURLY_CHART_HOURS; i++) {
-            LocalDateTime hour = now.plusHours(i);
-            chart.add(new HourlyTaskCount(hour, countsByHour.getOrDefault(hour, 0L).intValue()));
+            LocalDateTime hour = startOfDay.plusHours(i);
+            String hourStr = hour.atOffset(ZoneOffset.UTC).toString();
+            chart.add(new HourlyTaskCount(hourStr, countsByHour.getOrDefault(hour, 0L).intValue()));
         }
         return chart;
     }

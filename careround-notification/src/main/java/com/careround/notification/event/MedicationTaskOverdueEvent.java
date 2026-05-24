@@ -14,5 +14,7 @@ public record MedicationTaskOverdueEvent(
         LocalDateTime scheduledTime,
         long minutesOverdue,
         String correlationId,
-        LocalDateTime timestamp
+        LocalDateTime timestamp,
+        String patientName,
+        String deviceToken
 ) {}

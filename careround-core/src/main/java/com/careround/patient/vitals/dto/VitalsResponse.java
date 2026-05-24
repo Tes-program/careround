@@ -10,6 +10,7 @@ public record VitalsResponse(
         String patientId,
         String hospitalId,
         String recordedById,
+        String recordedByName,
         Integer pulse,
         Integer systolicBp,
         Integer diastolicBp,
@@ -18,5 +19,7 @@ public record VitalsResponse(
         BigDecimal spo2,
         int vhiScore,
         VhiStatus vhiStatus,
-        LocalDateTime recordedAt
+        LocalDateTime recordedAt,
+        LocalDateTime createdAt,
+        LocalDateTime updatedAt
 ) {}

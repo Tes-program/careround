@@ -68,7 +68,7 @@ class SystemConfigurationServiceTest {
 
     @Test
     void getByHospitalId_secondReadWithinTTL_hitsCacheNotDatabase() throws Exception {
-        SystemConfigResponse cachedResponse = new SystemConfigResponse("cfg-1", "hosp-1", 10, 20, true);
+        SystemConfigResponse cachedResponse = new SystemConfigResponse("cfg-1", "hosp-1", 10, 20, true, null, null);
         String cachedJson = "{\"id\":\"cfg-1\"}";
 
         when(valueOperations.get("sysconfig:hosp-1")).thenReturn(cachedJson);

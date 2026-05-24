@@ -1,5 +1,7 @@
 package com.careround.patient.vitals;
 
+import com.careround.auth.entity.User;
+import com.careround.auth.repository.UserRepository;
 import com.careround.patient.entity.Patient;
 import com.careround.patient.entity.PatientVitals;
 import com.careround.patient.enums.VhiStatus;
@@ -28,6 +30,7 @@ public class PatientVitalsServiceImpl implements PatientVitalsService {
 
     private final PatientVitalsRepository patientVitalsRepository;
     private final PatientRepository patientRepository;
+    private final UserRepository userRepository;
     private final AcuityComputationService acuityComputationService;
     private final OutboxService outboxService;
 
@@ -120,10 +123,15 @@ public class PatientVitalsServiceImpl implements PatientVitalsService {
     }
 
     private VitalsResponse toResponse(PatientVitals v) {
+        String recordedByName = userRepository.findById(v.getRecordedById())
+                .map(u -> u.getFirstName() + " " + u.getLastName())
+                .orElse(null);
         return new VitalsResponse(
                 v.getId(), v.getPatientId(), v.getHospitalId(), v.getRecordedById(),
+                recordedByName,
                 v.getPulse(), v.getSystolicBp(), v.getDiastolicBp(),
                 v.getRespiratoryRate(), v.getTemperature(), v.getSpo2(),
-                v.getVhiScore(), v.getVhiStatus(), v.getRecordedAt());
+                v.getVhiScore(), v.getVhiStatus(), v.getRecordedAt(),
+                v.getCreatedAt(), v.getUpdatedAt());
     }
 }

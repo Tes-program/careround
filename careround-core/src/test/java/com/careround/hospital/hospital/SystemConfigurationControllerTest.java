@@ -39,7 +39,7 @@ class SystemConfigurationControllerTest {
     @BeforeEach
     void setUp() {
         HospitalContextHolder.set("hosp-1", "user-1", UserRole.ADMIN);
-        sampleConfig = new SystemConfigResponse("cfg-1", "hosp-1", 10, 20, true);
+        sampleConfig = new SystemConfigResponse("cfg-1", "hosp-1", 10, 20, true, null, null);
     }
 
     @AfterEach

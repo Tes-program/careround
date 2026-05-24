@@ -60,4 +60,6 @@ public interface PatientRepository extends JpaRepository<Patient, String> {
     List<Patient> findAllByHospitalIdOrderByAdmissionDateAsc(String hospitalId);
 
     long countByHospitalIdAndStatus(String hospitalId, PatientStatus status);
+
+    List<Patient> findAllByHospitalIdAndWardIdOrderByAdmissionDateDesc(String hospitalId, String wardId);
 }

@@ -87,6 +87,6 @@ public class SystemConfigurationServiceImpl implements SystemConfigurationServic
     private SystemConfigResponse toResponse(SystemConfiguration c) {
         return new SystemConfigResponse(c.getId(), c.getHospitalId(),
                 c.getTaskOverdueReminderMinutes(), c.getTaskEscalationMinutes(),
-                c.isPushNotificationsEnabled());
+                c.isPushNotificationsEnabled(), c.getCreatedAt(), c.getUpdatedAt());
     }
 }

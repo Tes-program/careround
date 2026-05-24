@@ -1,6 +1,7 @@
 package com.careround.patient.patient;
 
 import com.careround.auth.enums.UserRole;
+import com.careround.patient.clinicalnote.ClinicalNoteService;
 import com.careround.patient.enums.AcuityColor;
 import com.careround.patient.enums.AdmissionType;
 import com.careround.patient.enums.PatientStatus;
@@ -39,6 +40,7 @@ class PatientControllerTest {
     @Autowired private MockMvc mockMvc;
     @Autowired private ObjectMapper objectMapper;
     @MockitoBean private PatientService patientService;
+    @MockitoBean private ClinicalNoteService clinicalNoteService;
     @MockitoBean private JwtService jwtService;
 
     private PatientResponse sample;
