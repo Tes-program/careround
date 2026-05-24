@@ -48,8 +48,4 @@ public interface MedicationTaskRepository extends JpaRepository<MedicationTask, 
 
     long countByAssignedNurseIdAndHospitalIdAndStatus(
             String assignedNurseId, String hospitalId, MedicationTaskStatus status);
-
-    List<MedicationTask> findAllByWardIdAndHospitalIdAndStatusAndCompletedAtBetweenOrderByCompletedAtAsc(
-            String wardId, String hospitalId, MedicationTaskStatus status,
-            LocalDateTime from, LocalDateTime to);
 }
