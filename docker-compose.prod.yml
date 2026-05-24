@@ -243,11 +243,13 @@ services:
     restart: unless-stopped
     ports:
       - "80:80"
+      - "443:443"          # ← add this
     depends_on:
       careround-core:
         condition: service_healthy
     volumes:
       - ./infra/nginx/api.conf:/etc/nginx/conf.d/default.conf:ro
+      - /etc/letsencrypt:/etc/letsencrypt:ro    # ← add this
     networks:
       - careround-net
 
@@ -266,7 +268,7 @@ services:
     restart: unless-stopped
     environment:
       GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_PASSWORD}
-      GF_SERVER_ROOT_URL: http://34.229.91.221/grafana/
+      GF_SERVER_ROOT_URL: https://careround-api.duckdns.org/grafana/
       GF_SERVER_SERVE_FROM_SUB_PATH: "true"
       GF_USERS_ALLOW_SIGN_UP: "false"
     volumes:
