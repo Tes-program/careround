@@ -51,9 +51,13 @@ public class MedicationChartCreatedConsumer {
         String hospitalId = event.hospitalId();
 
         if (event.wardId() == null) {
-            log.error("action=TASKS_SKIPPED reason=NO_WARD_ID chartId={} prescriptionId={} patientId={}",
+            log.warn("action=TASKS_SKIPPED reason=NO_WARD_ID chartId={} prescriptionId={} patientId={}",
                     event.medicationChartId(), event.prescriptionId(), event.patientId());
-            throw new IllegalStateException("Cannot create medication tasks: patient " + event.patientId() + " has no ward assigned");
+            ProcessedEvent pe = new ProcessedEvent();
+            pe.setEventId(event.eventId());
+            pe.setProcessedAt(LocalDateTime.now(ZoneOffset.UTC));
+            processedEventRepository.save(pe);
+            return;
         }
 
         Prescription prescription = prescriptionRepository.findByIdAndHospitalId(event.prescriptionId(), hospitalId)

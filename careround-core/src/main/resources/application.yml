@@ -30,6 +30,10 @@ spring:
       org.quartz.jobStore.tablePrefix: QRTZ_
       org.quartz.threadPool.threadCount: 5
       org.quartz.scheduler.skipUpdateCheck: true
+  servlet:
+    multipart:
+      max-file-size: 50MB
+      max-request-size: 55MB
   lifecycle:
     timeout-per-shutdown-phase: 30s
 
