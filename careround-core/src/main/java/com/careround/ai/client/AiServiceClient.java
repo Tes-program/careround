@@ -6,11 +6,11 @@ import com.careround.shared.exception.AiServiceUnavailableException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.core.ParameterizedTypeReference;
+import org.springframework.core.io.ByteArrayResource;
 import org.springframework.http.MediaType;
+import org.springframework.http.client.MultipartBodyBuilder;
 import org.springframework.http.codec.ServerSentEvent;
 import org.springframework.stereotype.Component;
-import org.springframework.util.LinkedMultiValueMap;
-import org.springframework.util.MultiValueMap;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.reactive.function.BodyInserters;
@@ -18,6 +18,7 @@ import org.springframework.web.reactive.function.client.WebClient;
 import org.springframework.web.reactive.function.client.WebClientResponseException;
 import reactor.core.publisher.Flux;
 
+import java.io.IOException;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
 import java.util.List;
@@ -45,22 +46,40 @@ public class AiServiceClient {
         }
     }
 
-    public Flux<ServerSentEvent<String>> streamVoiceNote(MultipartFile audio, String patientId, String mode) {
+    public Flux<ServerSentEvent<String>> streamVoiceNote(MultipartFile audio, String patientId, String currentTime, String mode) {
         if (!isReady()) {
             throw new AiServiceUnavailableException("AI service is not ready");
         }
 
         try {
-            MultiValueMap<String, Object> formData = new LinkedMultiValueMap<>();
-            formData.add("audio", audio.getResource());
-            formData.add("patient_id", patientId);
-            formData.add("current_time", LocalDateTime.now(ZoneOffset.UTC).toString());
-            formData.add("mode", mode);
+            byte[] audioBytes = audio.getBytes();
+            String filename = audio.getOriginalFilename() != null
+                    ? audio.getOriginalFilename()
+                    : "recording.webm";
+            MediaType audioContentType = audio.getContentType() != null
+                    ? MediaType.parseMediaType(audio.getContentType())
+                    : MediaType.parseMediaType("audio/webm");
+
+            ByteArrayResource audioResource = new ByteArrayResource(audioBytes) {
+                @Override
+                public String getFilename() {
+                    return filename;
+                }
+            };
+
+            log.info("action=AI_VOICE_NOTE_FORWARD filename={} contentType={} bytes={} signature={}",
+                    filename, audioContentType, audioBytes.length, toHexPrefix(audioBytes, 16));
+
+            MultipartBodyBuilder builder = new MultipartBodyBuilder();
+            builder.part("audio", audioResource).contentType(audioContentType).filename(filename);
+            builder.part("patient_id", patientId);
+            builder.part("current_time", currentTime != null ? currentTime : LocalDateTime.now(ZoneOffset.UTC).toString());
+            builder.part("mode", mode);
 
             return aiWebClient.post()
                     .uri("/process-voice-note")
                     .contentType(MediaType.MULTIPART_FORM_DATA)
-                    .body(BodyInserters.fromMultipartData(formData))
+                    .body(BodyInserters.fromMultipartData(builder.build()))
                     .retrieve()
                     .onStatus(status -> !status.is2xxSuccessful(), (resp) ->
                             resp.bodyToMono(String.class).map(body ->
@@ -70,9 +89,20 @@ public class AiServiceClient {
                             log.warn("action=AI_STREAM status=503 patientId={}", patientId));
         } catch (AiServiceUnavailableException | AiServiceException e) {
             throw e;
+        } catch (IOException e) {
+            throw new AiServiceException("Failed to read audio bytes: " + e.getMessage());
         } catch (Exception e) {
             throw new AiServiceException("AI service call failed: " + e.getMessage());
         }
+    }
+
+    private String toHexPrefix(byte[] bytes, int length) {
+        StringBuilder sb = new StringBuilder();
+        int max = Math.min(bytes.length, length);
+        for (int i = 0; i < max; i++) {
+            sb.append(String.format("%02x", bytes[i]));
+        }
+        return sb.toString();
     }
 
     public List<ExtractedPrescription> extractPrescriptionsFromText(String noteText, String patientId) {

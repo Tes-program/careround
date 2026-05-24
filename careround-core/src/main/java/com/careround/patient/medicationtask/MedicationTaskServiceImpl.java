@@ -62,7 +62,7 @@ public class MedicationTaskServiceImpl implements MedicationTaskService {
         LocalDateTime dueSoonThreshold = now.plusMinutes(DUE_SOON_MINUTES);
 
         List<MedicationTask> completedTasks = medicationTaskRepository
-                .findAllByWardIdAndHospitalIdAndStatusAndScheduledTimeBetweenOrderByScheduledTimeAsc(
+                .findAllByWardIdAndHospitalIdAndStatusAndCompletedAtBetweenOrderByCompletedAtAsc(
                         wardId, hospitalId, MedicationTaskStatus.COMPLETED, startOfDay, endOfDay);
 
         // Batch-load enrichment data for all tasks (active + completed) to avoid N+1 queries

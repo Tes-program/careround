@@ -28,10 +28,10 @@ public class MedicationTaskController {
     @GetMapping
     @PreAuthorize("hasAnyRole('NURSE', 'DOCTOR', 'SUPERVISOR')")
     @Operation(summary = "Get task list for a ward", description = "Returns medication tasks grouped by urgency.")
-    public ResponseEntity<ApiResponse<TaskListResponse>> getTaskList(
+    public ResponseEntity<TaskListResponse> getTaskList(
             @Parameter(description = "Ward UUID", example = "550e8400-e29b-41d4-a716-446655440000")
             @RequestParam String wardId) {
-        return ResponseEntity.ok(ApiResponse.ok(medicationTaskService.getTaskList(wardId)));
+        return ResponseEntity.ok(medicationTaskService.getTaskList(wardId));
     }
 
     @PutMapping("/{taskId}/complete")

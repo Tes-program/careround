@@ -26,7 +26,10 @@ public class ApiRequestLoggingFilter extends OncePerRequestFilter {
 
     @Override
     protected boolean shouldNotFilter(@Nonnull HttpServletRequest request) {
-        return !request.getRequestURI().startsWith("/api/");
+        if (!request.getRequestURI().startsWith("/api/")) return true;
+        // ContentCachingResponseWrapper buffers writes, which breaks SSE — skip streaming endpoints
+        String accept = request.getHeader("Accept");
+        return accept != null && accept.contains("text/event-stream");
     }
 
     @Override
