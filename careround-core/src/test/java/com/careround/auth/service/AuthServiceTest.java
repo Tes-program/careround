@@ -11,11 +11,8 @@ import com.careround.auth.repository.RefreshTokenRepository;
 import com.careround.auth.repository.UserRepository;
 import com.careround.hospital.entity.Hospital;
 import com.careround.hospital.repository.HospitalRepository;
-import com.careround.onboarding.repository.ActivationTokenRepository;
 import com.careround.shared.exception.AccessDeniedException;
 import com.careround.shared.exception.BadCredentialsException;
-import com.careround.shared.exception.ResourceNotFoundException;
-import com.careround.auth.service.AuthServiceImpl;
 import com.careround.shared.security.JwtService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -43,8 +40,6 @@ class AuthServiceTest {
     private UserRepository userRepository;
     @Mock
     private RefreshTokenRepository refreshTokenRepository;
-    @Mock
-    private ActivationTokenRepository activationTokenRepository;
     @Mock
     private HospitalRepository hospitalRepository;
     @Mock
