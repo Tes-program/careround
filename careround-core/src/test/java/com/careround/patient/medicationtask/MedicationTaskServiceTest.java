@@ -27,6 +27,7 @@ import java.util.Optional;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -65,24 +66,28 @@ class MedicationTaskServiceTest {
         when(medicationTaskRepository.findAllByWardIdAndHospitalIdAndStatusIn(
                 WARD_ID, HOSPITAL_ID, List.of(MedicationTaskStatus.PENDING, MedicationTaskStatus.OVERDUE)))
                 .thenReturn(List.of(overdueTask, dueSoonTask, upcomingTask));
+        stubCompletedTasks(List.of());
 
         TaskListResponse result = medicationTaskService.getTaskList(WARD_ID);
 
         assertThat(result.overdue()).hasSize(1);
         assertThat(result.dueSoon()).hasSize(1);
         assertThat(result.upcoming()).hasSize(1);
+        assertThat(result.completed()).isEmpty();
     }
 
     @Test
     void getTaskList_returnsEmpty_whenNoTasks() {
         when(medicationTaskRepository.findAllByWardIdAndHospitalIdAndStatusIn(any(), any(), any()))
                 .thenReturn(List.of());
+        stubCompletedTasks(List.of());
 
         TaskListResponse result = medicationTaskService.getTaskList(WARD_ID);
 
         assertThat(result.overdue()).isEmpty();
         assertThat(result.dueSoon()).isEmpty();
         assertThat(result.upcoming()).isEmpty();
+        assertThat(result.completed()).isEmpty();
     }
 
     @Test
@@ -90,6 +95,7 @@ class MedicationTaskServiceTest {
         MedicationTask t = task(TASK_ID, MedicationTaskStatus.OVERDUE, utcNow().minusHours(3));
         when(medicationTaskRepository.findAllByWardIdAndHospitalIdAndStatusIn(any(), any(), any()))
                 .thenReturn(List.of(t));
+        stubCompletedTasks(List.of());
 
         TaskListResponse result = medicationTaskService.getTaskList(WARD_ID);
 
@@ -103,6 +109,7 @@ class MedicationTaskServiceTest {
         MedicationTask t = task(TASK_ID, MedicationTaskStatus.PENDING, utcNow().plusMinutes(20));
         when(medicationTaskRepository.findAllByWardIdAndHospitalIdAndStatusIn(any(), any(), any()))
                 .thenReturn(List.of(t));
+        stubCompletedTasks(List.of());
 
         TaskListResponse result = medicationTaskService.getTaskList(WARD_ID);
 
@@ -116,12 +123,28 @@ class MedicationTaskServiceTest {
         MedicationTask t = task(TASK_ID, MedicationTaskStatus.PENDING, utcNow().plusMinutes(45));
         when(medicationTaskRepository.findAllByWardIdAndHospitalIdAndStatusIn(any(), any(), any()))
                 .thenReturn(List.of(t));
+        stubCompletedTasks(List.of());
 
         TaskListResponse result = medicationTaskService.getTaskList(WARD_ID);
 
         assertThat(result.upcoming()).hasSize(1);
         assertThat(result.overdue()).isEmpty();
         assertThat(result.dueSoon()).isEmpty();
+    }
+
+    @Test
+    void getTaskList_completedTasksToday_appearsInCompletedBucket() {
+        MedicationTask completedTask = task(TASK_ID, MedicationTaskStatus.COMPLETED, utcNow().minusHours(1));
+        when(medicationTaskRepository.findAllByWardIdAndHospitalIdAndStatusIn(any(), any(), any()))
+                .thenReturn(List.of());
+        stubCompletedTasks(List.of(completedTask));
+
+        TaskListResponse result = medicationTaskService.getTaskList(WARD_ID);
+
+        assertThat(result.completed()).hasSize(1);
+        assertThat(result.overdue()).isEmpty();
+        assertThat(result.dueSoon()).isEmpty();
+        assertThat(result.upcoming()).isEmpty();
     }
 
     @Test
@@ -175,7 +198,13 @@ class MedicationTaskServiceTest {
         assertThat(t.getCompletedById()).isEqualTo(USER_ID);
     }
 
-    // ─── helper ──────────────────────────────────────────────────────────────
+    // ─── helpers ─────────────────────────────────────────────────────────────
+
+    private void stubCompletedTasks(List<MedicationTask> tasks) {
+        when(medicationTaskRepository.findAllByWardIdAndHospitalIdAndStatusAndScheduledTimeBetweenOrderByScheduledTimeAsc(
+                eq(WARD_ID), eq(HOSPITAL_ID), eq(MedicationTaskStatus.COMPLETED), any(), any()))
+                .thenReturn(tasks);
+    }
 
     private static LocalDateTime utcNow() {
         return LocalDateTime.now(ZoneOffset.UTC);

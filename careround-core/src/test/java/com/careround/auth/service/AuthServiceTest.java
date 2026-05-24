@@ -9,7 +9,11 @@ import com.careround.auth.entity.User;
 import com.careround.auth.enums.UserRole;
 import com.careround.auth.repository.RefreshTokenRepository;
 import com.careround.auth.repository.UserRepository;
+import com.careround.hospital.entity.Hospital;
+import com.careround.hospital.repository.HospitalRepository;
+import com.careround.onboarding.repository.ActivationTokenRepository;
 import com.careround.shared.exception.AccessDeniedException;
+import com.careround.shared.exception.BadCredentialsException;
 import com.careround.shared.exception.ResourceNotFoundException;
 import com.careround.auth.service.AuthServiceImpl;
 import com.careround.shared.security.JwtService;
@@ -40,6 +44,10 @@ class AuthServiceTest {
     @Mock
     private RefreshTokenRepository refreshTokenRepository;
     @Mock
+    private ActivationTokenRepository activationTokenRepository;
+    @Mock
+    private HospitalRepository hospitalRepository;
+    @Mock
     private JwtService jwtService;
     @Mock
     private PasswordEncoder passwordEncoder;
@@ -66,8 +74,8 @@ class AuthServiceTest {
 
     @Test
     void login_withValidCredentials_shouldReturnJwtResponse() {
-        LoginRequest request = new LoginRequest("hospital-456", "doctor@hospital.com", "password123");
-
+        when(hospitalRepository.findByCodeIgnoreCaseAndIsActiveTrue("HOSP-456"))
+                .thenReturn(Optional.of(hospital("hospital-456", "HOSP-456")));
         when(userRepository.findByHospitalIdAndEmailAndIsActiveTrue("hospital-456", "doctor@hospital.com"))
                 .thenReturn(Optional.of(testUser));
         when(passwordEncoder.matches("password123", "$2a$10$encodedPassword")).thenReturn(true);
@@ -75,7 +83,7 @@ class AuthServiceTest {
         when(jwtService.getAccessTokenExpiryMs()).thenReturn(1_500_000L);
         when(refreshTokenRepository.save(any())).thenAnswer(i -> i.getArgument(0));
 
-        JwtResponse response = authService.login(request);
+        JwtResponse response = authService.login(new LoginRequest("HOSP-456", "doctor@hospital.com", "password123"));
 
         assertThat(response.getAccessToken()).isEqualTo("access.token");
         assertThat(response.getTokenType()).isEqualTo("Bearer");
@@ -86,24 +94,38 @@ class AuthServiceTest {
     }
 
     @Test
-    void login_withUnknownUser_shouldThrowResourceNotFoundException() {
+    void login_withUnknownHospitalCode_shouldThrowBadCredentialsException() {
+        when(hospitalRepository.findByCodeIgnoreCaseAndIsActiveTrue(any()))
+                .thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> authService.login(
+                new LoginRequest("UNKNOWN", "unknown@hospital.com", "pass")))
+                .isInstanceOf(BadCredentialsException.class);
+    }
+
+    @Test
+    void login_withUnknownUser_shouldThrowBadCredentialsException() {
+        when(hospitalRepository.findByCodeIgnoreCaseAndIsActiveTrue(any()))
+                .thenReturn(Optional.of(hospital("hospital-456", "HOSP-456")));
         when(userRepository.findByHospitalIdAndEmailAndIsActiveTrue(any(), any()))
                 .thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> authService.login(
-                new LoginRequest("hospital-456", "unknown@hospital.com", "pass")))
-                .isInstanceOf(ResourceNotFoundException.class);
+                new LoginRequest("HOSP-456", "unknown@hospital.com", "pass")))
+                .isInstanceOf(BadCredentialsException.class);
     }
 
     @Test
-    void login_withWrongPassword_shouldThrowAccessDeniedException() {
+    void login_withWrongPassword_shouldThrowBadCredentialsException() {
+        when(hospitalRepository.findByCodeIgnoreCaseAndIsActiveTrue(any()))
+                .thenReturn(Optional.of(hospital("hospital-456", "HOSP-456")));
         when(userRepository.findByHospitalIdAndEmailAndIsActiveTrue(any(), any()))
                 .thenReturn(Optional.of(testUser));
         when(passwordEncoder.matches(eq("wrong"), any())).thenReturn(false);
 
         assertThatThrownBy(() -> authService.login(
-                new LoginRequest("hospital-456", "doctor@hospital.com", "wrong")))
-                .isInstanceOf(AccessDeniedException.class);
+                new LoginRequest("HOSP-456", "doctor@hospital.com", "wrong")))
+                .isInstanceOf(BadCredentialsException.class);
     }
 
     // ── refresh ────────────────────────────────────────────────────────────────
@@ -207,6 +229,13 @@ class AuthServiceTest {
     }
 
     // ── helpers ────────────────────────────────────────────────────────────────
+
+    private Hospital hospital(String id, String code) {
+        Hospital h = new Hospital();
+        h.setId(id);
+        h.setCode(code);
+        return h;
+    }
 
     private RefreshToken buildStoredToken(String tokenValue, boolean revoked, LocalDateTime expiresAt) {
         RefreshToken token = new RefreshToken();

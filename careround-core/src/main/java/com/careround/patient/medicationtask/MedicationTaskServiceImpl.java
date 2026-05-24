@@ -32,6 +32,7 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 @Service
 @RequiredArgsConstructor
@@ -56,12 +57,20 @@ public class MedicationTaskServiceImpl implements MedicationTaskService {
                 wardId, hospitalId, List.of(MedicationTaskStatus.PENDING, MedicationTaskStatus.OVERDUE));
 
         LocalDateTime now = LocalDateTime.now(ZoneOffset.UTC);
+        LocalDateTime startOfDay = now.toLocalDate().atStartOfDay();
+        LocalDateTime endOfDay = startOfDay.plusDays(1);
         LocalDateTime dueSoonThreshold = now.plusMinutes(DUE_SOON_MINUTES);
 
-        // Batch-load enrichment data to avoid N+1 queries
-        Set<String> patientIds = tasks.stream().map(MedicationTask::getPatientId).collect(Collectors.toSet());
-        Set<String> chartIds = tasks.stream().map(MedicationTask::getMedicationChartId).collect(Collectors.toSet());
-        Set<String> completedByIds = tasks.stream()
+        List<MedicationTask> completedTasks = medicationTaskRepository
+                .findAllByWardIdAndHospitalIdAndStatusAndScheduledTimeBetweenOrderByScheduledTimeAsc(
+                        wardId, hospitalId, MedicationTaskStatus.COMPLETED, startOfDay, endOfDay);
+
+        // Batch-load enrichment data for all tasks (active + completed) to avoid N+1 queries
+        List<MedicationTask> allTasks = Stream.concat(tasks.stream(), completedTasks.stream()).toList();
+
+        Set<String> patientIds = allTasks.stream().map(MedicationTask::getPatientId).collect(Collectors.toSet());
+        Set<String> chartIds = allTasks.stream().map(MedicationTask::getMedicationChartId).collect(Collectors.toSet());
+        Set<String> completedByIds = allTasks.stream()
                 .map(MedicationTask::getCompletedById).filter(Objects::nonNull).collect(Collectors.toSet());
 
         Map<String, Patient> patients = patientRepository.findAllById(patientIds)
@@ -95,7 +104,11 @@ public class MedicationTaskServiceImpl implements MedicationTaskService {
                 .map(t -> toEnrichedResponse(t, patients, charts, prescriptions, userNames, now))
                 .toList();
 
-        return new TaskListResponse(overdue, dueSoon, upcoming);
+        List<MedicationTaskResponse> completed = completedTasks.stream()
+                .map(t -> toEnrichedResponse(t, patients, charts, prescriptions, userNames, now))
+                .toList();
+
+        return new TaskListResponse(overdue, dueSoon, upcoming, completed);
     }
 
     @Override
