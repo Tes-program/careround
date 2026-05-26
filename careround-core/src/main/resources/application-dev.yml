@@ -22,6 +22,9 @@ spring:
       host: ${REDIS_HOST:localhost}
       port: ${REDIS_PORT:6379}
 
+cors:
+  allowed-origins: http://localhost:3000,http://localhost:5173,https://careround-frontend.vercel.app
+
 jwt:
   secret: ${JWT_SECRET:1a162d012d4c29724591936c333be3570a0b4d2c931e229af37c9a2a5a274285}
 
