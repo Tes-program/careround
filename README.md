@@ -1,1301 +1,443 @@
-# CareRound — Digital Ward Management System
+# CareRound — Digital Ward Management Platform
 
-> **Coding Agent Context Document** — This README contains every finalized architectural decision, data model, workflow, and implementation detail for the CareRound system. Read this fully before writing any code.
+> **Related repositories:**
+> - AI Service (careround-ai): _[https://github.com/Dave-n-tech/careround_ai]_
+> - Web Frontend (careround-web): _[https://github.com/Dave-n-tech/careround_frontend]_
+> - Mobile App (careround-mobile): _[https://github.com/Tes-program/careround_mobile]_
 
 ---
 
-## Table of Contents
+## Contents
 
-1. [System Overview](#1-system-overview)
-2. [Architecture Decision](#2-architecture-decision)
-3. [Tech Stack](#3-tech-stack)
-4. [Project Structure](#4-project-structure)
-5. [Domain Modules](#5-domain-modules)
-6. [Database Topology](#6-database-topology)
-7. [All Entities](#7-all-entities)
-8. [All Enums](#8-all-enums)
-9. [Actors and Permissions](#9-actors-and-permissions)
-10. [Workflows](#10-workflows)
+**For product and clinical readers**
+1. [What CareRound Is](#1-what-careround-is)
+2. [The Problem It Solves](#2-the-problem-it-solves)
+3. [Key Features](#3-key-features)
+4. [User Roles](#4-user-roles)
+5. [Core Workflows](#5-core-workflows)
+
+**For engineering readers**
+6. [Architecture](#6-architecture)
+7. [Tech Stack](#7-tech-stack)
+8. [Services](#8-services)
+9. [Database](#9-database)
+10. [API Reference](#10-api-reference)
 11. [Kafka Event Catalogue](#11-kafka-event-catalogue)
-12. [API Endpoints](#12-api-endpoints)
-13. [Business Rules](#13-business-rules)
-14. [Coding Standards](#14-coding-standards)
-15. [Local Environment](#15-local-environment)
-16. [Production Concerns](#16-production-concerns)
+12. [Security](#12-security)
+13. [Local Development](#13-local-development)
+14. [Testing](#14-testing)
+15. [Production Notes](#15-production-notes)
 
 ---
 
-## 1. System Overview
+## 1. What CareRound Is
 
-CareRound is a **multi-tenant, production-grade digital ward management platform** for hospitals. It digitises the full lifecycle of inpatient care: patient admission and team assignment, shift management and handovers, daily ward rounds with patient prioritisation, nursing care tasks, clinical documentation, patient deterioration detection via NEWS2 score, and automated next-of-kin notification.
+CareRound is a **multi-tenant, production-grade digital ward management platform** for hospitals. It fills the operational gap between a hospital's electronic medical records (EMR) system and the real-time coordination happening on a ward during a shift.
 
-**Multi-tenancy:** Every hospital is an independent tenant. All data is scoped by `hospitalId`. A user from Hospital A cannot access data from Hospital B under any circumstance.
+Where an EMR records what happened to a patient across their clinical history, CareRound manages what needs to happen *right now*: capturing a ward round note while the doctor is still at the bedside, generating the medication schedule from that note automatically, alerting the nurse when a dose window is approaching, and giving the ward supervisor live visibility of the shift.
 
-**Domain context:** The system models real clinical workflows. Patients are assigned to consultant-led medical teams (firms) based on specialty and on-call rotations. Ward rounds are prioritised by patient acuity and NEWS score. Shifts are auto-created from schedules. Handovers are first-class entities because shift change is the highest-risk moment in patient care.
+The platform is built around two core innovations:
 
----
-
-## 2. Architecture Decision
-
-### Final Decision: Modular Monolith — NOT microservices
-
-This decision is final and must not be reversed. The reasoning:
-
-- Two-person team, eleven-day build timeline, live demo format
-- Domain is tightly coupled — a ward round touches shift, patient, review, note, and care task in one operation
-- Hospital ward management operates at human scale, not social media scale
-- A complete, observable, well-tested monolith is more impressive than a half-finished distributed system
-- The presentation argument: "We evaluated microservices and rejected them deliberately. The domain coupling would have required five synchronous service calls per round creation. Instead we built a modular monolith with the same reliability patterns: Transactional Outbox, Quartz JDBC clustering, Redis rate limiting, DLT handling, and clean module boundaries that are microservices-extractable in 2–3 days if scale demands it."
-
-### What is NOT included
-
-- No API Gateway (Spring Security handles JWT directly)
-- No CQRS with separate read store (not justified by read/write patterns)
-- No Event Sourcing (Transactional Outbox + Audit Consumer already provides the audit trail)
-- No service mesh, gRPC, Saga orchestrator, or Debezium
-- No Elasticsearch (MySQL with indexes handles all search at this scale)
-
-### Why Notification and Audit are separate processes
-
-These two have a legitimate reason to be independent:
-- `careround-notification` calls external APIs (email, SMS) that fail and throttle — a slow email provider must not affect round creation response times. DLT handling is isolated here.
-- `careround-audit` writes compliance records independently — audit log writes must never block clinical operations.
-- Both are pure Kafka consumers with no HTTP API surface.
+1. **AI-powered voice documentation** — a doctor dictates during a consultation and receives a structured SOAP note plus extracted prescriptions, streamed back in real time, ready for review and confirmation.
+2. **Automated medication task generation** — the moment a prescription is confirmed, the complete medication schedule is generated and pushed to the assigned nurse as an ordered task list, with push notification reminders.
 
 ---
 
-## 3. Tech Stack
+## 2. The Problem It Solves
 
-| Concern | Technology | Version |
+Ward coordination currently runs on verbal instructions, paper notes, and manual checking. The cost is measurable:
+
+- **60%** of hospital adverse events involve a communication or coordination failure _(Joint Commission)_
+- **70%** of deaths from medical error are linked to breakdown at shift handover _(AHRQ)_
+- **15%** of total hospital expenditure results from preventable adverse events _(OECD)_
+
+**For doctors:** Writing structured clinical notes during a ward round consumes 30–40% of round time. Documentation competes directly with examination.
+
+**For nurses:** Medication charts are monitored manually. There is no automatic alert when a dose window is missed, and no systemic way to see what the next overdue task is without actively checking.
+
+**For supervisors:** There is no real-time visibility of task completion across the ward until something has already gone wrong.
+
+---
+
+## 3. Key Features
+
+### AI Voice Documentation
+- Doctor records audio on mobile or web during a consultation
+- The AI service transcribes the audio and structures it as a SOAP-format clinical note, extracting prescriptions with drug, dose, route, frequency, and calculated administration times
+- Results stream back progressively via SSE — the transcription appears as soon as Whisper finishes; the structured note and prescriptions follow from the LLM
+- Doctor reviews on-screen, edits any field, and confirms — nothing is saved until confirmed
+- Both ward-round mode (note + prescriptions) and transcription-only mode (for nurse handover notes) are supported
+
+### Automated Medication Task Chain
+- Doctor confirms a prescription → medication chart entry created automatically (async, via Kafka)
+- Chart entry → one medication task per scheduled administration time, assigned to the ward nurse
+- Nurse receives a sorted task list: **OVERDUE** (red, oldest first), **DUE SOON** (amber, within 30 min), **UPCOMING** (grouped by hour), then **COMPLETED TODAY**
+- 5-minute pre-task push notification: _"Amoxicillin 500mg for Bed 4 due in 5 minutes"_
+- 5-minute overdue push notification: _"Amoxicillin 500mg for Bed 4 is now 5 minutes overdue"_
+- Task completion records the nurse's name, timestamp, and actual dose given; the medication chart is updated automatically
+
+### Live Supervisor Dashboard
+- Per-ward view: total patients, task completion fraction, overdue count, completion rate
+- Overdue alert panel surfacing patient name, bed, drug, dose, and minutes overdue
+- Patient grid with acuity colour, active medications, and task summary per patient
+- Polls every 10 seconds with silent background refresh
+
+### Patient Acuity with VHI Scoring
+- Nurses record six vital signs: pulse, systolic BP, respiratory rate, temperature, SpO₂, and diastolic BP (stored but not scored)
+- The system computes a **Vitals Health Index (VHI)** score (0–15) from five inputs
+- Score 0–2 → **GREEN** (stable), 3–4 → **AMBER** (watch), 5+ → **RED** (critical)
+- Patient acuity colour updates immediately on every vitals recording, within the same transaction
+- Ward lists and supervisor dashboard are always sorted: RED → AMBER → GREEN → oldest-seen first
+
+### Clinical Documentation
+- Clinical notes (SOAP, progress notes, handover notes, nursing reports) are immutable once saved
+- Amendments create a side-by-side record; the original is never overwritten or deleted
+- AI-generated notes store the raw transcription and a flag for audit purposes
+
+### Multi-Hospital Platform
+- Each hospital is an independent tenant; all data is scoped by `hospitalId`
+- Cross-tenant access attempts return 404, never 403 (no confirmation that a resource exists)
+- Hospital-specific configuration: task overdue windows, push notification toggles
+- Two onboarding paths: direct self-registration (`POST /hospitals/register`) or the full platform-admin provisioning flow with review and approval
+
+### Full Audit Trail
+- All 16 event types are consumed by `careround-audit` and written to an immutable, append-only schema in a separate database
+- Audit writes never block clinical operations — they are event-driven via Kafka
+- Each audit record stores event type, hospitalId, correlationId, full payload, and received timestamp
+
+---
+
+## 4. User Roles
+
+| Role | Who they are | Key capabilities |
 |---|---|---|
-| Language | Java | 21 |
-| Framework | Spring Boot | 3.3.5 |
-| Security | Spring Security | 6.x (via Spring Boot) |
-| ORM | Spring Data JPA / Hibernate | via Spring Boot |
-| Database | MySQL | 8.0 |
-| Schema Migrations | Flyway | 10.x (via Spring Boot) |
-| Connection Pool | HikariCP | via Spring Boot |
-| Messaging | Apache Kafka | 3.7 (KRaft mode) |
-| Scheduled Jobs | Quartz Scheduler (JDBC clustered) | via spring-boot-starter-quartz |
-| Cache / Rate Limiting | Redis | 7 |
-| Circuit Breakers | Resilience4j | via spring-cloud-starter-circuitbreaker-resilience4j |
-| Auth | JWT | jjwt 0.12.5 |
-| Metrics | Micrometer + Prometheus | via spring-boot-starter-actuator |
-| Dashboards | Grafana | latest |
-| Logging | Logback JSON encoder | logstash-logback-encoder 7.4 |
-| Build | Maven | 3.9+ |
-| Boilerplate | Lombok | 1.18.34 |
-| Mapping | MapStruct | 1.5.5.Final |
-| Frontend | Not present in this repository | Backend API only |
+| **ADMIN** | Hospital account administrator | Configure hospital and wards; create and manage user accounts; no access to patient records |
+| **DOCTOR** | Attending physicians, registrars, residents | All clinical authority: ward rounds, clinical notes, prescriptions, discharge, AI voice notes |
+| **NURSE** | Ward nurses | Record vitals, complete medication tasks, add handover notes, view patient records |
+| **SUPERVISOR** | Ward manager / charge nurse | Live ward dashboard, task oversight, no clinical note creation |
+| **PLATFORM_ADMIN** | Internal CareRound operators | Review and provision hospital onboarding requests |
+
+**Role-based access summary:**
+
+| Action | ADMIN | DOCTOR | NURSE | SUPERVISOR |
+|---|:---:|:---:|:---:|:---:|
+| Register/configure hospital | ✓ | | | |
+| Manage wards and users | ✓ | | | |
+| Admit patient (demographic intake) | ✓ | | | |
+| Update patient clinical details | | ✓ | | |
+| Discharge patient | | ✓ | | |
+| Record AI voice note | | ✓ | ✓ | |
+| Confirm note + prescription | | ✓ | | |
+| Record vitals | | ✓ | ✓ | |
+| Complete medication tasks | | | ✓ | |
+| Edit medication chart | | ✓ | ✓ | |
+| Add handover note | | ✓ | ✓ | |
+| View patient records | | ✓ | ✓ | ✓ (read) |
+| Supervisor dashboard | | | | ✓ |
 
 ---
 
-## 4. Project Structure
+## 5. Core Workflows
 
-### Monorepo layout
+### Hospital Onboarding
+A hospital representative submits a public onboarding request. A `PLATFORM_ADMIN` reviews, approves, and provisions the tenant. Provisioning creates the hospital record, default system configuration, and a first `ADMIN` user account in inactive state. A single-use activation link is generated; the admin sets their password and logs in normally.
 
-```
-careround/
-├── pom.xml                          ← parent POM (dependencyManagement only)
-├── docker-compose.yml               ← infrastructure: MySQL, Redis, Kafka, Grafana
-├── .env                             ← environment variables (never committed)
-├── .env.example                     ← committed with dummy values
-├── docker/                          ← MySQL init, Prometheus, Grafana provisioning
-├── infra/mysql/seed.sql             ← optional demo seed data
-├── careround-core/                  ← main Spring Boot application (port 8080)
-├── careround-notification/          ← Kafka consumer service (port 8081)
-└── careround-audit/                 ← Kafka consumer service (port 8082)
-```
+Alternatively, hospitals can self-register instantly via `POST /api/v1/hospitals/register` without platform review — suitable for demo and development.
 
-### Parent POM responsibility
+### Patient Admission
+An `ADMIN` registers the patient's demographic details, ward assignment, and bed number. Clinical staff then create the first vitals record, which triggers VHI computation and sets the initial acuity colour. The patient appears on the ward list ordered by acuity.
 
-The parent POM uses `<dependencyManagement>` only. It pins versions for: Spring Boot BOM, jjwt, Lombok, MapStruct. All three child projects inherit from it. This prevents version drift between projects, which is critical because they share Kafka topics and must use the same serialiser versions.
+### AI Ward Round
+1. Doctor taps **Record** on mobile or web and begins dictating during the consultation
+2. Audio is sent to `POST /api/v1/ai/process-voice-note` — core proxies it to the AI service
+3. SSE events arrive progressively: `transcription_complete` (Whisper finished), then `processing_complete` (SOAP note + prescriptions)
+4. Doctor reviews, edits any field, and taps **Confirm**
+5. `POST /api/v1/patients/{id}/notes/confirm` (or `/api/v1/clinical-notes/confirm`) saves the note and all prescriptions atomically
+6. `prescription-confirmed` event → Kafka → `PrescriptionConfirmedConsumer` → creates MedicationChart
+7. `medication-chart-created` event → Kafka → `MedicationChartCreatedConsumer` → creates one MedicationTask per administration time
 
-### careround-core internal structure
+### Nurse Task Flow
+The nurse's task list is always sorted by urgency. Overdue tasks appear at the top in red with the minutes overdue. The nurse taps **Complete**, optionally records if the actual dose differed from prescribed, and the task closes. The medication chart chip for that dose updates instantly.
 
-```
-careround-core/src/main/java/com/careround/
-├── CareRoundApplication.java
-│
-├── auth/                            ← Domain Module 1
-│   ├── controller/
-│   │   ├── AuthController.java
-│   │   └── UserController.java
-│   ├── service/
-│   │   ├── AuthService.java
-│   │   └── UserService.java
-│   ├── repository/
-│   │   └── UserRepository.java
-│   ├── entity/
-│   │   └── User.java
-│   └── dto/
-│       ├── LoginRequest.java
-│       ├── LoginResponse.java
-│       ├── RefreshTokenRequest.java
-│       ├── CreateUserRequest.java
-│       └── UserResponse.java
-│
-├── hospital/                        ← Domain Module 2
-│   ├── ward/
-│   │   ├── controller/WardController.java
-│   │   ├── service/WardService.java
-│   │   ├── repository/WardRepository.java
-│   │   ├── entity/Ward.java
-│   │   └── dto/CreateWardRequest.java, WardResponse.java, WardDashboardResponse.java
-│   ├── department/
-│   │   └── (same structure)
-│   ├── medicalteam/
-│   │   ├── controller/MedicalTeamController.java
-│   │   ├── service/MedicalTeamService.java
-│   │   ├── repository/MedicalTeamRepository.java, MedicalTeamInviteRepository.java
-│   │   ├── entity/MedicalTeam.java, MedicalTeamWard.java, MedicalTeamMember.java, MedicalTeamInvite.java
-│   │   └── dto/...
-│   ├── shift/
-│   │   └── (Shift, Handover, PatientHandoverNote)
-│   ├── handover/
-│   ├── oncall/
-│   │   └── (OnCallRotation, ShiftSchedule)
-│   └── hospital/
-│       └── (Hospital, SystemConfiguration)
-│
-├── patient/                         ← Domain Module 3
-│   ├── patient/
-│   │   ├── controller/PatientController.java
-│   │   ├── service/PatientService.java
-│   │   ├── repository/PatientRepository.java
-│   │   ├── entity/Patient.java
-│   │   └── dto/...
-│   ├── vitals/
-│   │   └── (PatientVitals + NewsScoreService)
-│   ├── round/
-│   │   └── (Round, PatientRoundReview)
-│   ├── caretask/
-│   │   └── (CareTask)
-│   ├── clinicalnote/
-│   │   └── (ClinicalNote)
-│   ├── escalation/
-│   │   └── (Escalation)
-│   └── nextofkin/
-│       └── (NextOfKin)
-│
-├── scheduler/                       ← Quartz jobs (inside core, not separate JVM)
-│   ├── config/QuartzConfig.java
-│   ├── jobs/
-│   │   ├── OutboxPollerJob.java
-│   │   ├── ShiftCreationJob.java
-│   │   ├── TaskOverdueJob.java
-│   │   ├── EscalationUnacknowledgedJob.java
-│   │   ├── InviteExpiryJob.java
-│   │   └── RefreshTokenCleanupJob.java
-│   └── service/JobSchedulingService.java
-│
-└── shared/                          ← Cross-cutting infrastructure
-    ├── config/
-    │   ├── SecurityConfig.java
-    │   ├── KafkaProducerConfig.java
-    │   ├── KafkaTopicConfig.java
-    │   └── RedisConfig.java
-    ├── entity/
-    │   └── BaseEntity.java          ← @MappedSuperclass: id, createdAt, updatedAt
-    ├── event/
-    │   ├── OutboxEvent.java
-    │   ├── OutboxEventRepository.java
-    │   └── events/                  ← Kafka event POJOs (Java records)
-    ├── exception/
-    │   ├── GlobalExceptionHandler.java
-    │   ├── ResourceNotFoundException.java
-    │   ├── AccessDeniedException.java
-    │   └── BusinessRuleException.java
-    ├── security/
-    │   ├── JwtAuthFilter.java
-    │   ├── JwtService.java
-    │   └── HospitalContextHolder.java
-    ├── service/
-    │   └── OutboxService.java
-    ├── dto/
-    │   └── ApiResponse.java
-    └── validation/
-        └── EnumValidator.java
-```
+Push reminders fire 5 minutes before and 5 minutes after each scheduled administration time, delivered via FCM to the nurse's mobile device.
 
-### careround-notification structure
+### Shift Handover
+A shift lead initiates a handover by linking the outgoing and incoming shift. For each patient a handover note is added, flagging outstanding tasks and urgency. The incoming shift lead signs off; the outgoing shift transitions to `HANDED_OVER`.
 
-```
-careround-notification/src/main/java/com/careround/notification/
-├── NotificationApplication.java
-├── config/
-│   └── KafkaConsumerConfig.java     ← DefaultErrorHandler + DLT KafkaTemplate
-├── client/
-│   ├── CoreLookupClient.java
-│   ├── HttpCoreLookupClient.java
-│   └── NextOfKinContact.java
-├── consumer/
-│   ├── RoundCompletedConsumer.java
-│   ├── PatientDeteriorationConsumer.java
-│   ├── PatientDischargedConsumer.java
-│   ├── TaskOverdueConsumer.java
-│   ├── ShiftCreatedConsumer.java
-│   ├── NotificationFactory.java
-│   └── NotificationIdempotencyGuard.java
-├── notification/
-│   ├── Notification.java            ← entity (PENDING, SENT, FAILED)
-│   ├── NotificationRepository.java
-│   └── NotificationStatus.java       ← enum
-├── dlt/
-│   ├── NotificationDltConsumer.java  ← consumes failed messages, saves failed_notifications
-│   ├── entity/FailedNotification.java
-│   └── repository/FailedNotificationRepository.java
-├── provider/
-│   ├── EmailNotificationProvider.java
-│   └── SmsNotificationProvider.java
-└── service/
-    └── NotificationService.java
-```
-
-### careround-audit structure
-
-```
-careround-audit/src/main/java/com/careround/audit/
-├── AuditApplication.java
-├── config/
-│   └── KafkaConsumerConfig.java
-├── consumer/
-│   └── AuditEventConsumer.java      ← single consumer, all audit topics
-├── entity/
-│   └── AuditLogEntry.java
-└── repository/
-    └── AuditLogRepository.java
-```
+### Patient Discharge
+A `DOCTOR` updates patient status to `DISCHARGED`. The ward ID and bed number are cleared, freeing the bed. A `patient-discharged` event triggers audit logging and any next-of-kin notification configured on the patient record.
 
 ---
 
-## 5. Domain Modules
+## 6. Architecture
 
-### Module boundary rule — CRITICAL
+CareRound is a **modular monolith** for the clinical core with two lightweight event-driven satellite services and one dedicated AI service in a separate repository.
 
-Within careround-core, domain modules must not import repositories from other modules. If `round/` needs patient data, it calls `PatientService` — never `PatientRepository` directly. This enforces the same boundary that would exist between microservices, making future extraction a targeted operation rather than a full refactor.
-
-### Scheduler inside careround-core
-
-The Quartz scheduler runs inside careround-core, not in a separate JVM. When multiple instances of careround-core run horizontally, Quartz JDBC clustered mode ensures each job fires on exactly one instance. Configure in application.yml:
-
-```yaml
-spring:
-  quartz:
-    job-store-type: jdbc
-    jdbc:
-      initialize-schema: never
-    properties:
-      org.quartz.jobStore.isClustered: true
-      org.quartz.jobStore.clusterCheckinInterval: 10000
-      org.quartz.jobStore.driverDelegateClass: org.quartz.impl.jdbcjobstore.StdJDBCDelegate
-      org.quartz.threadPool.threadCount: 5
+```
+Clients (Web + Mobile)
+          │ HTTPS
+          ▼
+  careround-core  ─────────────────────────────────────────────────
+  (Spring Boot 4, port 8080)                                       │
+  ├── Auth Module                                                   │
+  ├── Hospital Module (hospital, ward, config, onboarding)         │ REST
+  ├── Patient Module (patients, vitals, notes, prescriptions,      │ (sync)
+  │   medication charts + tasks, handover notes)                   │
+  └── Scheduler Module (Quartz JDBC — 4 jobs)                      ▼
+          │                                              careround-ai
+          │ Transactional Outbox → Kafka                 (Python/FastAPI, port 8000)
+          ▼                                              ├── faster-whisper
+      Apache Kafka                                       └── Ollama / vLLM LLM
+          │
+          ├──→ careround-notification  (Spring Boot, port 8081)
+          │       Kafka consumers: medication-task-reminder, medication-task-overdue
+          │       Sends FCM push notifications to nurse devices
+          │       Dead-letter handling with exponential backoff
+          │
+          └──→ careround-audit  (Spring Boot, port 8082)
+                  Kafka consumer: all 16 topics
+                  Append-only audit log (separate DB schema)
 ```
 
-The `QRTZ_*` tables in MySQL (created via Flyway V13) and the `QRTZ_LOCKS` table provide distributed locking. No ShedLock needed — Quartz handles cluster safety natively. Registered jobs include outbox polling, shift creation, overdue-task detection, unacknowledged-escalation handling, invite expiry, and hourly refresh-token cleanup.
+### Why a Modular Monolith
+
+The clinical workflows — prescriptions, charts, tasks, notes, vitals — require transactional integrity across entities. A doctor confirming a note must atomically save the note, all prescriptions, and an outbox event in a single database transaction. Splitting those across network-separated services would require a saga orchestrator with distributed compensation logic, adding significant complexity for zero operational benefit at this scale.
+
+The module boundaries are enforced in code: domain modules do not import repositories from other modules. This makes them extractable to separate services in 2–3 days if scale demands it.
+
+### Why AI and Notifications Are Separate
+
+- `careround-ai` runs a different runtime (Python), different hardware (GPU), and has no business logic coupling to the core. It processes audio and returns structured drafts — all clinical decisions remain with the doctor.
+- `careround-notification` makes outbound calls to Firebase Cloud Messaging, which can throttle and fail. Isolating FCM errors ensures a slow FCM call never affects a prescription confirmation.
+- `careround-audit` writes compliance records independently. Audit writes must never block clinical operations.
+
+### Transactional Outbox Pattern
+
+Events are never published directly to Kafka. The flow is:
+
+1. A service method calls `OutboxService.publish(eventType, payload, hospitalId)` inside an existing `@Transactional` context — this writes a row to `outbox_event` in the same DB transaction.
+2. `OutboxPollerJob` (Quartz, every 1 second) reads unpublished rows and sends them to Kafka.
+3. The row is marked `published = true`.
+
+This guarantees zero event loss. If Kafka is unavailable, events queue in MySQL and are delivered when Kafka recovers.
+
+### Correlation IDs
+
+Every HTTP request receives a `X-Correlation-Id` header (generated by `CorrelationIdFilter` if not present). It is stored in MDC, included in all Kafka event payloads, and flows through to notification and audit consumers. Every log line from every service carries the same `correlationId` for a given clinical action.
 
 ---
 
-## 6. Database Topology
+## 7. Tech Stack
+
+| Concern | Technology |
+|---|---|
+| Language | Java 21 |
+| Framework | Spring Boot 4.0.5 |
+| Security | Spring Security 6 |
+| ORM | Spring Data JPA / Hibernate |
+| Database | MySQL 8.0 |
+| Schema migrations | Flyway |
+| Connection pool | HikariCP |
+| Messaging | Apache Kafka 3.7 (KRaft, no Zookeeper) |
+| Scheduled jobs | Quartz Scheduler (JDBC clustered) |
+| Cache / rate limiting | Redis 7 |
+| Auth | JWT (jjwt 0.12.5, HS256, 15-min access / 7-day refresh) |
+| Push notifications | Firebase Cloud Messaging (FCM) |
+| Metrics | Micrometer + Prometheus |
+| Dashboards | Grafana |
+| Logging | Logback with logstash-logback-encoder (structured JSON) |
+| API docs | SpringDoc OpenAPI 3 (Swagger UI on careround-core) |
+| Build | Maven 3.9+ (multi-module) |
+| Boilerplate | Lombok |
+| AI runtime | Python 3.12, FastAPI |
+| Speech-to-text | faster-whisper |
+| LLM | Ollama (dev/demo) or vLLM (production GPU) |
+| Containers | Docker / Docker Compose |
+
+---
+
+## 8. Services
+
+### careround-core (port 8080)
+
+The clinical and administrative domain. Owns all business logic, the REST API, JWT issuance, the Transactional Outbox, and internal Kafka consumers for the prescription-to-task async chain.
+
+**Domain modules:**
+
+| Module | Responsibilities |
+|---|---|
+| `auth` | Login, token refresh, logout, account activation, password change, FCM device token |
+| `hospital` | Hospital CRUD, ward management, system configuration, supervisor dashboard |
+| `onboarding` | Hospital onboarding request lifecycle, tenant provisioning, activation tokens |
+| `patient` | Patient admission, vitals (VHI scoring), clinical notes, prescriptions, medication charts, medication tasks, handover notes |
+| `ai` | Proxies audio to careround-ai; streams SSE response back to client via WebFlux |
+| `scheduler` | Quartz job registration and processors |
+| `shared` | JWT filter, HospitalContextHolder, OutboxService, rate limiting, correlation ID, exception handlers |
+
+**Quartz jobs:**
+
+| Job | Schedule | Purpose |
+|---|---|---|
+| `OutboxPollerJob` | Every 1 second | Reads unpublished outbox rows, publishes to Kafka |
+| `MedicationTaskReminderJob` | Every 1 minute | Two-pass: pre-task reminders (T−5 min) and overdue alerts (T+5 min) |
+| `RefreshTokenCleanupJob` | Hourly | Deletes revoked and expired refresh token rows |
+| `OutboxCleanupJob` | Daily at 2am | Deletes published outbox events older than 7 days |
+
+**Prescription → Chart → Task async chain:**
+
+```
+ClinicalNoteService.confirm()  [single @Transactional]
+  → saves ClinicalNote + Prescriptions + outbox event (prescription-confirmed)
+       ↓  (Kafka, via OutboxPollerJob)
+PrescriptionConfirmedConsumer  [careround-core-internal group]
+  → creates MedicationChart + outbox event (medication-chart-created)
+       ↓  (Kafka)
+MedicationChartCreatedConsumer [careround-core-internal group]
+  → creates one MedicationTask per administrationTime in Prescription.administrationTimes[]
+```
+
+Both consumers check `processedEventRepository.existsById(eventId)` before acting (idempotency).
+
+**Security filter chain order:**
+
+`CorrelationIdFilter` → `RateLimitingFilter` → `JwtAuthFilter` → `ApiRequestLoggingFilter`
+
+Rate limiting is Redis-backed, sliding window per `hospitalId:userId`. `JwtAuthFilter` sets `hospitalId`, `userId`, and `role` in `HospitalContextHolder` (a `ThreadLocal`).
+
+### careround-notification (port 8081)
+
+A pure Kafka consumer service with no HTTP API surface. Listens to `medication-task-reminder` and `medication-task-overdue` topics and delivers FCM push notifications to nurse devices.
+
+- **Error handling:** `DefaultErrorHandler` with `ExponentialBackOffWithMaxRetries(3)` at 1s / 2s / 4s backoff
+- **Dead-letter handling:** After 3 failures, `DeadLetterPublishingRecoverer` routes to `<topic>.DLT`; `NotificationDltConsumer` writes failed messages to `failed_notifications`
+- **FCM:** Firebase Admin SDK; device tokens registered by nurses via `PUT /api/v1/users/me/device-token` on careround-core
+
+### careround-audit (port 8082)
+
+A pure Kafka consumer service. `AuditEventConsumer` subscribes to all 16 event topics and writes every consumed event as an immutable row to `audit_log`. Before writing, checks `existsByEventId()` to handle Kafka redelivery idempotently. No updates or deletes ever occur in this schema.
+
+### careround-ai (separate repository)
+
+Python 3.12 / FastAPI service. Accepts a multipart audio upload and streams results back as Server-Sent Events. Has no database, emits no Kafka events, makes no clinical decisions.
+
+**Modes:**
+- `ward_round`: full pipeline — Whisper transcription → LLM SOAP structuring + prescription extraction → administration time calculation
+- `transcription_only`: Whisper transcription only (for nurse handover notes)
+
+**Provider configuration:**
+
+| Variable | Value | Effect |
+|---|---|---|
+| `AI_PROVIDER=stub` | Dev/CI | Bypasses all models; returns deterministic fixture output immediately |
+| `AI_PROVIDER=ollama` | Local/demo | Real LLM via Ollama (llama3.2:3b or mistral:7b) |
+| `TRANSCRIPTION_PROVIDER=stub` | Dev/CI | Bypasses Whisper; returns fixed transcription string |
+| `TRANSCRIPTION_PROVIDER=whisper` | Real | faster-whisper (base.en for dev, large-v3 for production) |
+
+The service exposes `GET /health` returning `{ "status": "loading" | "ready" }`. careround-core checks this before forwarding requests and returns `503` to clients while the service is initialising.
+
+---
+
+## 9. Database
+
+Three separate MySQL schemas. Cross-schema SQL joins never occur.
 
 ```
 MySQL 8 (single server, port 3306)
 ├── careround_core          ← all domain tables + QRTZ_* + outbox_event
-├── careround_notification  ← notifications + failed_notifications
-└── careround_audit         ← audit_log only
+├── careround_notification  ← failed_notifications
+└── careround_audit         ← audit_log (append-only)
 ```
 
-One MySQL user (`careround`) has full privileges on all three schemas. Each Spring Boot application points its datasource URL at its own schema. Each runs its own Flyway migration set. No cross-schema SQL joins ever.
+### Key entities (careround_core)
 
-### HikariCP configuration
+**Patient** — Full demographic record: first/last name, date of birth, gender, hospital number, phone, address, previous conditions, current medications, allergies, emergency contact, ward, bed, admission type/date, primary diagnosis, acuity colour, status (ADMITTED / DISCHARGED).
 
-```yaml
-# careround-core
-hikari:
-  pool-name: CorePool
-  maximum-pool-size: 10
-  minimum-idle: 5
-  connection-timeout: 30000
-  idle-timeout: 600000
-  max-lifetime: 1800000
+**PatientVitals** — Six measurements per recording: pulse, systolic BP, diastolic BP, respiratory rate, temperature, SpO₂. System computes `vhiScore` (0–15) and `vhiStatus` (STABLE / WATCH / CRITICAL) at save time. Patient acuity colour is updated in the same transaction.
 
-# careround-notification and careround-audit
-hikari:
-  maximum-pool-size: 5
-  minimum-idle: 2
-```
+**VHI Scoring Table:**
 
-At 3 instances of careround-core + 1 each of notification and audit:
-`(3 × 10) + (1 × 5) + (1 × 5) = 40 connections` — well within MySQL's default `max_connections: 151`.
+| Measurement | 0 pts (Normal) | 1 pt (Mild) | 2 pts (Moderate) | 3 pts (Severe) |
+|---|---|---|---|---|
+| Pulse | 61–100 bpm | 51–60 or 101–110 | 41–50 or 111–129 | ≤40 or ≥130 |
+| Systolic BP | 101–159 mmHg | 91–100 or 160–199 | 81–90 or ≥200 | ≤80 |
+| Respiratory Rate | 9–14 /min | 15–20 | 21–29 | ≤8 or ≥30 |
+| Temperature | 36.1–37.4 °C | 35.1–36.0 or 37.5–38.4 | 38.5–38.9 | ≤35.0 or ≥39.0 |
+| SpO₂ | 96–100% | 94–95% | 92–93% | ≤91% |
+
+Score 0–2 → GREEN, 3–4 → AMBER, 5+ → RED.
+
+**ClinicalNote** — Immutable. Stores note type, content (SOAP as structured fields for AI-generated notes, free text otherwise), raw transcription, `isAiGenerated` flag, and `confirmedByDoctorAt`. Never deleted; amendments are new records with `isAmended = true`.
+
+**Prescription** — Drug, dose, route, frequency, total doses, start time, and administration times (stored as JSON array of ISO 8601 datetimes). Links to clinical note. Status: ACTIVE / DISCONTINUED / COMPLETED.
+
+**MedicationChart** — One entry per prescription. Status: ACTIVE / COMPLETED / DISCONTINUED. Holds nurse notes.
+
+**MedicationTask** — One task per administration time. Stores `scheduledTime`, `status` (PENDING / COMPLETED / OVERDUE), `completedAt`, `completedById`, `actualDoseGiven`, `preReminderSentAt`, `overdueAlertSentAt`. Assigned to a nurse at creation time.
+
+**OutboxEvent** — `published`, `publishedAt`, `eventType`, `payload` (JSON), `correlationId`, `hospitalId`.
+
+### Flyway migrations (careround_core)
+
+| Version | Contents |
+|---|---|
+| V1 | hospital, system_configuration, users, refresh_tokens |
+| V2 | ward, patient (with full demographic fields) |
+| V3 | patient_vitals (VHI scoring fields), clinical_note |
+| V4 | outbox_event, processed_event, full QRTZ_* table set |
+| V5 | prescription, medication_chart, medication_task |
+| V6 | handover_note |
+| V7 | Composite performance indexes |
+| V8 | Additional patient demographic fields |
+| V9 | hospital_onboarding_request, activation_token |
+| V10 | ward_id column on users (nurse-to-ward assignment) |
 
 ---
 
-## 7. All Entities
+## 10. API Reference
 
-All entities extend `BaseEntity` which provides: `String id` (UUID, set in `@PrePersist`), `LocalDateTime createdAt`, `LocalDateTime updatedAt`.
+All endpoints are prefixed `/api/v1`. All require a JWT Bearer token except where noted as Public. `hospitalId` is always read from the JWT — never from the request body.
 
-Use `VARCHAR(36)` for all ID columns. Use `DATETIME` for timestamps. Use `@Enumerated(EnumType.STRING)` on all enum columns. Lombok `@Getter @Setter @NoArgsConstructor` on all entities.
+**Swagger UI (careround-core only):** `http://localhost:8080/swagger-ui.html`
 
-### Hospital
+### Authentication
 
-```
-Table: hospital
-hospitalId not needed (this IS the tenant root)
-name               VARCHAR(255) NOT NULL
-address            TEXT
-contactEmail       VARCHAR(255) NOT NULL UNIQUE
-contactPhone       VARCHAR(50)
-```
-
-### SystemConfiguration
-
-```
-Table: system_configuration
-hospitalId         VARCHAR(36) NOT NULL UNIQUE   ← 1:1 with Hospital
-newsAmberThreshold INT NOT NULL DEFAULT 5
-newsRedThreshold   INT NOT NULL DEFAULT 7
-taskOverdueGraceMinutes INT NOT NULL DEFAULT 30
-roundNotificationsEnabled BOOLEAN NOT NULL DEFAULT TRUE
-nokNotificationEnabled    BOOLEAN NOT NULL DEFAULT TRUE
-```
-
-### User
-
-```
-Table: users
-hospitalId         VARCHAR(36) NOT NULL
-firstName          VARCHAR(100) NOT NULL
-lastName           VARCHAR(100) NOT NULL
-email              VARCHAR(255) NOT NULL
-passwordHash       VARCHAR(255) NOT NULL
-role               ENUM(UserRole) NOT NULL
-departmentId       VARCHAR(36) nullable
-isActive           BOOLEAN NOT NULL DEFAULT TRUE
-
-UNIQUE INDEX: (hospital_id, email)
-```
-
-### PlatformOperator
-
-```
-Table: platform_operator
-firstName          VARCHAR(100) NOT NULL
-lastName           VARCHAR(100) NOT NULL
-email              VARCHAR(255) NOT NULL UNIQUE
-passwordHash       VARCHAR(255) NOT NULL
-role               ENUM(PlatformOperatorRole) NOT NULL
-isActive           BOOLEAN NOT NULL DEFAULT TRUE
-
-Platform operators are internal CareRound users. They are not tenant users, do not belong to a hospital, and authenticate through the platform auth flow.
-```
-
-### AccountActivationToken
-
-```
-Table: account_activation_token
-tokenHash          VARCHAR(64) NOT NULL UNIQUE
-userId             VARCHAR(36) NOT NULL
-hospitalId         VARCHAR(36) NOT NULL
-expiresAt          DATETIME NOT NULL
-usedAt             DATETIME nullable
-
-Activation tokens are stored hashed, expire, and are single-use.
-```
-
-### HospitalOnboardingRequest
-
-```
-Table: hospital_onboarding_request
-hospitalName           VARCHAR(255) NOT NULL
-countryOrRegion       VARCHAR(120) NOT NULL
-contactEmail           VARCHAR(255) NOT NULL
-contactPhone           VARCHAR(50) nullable
-hospitalType           VARCHAR(80) NOT NULL
-estimatedBeds          VARCHAR(40) nullable
-primaryNeed            TEXT NOT NULL
-status                 ENUM(HospitalOnboardingStatus) NOT NULL
-reviewNotes            TEXT nullable
-reviewedByUserId       VARCHAR(36) nullable
-reviewedAt             DATETIME nullable
-provisionedHospitalId  VARCHAR(36) nullable
-
-INDEX: (status, created_at)
-INDEX: (contact_email)
-```
-
-### Department
-
-```
-Table: department
-hospitalId            VARCHAR(36) NOT NULL
-name                  VARCHAR(255) NOT NULL
-headOfDepartmentId    VARCHAR(36) nullable  ← FK to users
-```
-
-### Ward
-
-```
-Table: ward
-hospitalId    VARCHAR(36) NOT NULL
-name          VARCHAR(255) NOT NULL
-specialty     VARCHAR(100)
-totalBeds     INT NOT NULL DEFAULT 0
-supervisorId  VARCHAR(36) nullable  ← FK to users
-```
-
-### MedicalTeam
-
-```
-Table: medical_team
-hospitalId    VARCHAR(36) NOT NULL
-name          VARCHAR(255) NOT NULL
-consultantId  VARCHAR(36) NOT NULL  ← FK to users
-departmentId  VARCHAR(36) NOT NULL  ← FK to department
-```
-
-### MedicalTeamWard (join table)
-
-```
-Table: medical_team_ward
-Composite PK: (medical_team_id, ward_id)
-medicalTeamId  VARCHAR(36) NOT NULL
-wardId         VARCHAR(36) NOT NULL
-assignedAt     DATETIME NOT NULL
-No BaseEntity extension — composite PK only
-```
-
-### MedicalTeamMember (join table)
-
-```
-Table: medical_team_member
-Composite PK: (medical_team_id, user_id)
-medicalTeamId  VARCHAR(36) NOT NULL
-userId         VARCHAR(36) NOT NULL
-joinedAt       DATETIME NOT NULL
-No BaseEntity extension — composite PK only
-```
-
-### MedicalTeamInvite
-
-```
-Table: medical_team_invite
-hospitalId       VARCHAR(36) NOT NULL
-medicalTeamId    VARCHAR(36) NOT NULL
-invitedUserId    VARCHAR(36) NOT NULL
-invitedById      VARCHAR(36) NOT NULL  ← Consultant who sent invite
-status           ENUM(InviteStatus) NOT NULL DEFAULT PENDING
-expiresAt        DATETIME NOT NULL
-```
-
-### OnCallRotation
-
-```
-Table: on_call_rotation
-hospitalId    VARCHAR(36) NOT NULL
-departmentId  VARCHAR(36) NOT NULL
-wardId        VARCHAR(36) nullable     ← optional ward-level override
-doctorId      VARCHAR(36) NOT NULL
-role          ENUM(OnCallRole) NOT NULL
-startTime     DATETIME NOT NULL
-endTime       DATETIME NOT NULL
-```
-
-### ShiftSchedule
-
-```
-Table: shift_schedule
-hospitalId   VARCHAR(36) NOT NULL
-wardId       VARCHAR(36) nullable   ← null = applies to ALL wards in hospital
-shiftType    ENUM(ShiftType) NOT NULL
-startTime    TIME NOT NULL           ← e.g. 07:00:00
-endTime      TIME NOT NULL           ← e.g. 19:00:00
-daysOfWeek   VARCHAR(50) NOT NULL    ← comma-separated: MON,TUE,WED,THU,FRI
-isActive     BOOLEAN NOT NULL DEFAULT TRUE
-```
-
-### Shift
-
-```
-Table: shift
-wardId            VARCHAR(36) NOT NULL
-shiftScheduleId   VARCHAR(36) nullable    ← null if manually created
-type              ENUM(ShiftType) NOT NULL
-startTime         DATETIME NOT NULL
-endTime           DATETIME NOT NULL
-leadDoctorId      VARCHAR(36) nullable    ← set by WardSupervisor on assignment
-nurseInChargeId   VARCHAR(36) nullable    ← set by WardSupervisor on assignment
-status            ENUM(ShiftStatus) NOT NULL DEFAULT PENDING_ASSIGNMENT
-assignedAt        DATETIME nullable
-
-UNIQUE INDEX: (ward_id, type, start_time)
-```
-
-### Handover
-
-```
-Table: handover
-wardId            VARCHAR(36) NOT NULL
-outgoingShiftId   VARCHAR(36) NOT NULL
-incomingShiftId   VARCHAR(36) NOT NULL
-conductedById     VARCHAR(36) NOT NULL
-status            ENUM(HandoverStatus) NOT NULL DEFAULT PENDING
-generalNotes      TEXT nullable
-completedAt       DATETIME nullable
-```
-
-### PatientHandoverNote
-
-```
-Table: patient_handover_note
-handoverId          VARCHAR(36) NOT NULL
-patientId           VARCHAR(36) NOT NULL
-statusSummary       TEXT
-outstandingTaskIds  TEXT nullable    ← comma-separated CareTask UUIDs
-urgencyFlag         BOOLEAN NOT NULL DEFAULT FALSE
-addedById           VARCHAR(36) NOT NULL
-```
-
-### Patient
-
-```
-Table: patient
-hospitalId              VARCHAR(36) NOT NULL
-wardId                  VARCHAR(36) nullable   ← cleared after final discharge
-bedNumber               VARCHAR(20) nullable
-medicalTeamId           VARCHAR(36) NOT NULL
-admittingConsultantId   VARCHAR(36) nullable
-firstName               VARCHAR(100) NOT NULL
-lastName                VARCHAR(100) NOT NULL
-dateOfBirth             DATE NOT NULL
-gender                  VARCHAR(20) nullable
-hospitalNumber          VARCHAR(50) NOT NULL UNIQUE
-admissionDate           DATETIME NOT NULL
-admissionType           ENUM(AdmissionType) NOT NULL
-primaryDiagnosis        TEXT nullable
-specialtyRequired       VARCHAR(100) nullable   ← matched to Department for on-call routing
-acuityLevel             ENUM(AcuityLevel) NOT NULL DEFAULT LOW
-newsScore               INT NOT NULL DEFAULT 0  ← computed from latest vitals
-isDischargeReady        BOOLEAN NOT NULL DEFAULT FALSE
-estimatedDischargeDate  DATE nullable
-status                  ENUM(PatientStatus) NOT NULL DEFAULT ADMITTED
-
-INDEX: (hospital_id, ward_id, acuity_level, news_score)
-```
-
-### PatientVitals
-
-```
-Table: patient_vitals
-patientId           VARCHAR(36) NOT NULL
-recordedById        VARCHAR(36) NOT NULL
-heartRate           INT nullable
-respiratoryRate     INT nullable
-oxygenSaturation    DECIMAL(5,2) nullable
-systolicBP          INT nullable
-temperature         DECIMAL(4,1) nullable
-consciousnessLevel  ENUM(ConsciousnessLevel) nullable
-newsScore           INT NOT NULL    ← computed server-side via NEWS2 algorithm
-recordedAt          DATETIME NOT NULL
-
-INDEX: (patient_id, recorded_at)
-```
-
-### NextOfKin
-
-```
-Table: next_of_kin
-patientId               VARCHAR(36) NOT NULL
-name                    VARCHAR(255) NOT NULL
-relationship            VARCHAR(100) nullable
-phone                   VARCHAR(50) nullable
-email                   VARCHAR(255) nullable
-preferredContactMethod  ENUM(ContactMethod) NOT NULL DEFAULT SMS
-isEmergencyContact      BOOLEAN NOT NULL DEFAULT FALSE
-notificationConsent     BOOLEAN NOT NULL DEFAULT FALSE   ← GDPR gate
-```
-
-### Escalation
-
-```
-Table: escalation
-hospitalId      VARCHAR(36) NOT NULL
-patientId       VARCHAR(36) NOT NULL
-triggeredById   VARCHAR(36) nullable    ← null when System-triggered
-triggerType     ENUM(EscalationTrigger) NOT NULL
-severity        ENUM(EscalationSeverity) NOT NULL
-assignedToId    VARCHAR(36) nullable
-status          ENUM(EscalationStatus) NOT NULL DEFAULT OPEN
-notes           TEXT nullable
-resolvedAt      DATETIME nullable
-```
-
-### Round
-
-```
-Table: round
-hospitalId      VARCHAR(36) NOT NULL
-wardId          VARCHAR(36) NOT NULL
-medicalTeamId   VARCHAR(36) NOT NULL
-shiftId         VARCHAR(36) NOT NULL
-roundType       ENUM(RoundType) NOT NULL
-leadDoctorId    VARCHAR(36) NOT NULL
-status          ENUM(RoundStatus) NOT NULL DEFAULT SCHEDULED
-scheduledTime   DATETIME nullable
-startedAt       DATETIME nullable
-completedAt     DATETIME nullable
-teamMembers     TEXT nullable   ← comma-separated User UUIDs
-
-INDEX: (ward_id, medical_team_id, round_type, status)
-```
-
-### PatientRoundReview
-
-```
-Table: patient_round_review
-roundId              VARCHAR(36) NOT NULL
-patientId            VARCHAR(36) NOT NULL
-reviewedById         VARCHAR(36) NOT NULL
-reviewOrder          INT NOT NULL          ← 1 = first seen, driven by acuity
-newsScoreAtReview    INT nullable          ← snapshot at time of review
-clinicalStatus       ENUM(ClinicalStatus) NOT NULL
-wasExamined          BOOLEAN NOT NULL DEFAULT FALSE
-managementPlan       TEXT nullable
-dischargeAssessment  ENUM(DischargeAssessment) NOT NULL DEFAULT NONE
-notifiedNextOfKin    BOOLEAN NOT NULL DEFAULT FALSE
-reviewedAt           DATETIME NOT NULL
-```
-
-### ClinicalNote
-
-```
-Table: clinical_note
-patientId             VARCHAR(36) NOT NULL
-patientRoundReviewId  VARCHAR(36) nullable    ← null for standalone notes
-authorId              VARCHAR(36) NOT NULL
-noteType              ENUM(NoteType) NOT NULL
-content               TEXT NOT NULL
-isAmended             BOOLEAN NOT NULL DEFAULT FALSE
-amendedById           VARCHAR(36) nullable
-amendedAt             DATETIME nullable
-
-NOTE: ClinicalNotes are NEVER deleted. Amendments preserve original.
-```
-
-### CareTask
-
-```
-Table: care_task
-hospitalId       VARCHAR(36) NOT NULL
-patientId        VARCHAR(36) NOT NULL
-wardId           VARCHAR(36) NOT NULL
-roundId          VARCHAR(36) nullable        ← null for NURSING_CARE_PLAN tasks
-createdById      VARCHAR(36) NOT NULL
-assignedToId     VARCHAR(36) nullable
-assignedToRole   ENUM(AssignedToRole) nullable
-taskType         VARCHAR(100) NOT NULL        ← free text: "Medication", "Chest X-Ray", etc.
-source           ENUM(TaskSource) NOT NULL
-title            VARCHAR(255) NOT NULL
-description      TEXT nullable
-priority         ENUM(TaskPriority) NOT NULL DEFAULT ROUTINE
-windowStart      DATETIME NOT NULL for API-created tasks
-windowEnd        DATETIME NOT NULL for API-created tasks
-status           ENUM(TaskStatus) NOT NULL DEFAULT PENDING
-completedById    VARCHAR(36) nullable
-completedAt      DATETIME nullable
-escalatedAt      DATETIME nullable
-workloadConflict BOOLEAN NOT NULL DEFAULT FALSE
-workloadConflictReason TEXT nullable
-
-INDEX: (hospital_id, ward_id, status, window_end)
-INDEX: (hospital_id, assigned_to_id, status, window_start, window_end)
-```
-
-### OutboxEvent
-
-```
-Table: outbox_event  (in careround_core schema)
-hospitalId     VARCHAR(36) NOT NULL
-eventType      VARCHAR(100) NOT NULL
-payload        LONGTEXT NOT NULL        ← serialised JSON
-published      BOOLEAN NOT NULL DEFAULT FALSE
-publishedAt    DATETIME nullable
-correlationId  VARCHAR(36)
-
-INDEX: (published, created_at)
-```
-
-### Notification (careround_notification schema)
-
-```
-Table: notifications
-eventType       VARCHAR(100) NOT NULL
-hospitalId      VARCHAR(36) nullable
-recipientId     VARCHAR(36) nullable
-recipientType   VARCHAR(20) nullable
-channel         VARCHAR(20) nullable
-subject         VARCHAR(255) nullable
-body            TEXT nullable
-correlationId   VARCHAR(100) nullable
-payload         LONGTEXT nullable
-status          ENUM(NotificationStatus) NOT NULL    ← PENDING, SENT, FAILED
-failureReason   TEXT nullable                        ← populated only if status=FAILED
-sentAt          DATETIME nullable
-retryCount      INT NOT NULL DEFAULT 0
-```
-
-### AuditLogEntry (careround_audit schema)
-
-```
-Table: audit_log
-eventType      VARCHAR(100) NOT NULL
-hospitalId     VARCHAR(36) NOT NULL
-correlationId  VARCHAR(36)
-payload        LONGTEXT
-processedAt    DATETIME NOT NULL
-
-INDEX: (hospital_id, event_type, created_at)
-```
-
----
-
-## 8. All Enums
-
-```java
-// auth
-UserRole: ADMIN, CONSULTANT, REGISTRAR, JUNIOR_DOCTOR, NURSE, WARD_SUPERVISOR
-PlatformOperatorRole: PLATFORM_ADMIN
-
-// onboarding
-HospitalOnboardingStatus: PENDING_REVIEW, CONTACTED, APPROVED, REJECTED, PROVISIONED
-
-// hospital domain
-ShiftType:       DAY, NIGHT
-ShiftStatus:     PENDING_ASSIGNMENT, ACTIVE, COMPLETED, HANDED_OVER
-HandoverStatus:  PENDING, IN_PROGRESS, COMPLETED
-OnCallRole:      REGISTRAR_ON_CALL, CONSULTANT_ON_CALL
-InviteStatus:    PENDING, ACCEPTED, DECLINED, EXPIRED
-
-// patient domain
-PatientStatus:        ADMITTED, STABLE, DETERIORATING, DISCHARGE_READY, DISCHARGED
-AcuityLevel:          LOW, MEDIUM, HIGH, CRITICAL
-AdmissionType:        EMERGENCY, ELECTIVE, TRANSFER
-ConsciousnessLevel:   ALERT, VOICE, PAIN, UNRESPONSIVE   ← AVPU scale
-EscalationTrigger:    HIGH_NEWS_SCORE, TASK_OVERDUE, NURSE_CONCERN, DETERIORATION
-EscalationSeverity:   AMBER, RED
-EscalationStatus:     OPEN, ACKNOWLEDGED, RESOLVED
-ContactMethod:        SMS, EMAIL, BOTH
-RoundType:            MORNING, POST_TAKE, BOARD, EVENING, WEEKEND
-RoundStatus:          SCHEDULED, IN_PROGRESS, COMPLETED, CANCELLED
-ClinicalStatus:       STABLE, IMPROVING, DETERIORATING, CRITICAL
-DischargeAssessment:  NONE, POSSIBLE, CONFIRMED, BLOCKED_SOCIAL, BLOCKED_MEDICAL
-NoteType:             ROUND_NOTE, PROGRESS_NOTE, ADMISSION_NOTE, DISCHARGE_NOTE, ESCALATION_NOTE
-TaskSource:           NURSING_CARE_PLAN, POST_ROUND_JOB
-TaskPriority:         ROUTINE, URGENT, EMERGENCY
-TaskStatus:           PENDING, IN_PROGRESS, COMPLETED, OVERDUE, CANCELLED
-AssignedToRole:       NURSE, JUNIOR_DOCTOR, REGISTRAR
-```
-
-### AcuityLevel derivation from NEWS score
-
-```
-0–4   → LOW
-5–6   → MEDIUM (AMBER alert)
-7+    → HIGH / CRITICAL (RED alert)
-```
-
----
-
-## 9. Actors and Permissions
-
-### Role overview
-
-| Role | Real-world equivalent | Key scope |
-|---|---|---|
-| ADMIN | Hospital account administrator | System config, wards, users — no clinical data |
-| CONSULTANT | Attending physician | Leads medical team, all clinical authority for own team |
-| REGISTRAR | Senior resident | Daily ward management, on-call, round leadership |
-| JUNIOR_DOCTOR | Foundation year / resident | Documentation, jobs list, round participation |
-| NURSE | Ward nurse | Care tasks, vitals recording, escalation creation |
-| WARD_SUPERVISOR | Ward manager / charge nurse | Shift assignment, oversight, dashboard |
-| PLATFORM_ADMIN | Internal CareRound operator | Reviews onboarding requests, provisions tenants, lists hospitals |
-
-### PLATFORM_ADMIN - allowed actions
-
-- Log in through `/api/v1/platform/auth/login` using the `platform_operator` table
-- Review hospital onboarding requests
-- Provision approved hospitals, their default configuration, and first tenant `ADMIN`
-- List all hospitals on the platform through `GET /api/v1/hospitals`
-- **Cannot** access tenant clinical workflows as a hospital user
-
-The first platform admin can be bootstrapped on startup by setting `CAREROUND_PLATFORM_BOOTSTRAP_ADMIN_EMAIL` and `CAREROUND_PLATFORM_BOOTSTRAP_ADMIN_PASSWORD`. Bootstrap only runs when the `platform_operator` table is empty.
-
-### ADMIN — allowed actions
-
-- Configure own Hospital record
-- Manage SystemConfiguration (NEWS thresholds, notification toggles)
-- Create/update/deactivate Departments
-- Create/update/deactivate Wards
-- Create/update/deactivate User accounts (all roles)
-- Create and assign MedicalTeams to Wards
-- Configure OnCallRotations
-- Create and manage ShiftSchedules (automated shift timing)
-- **Cannot** view or modify patient records or clinical data
-
-### CONSULTANT — allowed actions
-
-- Create new MedicalTeam (automatically becomes `consultantId`)
-- Send MedicalTeamInvites to existing hospital users
-- Remove members from own MedicalTeam
-- Create and lead Rounds (all types)
-- **ONLY role that can confirm discharge** (`dischargeAssessment = CONFIRMED`)
-- Create and amend ClinicalNotes for own team's patients
-- View all patients assigned to own MedicalTeam
-- Create post-round CareTasks assigned to any team role
-- **Cannot** access other teams' patients
-
-### REGISTRAR — allowed actions
-
-- Create and lead Rounds (all types, including on-call and weekend)
-- Manage on-call admissions — assign patients to MedicalTeams
-- Acknowledge and resolve Escalations
-- Create post-round CareTasks
-- Create and amend ClinicalNotes
-- **Cannot** confirm discharge — Consultant only
-
-### JUNIOR_DOCTOR — allowed actions
-
-- Participate in Rounds, create PatientRoundReview records
-- Write ClinicalNotes (ROUND_NOTE, PROGRESS_NOTE, DISCHARGE_NOTE)
-- Complete assigned post-round CareTasks
-- Create PatientHandoverNotes during shift handover
-- **Cannot** lead Rounds, confirm discharge, or create NURSING_CARE_PLAN tasks
-
-### NURSE — allowed actions
-
-- Create NURSING_CARE_PLAN CareTasks for any patient on their ward
-- Execute and complete CareTasks
-- Record PatientVitals — triggers NEWS2 computation
-- Create Escalations (triggerType: NURSE_CONCERN)
-- Create PatientHandoverNotes
-- View ClinicalNotes and PatientRoundReviews (read-only)
-- **Cannot** write ClinicalNotes, create Rounds, or confirm discharge
-
-### WARD_SUPERVISOR — allowed actions
-
-- **Assign lead doctor and nurse to PENDING_ASSIGNMENT shifts**
-- Initiate and oversee Handovers
-- View all CareTasks, completion rates, overdue tasks for their ward
-- View all Round histories for their ward
-- View all patient records (read-only)
-- Receive and action escalation alerts
-- View ward bed capacity and occupancy; discharged patients are removed from beds automatically
-- **Cannot** write ClinicalNotes, create Rounds, or confirm discharge
-
----
-
-## 10. Workflows
-
-### 10.1 Hospital Onboarding
-
-```
-Hospital representative submits public onboarding request
-  POST /api/v1/onboarding/hospital-requests
-  -> HospitalOnboardingRequest status = PENDING_REVIEW
-  -> Outbox publishes careround.hospital.onboarding_requested
-
-PlatformAdmin logs in through /api/v1/platform/auth/login
-  -> Reviews request: CONTACTED, APPROVED, or REJECTED
-  -> Approved requests can be provisioned
-
-PlatformAdmin provisions approved request
-  POST /api/v1/onboarding/hospital-requests/:id/provision
-  -> Hospital record created
-  -> SystemConfiguration defaults or request values created
-  -> First tenant ADMIN user created inactive
-  -> Single-use activation token generated
-  -> Outbox publishes careround.hospital.provisioned
-  -> Outbox publishes careround.user.activation_requested
-
-Hospital admin opens http://localhost:3000/activate?token=...
-  -> Sets password through POST /api/v1/auth/activate-account
-  -> Token is marked used
-  -> Admin logs in normally through POST /api/v1/auth/login
-
-After activation:
-  -> Admin creates Departments
-  -> Admin creates Wards and optionally assigns WardSupervisor
-  -> Admin creates staff User accounts with role + hospitalId
-  -> Admin creates ShiftSchedules; wardId can target one ward or be null for all wards
-  -> Admin or Consultant creates MedicalTeam
-  -> Consultant sends invites to Registrar and JuniorDoctors
-  -> Admin or owning Consultant assigns MedicalTeam to Wards via MedicalTeamWard
-  -> Admin configures OnCallRotations
-  -> System is operational
-```
-
-Refresh tokens are persisted for session rotation. Logout, password change, token refresh, and expired-token usage mark tokens revoked; `RefreshTokenCleanupJob` runs hourly and deletes rows where `revoked = true` or `expires_at` is in the past.
-
-### 10.2 Patient Admission
-
-```
-Admin, Consultant, Registrar, or WardSupervisor creates Patient record
-  -> admissionType: EMERGENCY | ELECTIVE | TRANSFER
-  -> wardId and medicalTeamId are supplied by the caller
-  -> specialtyRequired is stored for clinical routing and reporting
-
-If admittingConsultantId is omitted, the service resolves the on-call consultant:
-  WHERE department matches specialtyRequired
-  AND role = CONSULTANT_ON_CALL
-  AND start_time <= NOW() AND end_time > NOW()
-  -> if no match: fall back to General Medicine on-call
-
-Admission ClinicalNote can be created separately by receiving staff
-Authorized clinical staff records first PatientVitals -> newsScore computed -> acuityLevel set
-Patient appears on ward list ordered by acuityLevel DESC, newsScore DESC
-
-Outbox publishes -> PATIENT_ADMITTED event fires
-```
-
-### 10.3 Automatic Shift Creation
-
-```
-Quartz ShiftCreationJob runs at configured intervals (every minute)
--> Reads active ShiftSchedule records from database
--> For each schedule matching current day:
-    Checks uniqueness: (ward_id, type, start_time) must not already exist
-    Creates Shift with status = PENDING_ASSIGNMENT
-    leadDoctorId = null, nurseInChargeId = null
-    If schedule.wardId is null, creates one shift for every ward in the hospital
-    Outbox publishes -> SHIFT_CREATED event
-
-WardSupervisor receives notification -> assigns leadDoctorId + nurseInChargeId
--> PUT /api/v1/shifts/:id/assign
--> Shift status transitions: PENDING_ASSIGNMENT -> ACTIVE
--> Outbox publishes -> SHIFT_ACTIVATED event
-
-Rounds cannot be created against a PENDING_ASSIGNMENT shift.
-Shift must be ACTIVE before rounds begin.
-```
-
-### 10.4 MedicalTeam Creation and Invite Flow
-
-```
-Consultant creates MedicalTeam:
-  POST /api/v1/teams
-  -> consultantId defaults to authenticated user's ID unless supplied
-  -> Must specify departmentId
-
-Consultant sends invite:
-  POST /api/v1/teams/:teamId/invites  { invitedUserId }
-  Validates: same hospitalId, not already a member, no duplicate PENDING invite
-  Creates MedicalTeamInvite (status: PENDING, expiresAt: now + 48h)
-  Outbox publishes -> TEAM_INVITE_SENT event
-
-Invited doctor accepts:
-  POST /api/v1/teams/invites/:inviteId/accept
-  Creates MedicalTeamMember record
-  Outbox publishes -> TEAM_MEMBER_ADDED event
-
-Admin or owning Consultant assigns ward:
-  POST /api/v1/teams/:teamId/wards { wardId }
-
-Quartz InviteExpiryJob: marks PENDING invites past expiresAt as EXPIRED
-  Outbox publishes -> INVITE_EXPIRED event
-```
-
-### 10.5 Ward Round
-
-**Round creation:**
-```
-Consultant or Registrar creates Round:
-  POST /api/v1/rounds  { wardId, medicalTeamId, roundType, leadDoctorId, scheduledTime, teamMembers[] }
-  
-  Validates:
-    - An ACTIVE shift must exist for the ward
-    - No other round of the same type can be IN_PROGRESS for same wardId + medicalTeamId
-
-  Patient queue generated ordered by:
-    1. CRITICAL acuity
-    2. HIGH acuity (NEWS ≥ 7)
-    3. New admissions since last round
-    4. MEDIUM acuity
-    5. STABLE / LOW acuity
-
-Round status: SCHEDULED
-```
-
-**Conducting the round:**
-```
-Lead doctor starts round: POST /api/v1/rounds/:roundId/start
-  → status: SCHEDULED → IN_PROGRESS
-
-For each patient in queue:
-  JuniorDoctor presents (overnight events, vitals, results)
-  Consultant examines patient
-
-  PATCH /api/v1/rounds/:roundId/patients/:patientId
-  Updates PatientRoundReview:
-    clinicalStatus, managementPlan, dischargeAssessment, wasExamined
-    newsScoreAtReview (snapshot of current score)
-
-  JuniorDoctor can write a ClinicalNote (ROUND_NOTE) linked to the review
-  Post-round CareTasks can be created through POST /api/v1/care-tasks
-    with source: POST_ROUND_JOB and roundId set
-
-  If dischargeAssessment = CONFIRMED:
-    → Patient.isDischargeReady = true
-    → Patient.status = DISCHARGE_READY
-    → Auto-creates discharge CareTasks (summary, medications)
-    → Outbox publishes → PATIENT_DISCHARGE_READY event
-
-All patients reviewed:
-  POST /api/v1/rounds/:roundId/complete
-  Round status: IN_PROGRESS → COMPLETED
-  Outbox publishes → ROUND_COMPLETED event
-```
-
-**Round type reference:**
-
-| Type | Led by | Scope | Documentation |
-|---|---|---|---|
-| MORNING | Consultant | All team patients | Full ROUND_NOTE per patient, physical exam |
-| POST_TAKE | Registrar | New admissions since last full round | ROUND_NOTE |
-| BOARD | Registrar / JuniorDoctor | All ward patients (status check only) | Brief — no exam |
-| EVENING | Registrar | Deteriorating or post-procedure | PROGRESS_NOTE |
-| WEEKEND | On-call Registrar | All patients across specialty wards | Brief, escalate if needed |
-
-### 10.6 Care Task Lifecycle
-
-**Nursing care task:**
-```
-Nurse creates: POST /api/v1/care-tasks
-  source: NURSING_CARE_PLAN
-  taskType: free text ("Medication", "Vitals Check", "Wound Dressing", etc.)
-  windowStart, windowEnd required
-  assignedToRole: NURSE
-  assignedToId: system-selected nurse
-  status: PENDING
-
-Auto-assignment:
-  1. Assign to nurseInChargeId on the patient's ward active shift
-  2. If that nurse has an overlapping PENDING or IN_PROGRESS task, assign another active nurse from a same-specialty ward
-  3. If every same-specialty nurse has a clash, assign to the ward nurse in charge anyway
-     -> workloadConflict = true
-     -> Outbox publishes careround.care_task.workload_conflict
-     -> WardSupervisor notified
-
-At windowStart: assigned nurse notified
-Nurse starts: status → IN_PROGRESS
-Nurse completes: status → COMPLETED, completedAt set
-
-If windowEnd passes and status ≠ COMPLETED:
-  Quartz TaskOverdueJob fires → TASK_OVERDUE event
-  CareTask.escalatedAt set
-  Escalation created (triggerType: TASK_OVERDUE)
-  WardSupervisor notified
-```
-
-**Post-round doctor job:**
-```
-Created through POST /api/v1/care-tasks with source: POST_ROUND_JOB
-  assignedToRole: NURSE for API-created tasks; system-generated discharge jobs can still target JUNIOR_DOCTOR or NURSE
-  priority: ROUTINE | URGENT | EMERGENCY
-
-EMERGENCY: if not started within 30 minutes → auto-escalate to Registrar
-URGENT: if overdue → escalate to Registrar
-ROUTINE: if overdue → flag to WardSupervisor only
-
-Status transitions: PENDING → IN_PROGRESS → COMPLETED (forward only, no reversal)
-```
-
-### 10.7 Patient Vitals and NEWS2 Deterioration
-
-```
-Nurse records vitals: POST /api/v1/patients/:id/vitals
-  { heartRate, respiratoryRate, oxygenSaturation, systolicBP,
-    temperature, consciousnessLevel }
-
-NewsScoreService computes score via NHS NEWS2 algorithm:
-  heartRate:           ≤40 or ≥131 → 3 | 41-50 or 111-130 → 2 | etc.
-  respiratoryRate:     ≤8 or ≥25 → 3 | 9-11 → 1 | 12-20 → 0 | etc.
-  oxygenSaturation:    ≤91% → 3 | 92-93% → 2 | 94-95% → 1 | ≥96% → 0
-  systolicBP:          ≤90 or ≥220 → 3 | etc.
-  temperature:         ≤35.0 or ≥39.1 → 2 | etc.
-  consciousnessLevel:  ALERT → 0 | any other → 3
-
-Patient.newsScore updated
-Patient.acuityLevel updated:
-  0-4 → LOW | 5-6 → MEDIUM | 7+ → HIGH / CRITICAL
-
-If score crosses AMBER threshold (default: 5):
-  Escalation created (severity: AMBER)
-  Assigned to on-call REGISTRAR_ON_CALL for patient's department
-
-If score crosses RED threshold (default: 7):
-  Escalation created (severity: RED)
-  Assigned to CONSULTANT_ON_CALL
-  Patient.status = DETERIORATING
-  Outbox publishes → PATIENT_DETERIORATION event
-  NextOfKin with isEmergencyContact=true notified (if consent=true)
-
-Quartz EscalationUnacknowledgedJob:
-  If escalation not acknowledged within SystemConfiguration.taskOverdueGraceMinutes:
-  → Re-assigns to next seniority level
-  → Outbox publishes → ESCALATION_UNACKNOWLEDGED event
-```
-
-### 10.8 Discharge
-
-```
-During PatientRoundReview (Consultant only):
-  dischargeAssessment = CONFIRMED (CONSULTANT role enforced at service layer)
-
-Patient.isDischargeReady = true
-Patient.status = DISCHARGE_READY
-Outbox publishes → PATIENT_DISCHARGE_READY event
-
-Auto-creates clinical CareTasks (source: POST_ROUND_JOB):
-  "Write discharge summary"   → assignedToRole: JUNIOR_DOCTOR
-  "Prepare discharge medications" → assignedToRole: NURSE
-
-JuniorDoctor creates DISCHARGE_NOTE ClinicalNote
-
-When all discharge CareTasks are COMPLETED:
-  Patient.status = DISCHARGED
-  wardId and bedNumber cleared automatically (bed freed)
-  Outbox publishes → PATIENT_DISCHARGED event
-  NextOfKin notified (if notificationConsent = true)
-
-Blocked discharge cases:
-  BLOCKED_SOCIAL: awaiting care package — patient stays, flagged on supervisor dashboard
-  BLOCKED_MEDICAL: awaiting test result — same
-```
-
-### 10.9 Shift Handover
-
-```
-Lead doctor initiates: POST /api/v1/handovers
-  { outgoingShiftId, incomingShiftId }
-  Validates: outgoing shift status must be ACTIVE
-  Handover status: PENDING → IN_PROGRESS
-
-For each patient on the ward:
-  POST /api/v1/handovers/:id/patient-notes
-  { patientId, statusSummary, outstandingTaskIds[], urgencyFlag }
-
-Incoming shift lead signs off:
-  PUT /api/v1/handovers/:id/complete
-  Handover status -> COMPLETED
-  Outgoing shift -> HANDED_OVER
-  Incoming shift is not auto-transitioned by handover completion
-  Outstanding tasks carry forward (not auto-closed)
-  Outbox publishes -> HANDOVER_COMPLETED event
-```
-
-### 10.10 Notification Fan-Out
-
-| Trigger | Event | Content | Condition |
-|---|---|---|---|
-| Round completed | ROUND_COMPLETED | Confirmation to round lead doctor | leadDoctorId present |
-| Shift created | SHIFT_CREATED | Email to ward supervisor | ward.supervisorId present |
-| Task overdue | TASK_OVERDUE | SMS to assignee and email to ward supervisor | respective recipient IDs present |
-| Care task workload conflict | CARE_TASK_WORKLOAD_CONFLICT | Email to ward supervisor | every same-specialty active nurse already has a clashing task |
-| Patient deterioration | PATIENT_DETERIORATION | SMS to assigned doctor and email to ward supervisor | respective recipient IDs present |
-| Patient discharged | PATIENT_DISCHARGED | NOK discharge notification | notificationConsent=true; preferredContactMethod controls EMAIL/SMS |
-| User activation requested | USER_ACTIVATION_REQUESTED | Email activation URL to first hospital admin | onboarding provisioning completed |
-
----
-
-## 11. Kafka Event Catalogue
-
-All 18 topics use 3 partitions, 1 replica (local dev). All payloads include `hospitalId` and `correlationId`.
-
-| Topic | Published by | Key payload | Consumers |
-|---|---|---|---|
-| `careround.patient.admitted` | PatientService | patientId, wardId, medicalTeamId | Dashboard, audit |
-| `careround.shift.created` | ShiftCreationJob | shiftId, wardId, shiftType, startTime, endTime | Notification (WardSupervisor alert), audit |
-| `careround.shift.activated` | ShiftService | shiftId, wardId, leadDoctorId, nurseInChargeId | Notification, audit |
-| `careround.round.completed` | RoundService | roundId, wardId, medicalTeamId, shiftId, roundType, leadDoctorId, completedAt | Notification (round lead), audit |
-| `careround.handover.completed` | HandoverService | handoverId, wardId, incomingShiftId | Notification, audit |
-| `careround.task.overdue` | TaskOverdueJob | taskId, patientId, wardId, assignedToId, title, windowEnd | Notification, audit |
-| `careround.patient.deterioration` | PatientVitalsService / EscalationService | patientId, wardId, newsScore, severity, escalationId, assignedToId | Notification, audit |
-| `careround.escalation.unacknowledged` | EscalationUnacknowledgedJob | escalationId, patientId, severity | Notification, audit |
-| `careround.patient.discharge-ready` | RoundService | patientId, wardId, estimatedDischargeDate | Notification, audit |
-| `careround.patient.discharged` | PatientService | patientId, wardId, dischargedAt | Notification (NOK), audit |
-| `careround.team.invite-sent` | MedicalTeamService | inviteId, teamId, invitedUserId | Notification, audit |
-| `careround.team.member-added` | MedicalTeamService | teamId, userId | Notification, audit |
-| `careround.invite.expired` | InviteExpiryJob | inviteId, teamId, invitedUserId | Notification, audit |
-| `careround.hospital.onboarding_requested` | HospitalOnboardingService | hospitalId=platform, requestId, hospitalName, contactEmail | Audit |
-| `careround.hospital.onboarding_reviewed` | HospitalOnboardingService | hospitalId=platform, requestId, status, reviewedByUserId | Audit |
-| `careround.hospital.provisioned` | HospitalOnboardingService | requestId, hospitalId, adminUserId | Audit |
-| `careround.user.activation_requested` | HospitalOnboardingService | hospitalId, userId, email, activationUrl | Notification (first admin email), audit |
-| `careround.care_task.workload_conflict` | CareTaskService | taskId, wardId, patientId, assignedNurseId, wardSupervisorId, windowStart, windowEnd | Notification (ward supervisor), audit |
-
-### Transactional Outbox Pattern — mandatory
-
-**NEVER publish directly to Kafka from a service method.** Always:
-
-```java
-// Inside a @Transactional service method:
-outboxService.publish("careround.round.completed", eventPayload, hospitalId);
-// → inserts OutboxEvent row with published=false in SAME transaction
-
-// OutboxPollerJob (Quartz, every ~1 second):
-// → reads unpublished outbox rows
-// → publishes to Kafka
-// → marks published=true
-```
-
-This guarantees zero event loss. If Kafka is down, events queue in MySQL and are delivered when Kafka recovers.
-
-### Dead Letter Topic (DLT) — careround-notification only
-
-Kafka `DefaultErrorHandler` in NotificationConsumer config: 3 retries with 1-second backoff, then publish to `<topic>.DLT`. `NotificationDltConsumer` persists failed messages to `failed_notifications` with topic, payload, error message, hospitalId, correlationId, and failedAt.
-
-All notifications (successful and failed) are persisted in the `notifications` table:
-- **PENDING**: Notification row created before provider call
-- **SENT**: Provider stub completed successfully
-- **FAILED**: Provider call failed or the circuit breaker was open
-
-Notification fan-out can enrich events by calling careround-core through `HttpCoreLookupClient`. It currently looks up ward supervisors for shift/task/deterioration alerts and consenting next-of-kin contacts for discharge notifications, using `CAREROUND_CORE_BASE_URL` and optional `CAREROUND_SERVICE_ACCOUNT_JWT`.
-
-### Consumer group IDs
-
-```
-careround-notification-{eventname}-group  ← dedicated group per notification consumer
-careround-notification-dlt                ← DLT inspection consumer
-careround-audit-group                     ← AuditEventConsumer
-```
-
-Notification consumers are idempotent through `NotificationIdempotencyGuard`, which skips a message when its `correlationId` already has a persisted notification. Audit persists Kafka topic, partition, offset, key, and payload metadata for each consumed event.
-
----
-
-## 12. API Endpoints
-
-All endpoints are prefixed `/api/v1`. All require JWT Bearer token except public auth endpoints and public onboarding request submission. `hospitalId` is extracted from the JWT for tenant-scoped endpoints. Platform operator JWTs carry `PLATFORM_ADMIN` and are not tenant-scoped.
-
-### Authentication — careround-core
-
-| Method | Endpoint | Access |
+| Method | Path | Access |
 |---|---|---|
 | POST | `/auth/login` | Public |
 | POST | `/auth/refresh` | Public |
-| POST | `/auth/activate-account` | Public activation token |
-| POST | `/auth/forgot-password` | Public |
-| POST | `/auth/reset-password` | Public reset token |
 | POST | `/auth/logout` | Authenticated |
+| POST | `/auth/activate-account` | Public (activation token) |
 | POST | `/auth/change-password` | Authenticated |
 
-### Platform Authentication - careround-core
+### Users
 
-| Method | Endpoint | Access |
+| Method | Path | Access |
 |---|---|---|
-| POST | `/platform/auth/login` | Public; authenticates `platform_operator` |
+| POST | `/users` | ADMIN |
+| GET | `/users` | Any tenant user |
+| GET | `/users/me` | Authenticated |
+| PUT | `/users/me` | Authenticated (own profile) |
+| GET | `/users/:id` | ADMIN |
+| PUT | `/users/:id` | ADMIN |
+| PUT | `/users/:id/deactivate` | ADMIN |
+| PUT | `/users/:id/reactivate` | ADMIN |
+| PUT | `/users/:id/ward-assignment` | ADMIN |
+| PUT | `/users/me/device-token` | Any authenticated user |
 
-### Hospital Onboarding - careround-core
+### Hospitals
 
-| Method | Endpoint | Access |
+| Method | Path | Access |
+|---|---|---|
+| POST | `/hospitals/register` | Public (direct registration) |
+| GET | `/hospitals` | ADMIN |
+| GET | `/hospitals/me` | Authenticated |
+| PUT | `/hospitals/me` | ADMIN |
+| GET | `/system-config` | ADMIN |
+| PUT | `/system-config` | ADMIN |
+
+### Hospital Onboarding (Platform Admin Flow)
+
+| Method | Path | Access |
 |---|---|---|
 | POST | `/onboarding/hospital-requests` | Public |
 | GET | `/onboarding/hospital-requests` | PLATFORM_ADMIN |
@@ -1303,517 +445,334 @@ All endpoints are prefixed `/api/v1`. All require JWT Bearer token except public
 | PUT | `/onboarding/hospital-requests/:id/review` | PLATFORM_ADMIN |
 | POST | `/onboarding/hospital-requests/:id/provision` | PLATFORM_ADMIN |
 
-### Hospital and Configuration — careround-core
+### Wards
 
-| Method | Endpoint | Access |
+| Method | Path | Access |
 |---|---|---|
-| GET | `/hospitals` | PLATFORM_ADMIN |
-| GET | `/hospitals/me` | Authenticated |
-| PUT | `/hospitals/me` | ADMIN |
-| GET | `/system-config` | ADMIN |
-| PUT | `/system-config` | ADMIN |
-
-### Department and Ward Management — careround-core
-
-| Method | Endpoint | Access |
-|---|---|---|
-| POST | `/departments` | ADMIN |
-| GET | `/departments` | Authenticated |
-| GET | `/departments/:id` | Authenticated |
-| PUT | `/departments/:id` | ADMIN |
-| DELETE | `/departments/:id` | ADMIN |
 | POST | `/wards` | ADMIN |
-| GET | `/wards` | Authenticated |
-| GET | `/wards/:id` | Authenticated |
-| PUT | `/wards/:id` | ADMIN, WARD_SUPERVISOR |
+| GET | `/wards` | Any tenant user |
+| GET | `/wards/:id` | Any tenant user |
+| PUT | `/wards/:id` | ADMIN |
 | DELETE | `/wards/:id` | ADMIN |
 
-### Dashboards — careround-core
+### Patients
 
-Role dashboards expose operational summaries for the authenticated tenant: active patients, open escalations, open and overdue tasks, active shifts, rounds in progress, and role-specific counts.
-
-| Method | Endpoint | Access |
+| Method | Path | Access |
 |---|---|---|
-| GET | `/dashboard/me` | Authenticated current-role dashboard |
-| GET | `/dashboard/admin` | ADMIN |
-| GET | `/dashboard/consultant` | CONSULTANT |
-| GET | `/dashboard/doctor` | CONSULTANT, REGISTRAR, JUNIOR_DOCTOR |
-| GET | `/dashboard/nurse` | NURSE |
-| GET | `/dashboard/ward-supervisor` | WARD_SUPERVISOR |
+| POST | `/patients` | ADMIN |
+| GET | `/patients` | Any tenant user |
+| GET | `/patients/:id` | Any tenant user |
+| GET | `/patients/ward/:wardId` | Any tenant user |
+| PUT | `/patients/:id` | ADMIN |
+| PATCH | `/patients/:id/status` | ADMIN, DOCTOR |
+| POST | `/patients/:id/notes/confirm` | DOCTOR |
 
-### Staff Management — careround-core
+### Vitals
 
-| Method | Endpoint | Access |
+| Method | Path | Access |
 |---|---|---|
-| POST | `/users` | ADMIN |
-| GET | `/users` | ADMIN |
-| GET | `/users/me` | Authenticated |
-| GET | `/users/:id` | ADMIN |
-| PUT | `/users/:id/deactivate` | ADMIN |
+| POST | `/patients/:id/vitals` | NURSE, DOCTOR |
+| PUT | `/patients/:id/vitals/:vitalsId` | NURSE, DOCTOR |
+| GET | `/patients/:id/vitals?limit=10` | Any tenant user |
+| GET | `/patients/:id/vitals/latest` | Any tenant user |
 
-### Medical Team Management — careround-core
+### Clinical Notes
 
-Medical-team endpoints use `/teams` in the implemented API.
-`MedicalTeamResponse` includes `wardIds[]`, so list/detail/assignment responses expose persisted ward assignments after reload.
-
-| Method | Endpoint | Access |
+| Method | Path | Access |
 |---|---|---|
-| POST | `/teams` | ADMIN, CONSULTANT |
-| GET | `/teams` | Authenticated |
-| GET | `/teams/:id` | Authenticated tenant user |
-| POST | `/teams/:teamId/wards` | ADMIN, owning CONSULTANT |
-| DELETE | `/teams/:teamId/wards/:wardId` | ADMIN, owning CONSULTANT |
-| POST | `/teams/:teamId/invites` | Owning CONSULTANT |
-| DELETE | `/teams/:teamId/members/:userId` | ADMIN, owning CONSULTANT |
-| GET | `/teams/invites/pending` | Authenticated invited user |
-| POST | `/teams/invites/:inviteId/accept` | Invited user |
-| POST | `/teams/invites/:inviteId/decline` | Invited user |
+| POST | `/clinical-notes` | DOCTOR, NURSE |
+| POST | `/clinical-notes/confirm` | DOCTOR |
+| GET | `/clinical-notes/patient/:patientId` | Any tenant user |
 
-### Patient Management — careround-core
+### Prescriptions
 
-| Method | Endpoint | Access |
+| Method | Path | Access |
 |---|---|---|
-| POST | `/patients` | ADMIN, CONSULTANT, REGISTRAR, WARD_SUPERVISOR |
-| GET | `/patients/:patientId` | Authenticated clinical tenant user |
-| GET | `/patients/ward/:wardId` | Authenticated clinical tenant user |
-| GET | `/patients/search?q=...` | Authenticated clinical tenant user |
-| PATCH | `/patients/:patientId/discharge-ready` | CONSULTANT |
-| PATCH | `/patients/:patientId/status` | CONSULTANT, WARD_SUPERVISOR |
+| GET | `/patients/:patientId/prescriptions` | Any tenant user |
+| PUT | `/prescriptions/:id/discontinue` | DOCTOR, NURSE |
 
-### Next-of-Kin — careround-core
+### Medication Charts
 
-| Method | Endpoint | Access |
+| Method | Path | Access |
 |---|---|---|
-| POST | `/patients/:patientId/next-of-kin` | ADMIN, NURSE, WARD_SUPERVISOR, CONSULTANT, REGISTRAR |
-| GET | `/patients/:patientId/next-of-kin` | Authenticated clinical tenant user |
-| PUT | `/patients/:patientId/next-of-kin/:nokId` | ADMIN, NURSE, WARD_SUPERVISOR, CONSULTANT, REGISTRAR |
-| DELETE | `/patients/:patientId/next-of-kin/:nokId` | ADMIN, WARD_SUPERVISOR, CONSULTANT |
-| PATCH | `/patients/:patientId/next-of-kin/:nokId/consent` | ADMIN, NURSE, WARD_SUPERVISOR |
+| GET | `/patients/:id/medication-chart` | Any tenant user |
+| PUT | `/medication-charts/:id` | NURSE, DOCTOR |
+| POST | `/medication-charts/:patientId/manual` | NURSE, DOCTOR |
+| PUT | `/medication-charts/:id/discontinue` | NURSE, DOCTOR |
 
-### Patient Vitals — careround-core
+### Medication Tasks
 
-| Method | Endpoint | Access |
+| Method | Path | Access |
 |---|---|---|
-| POST | `/patients/:patientId/vitals` | NURSE, JUNIOR_DOCTOR, REGISTRAR, CONSULTANT, WARD_SUPERVISOR |
-| GET | `/patients/:patientId/vitals?limit=10` | Authenticated clinical tenant user |
-| GET | `/patients/:patientId/vitals/latest` | Authenticated clinical tenant user |
+| GET | `/medication-tasks?wardId=` | NURSE, DOCTOR, SUPERVISOR |
+| PUT | `/medication-tasks/:id/complete` | NURSE |
 
-`POST /patients/:patientId/vitals` accepts an optional `note` field. When present, the core service records a linked `PROGRESS_NOTE` with `vitalsId` for traceability.
+### Handover Notes
 
-### On-Call Rotation and Shift Schedules — careround-core
-
-| Method | Endpoint | Access |
+| Method | Path | Access |
 |---|---|---|
-| POST | `/oncall` | ADMIN |
-| GET | `/oncall` | Authenticated |
-| GET | `/oncall/:id` | Authenticated |
-| GET | `/oncall/current?departmentId=...&role=...` | Authenticated |
-| DELETE | `/oncall/:id` | ADMIN |
-| POST | `/shift-schedules` | ADMIN |
-| GET | `/shift-schedules` | Authenticated |
-| GET | `/shift-schedules/:id` | Authenticated |
-| PUT | `/shift-schedules/:id/deactivate` | ADMIN |
+| POST | `/patients/:id/handover-notes` | NURSE, DOCTOR |
+| GET | `/patients/:id/handover-notes` | Any tenant user |
 
-### Shift and Handover Management — careround-core
+### Supervisor Dashboard
 
-| Method | Endpoint | Access |
+| Method | Path | Access |
 |---|---|---|
-| GET | `/shifts?wardId=...&status=ACTIVE&from=2026-05-13T08:00:00&to=2026-05-13T20:00:00` | Authenticated clinical tenant user |
-| PUT | `/shifts/:id/assign` | ADMIN, WARD_SUPERVISOR |
-| GET | `/shifts/current/:wardId` | Authenticated clinical tenant user |
-| POST | `/handovers` | CONSULTANT, REGISTRAR, NURSE, WARD_SUPERVISOR |
-| POST | `/handovers/:handoverId/patient-notes` | CONSULTANT, REGISTRAR, NURSE, WARD_SUPERVISOR |
-| POST | `/handovers/:handoverId/complete` | CONSULTANT, REGISTRAR, NURSE, WARD_SUPERVISOR |
-| GET | `/handovers/ward/:wardId` | Authenticated clinical tenant user |
-| GET | `/handovers/:handoverId/patient-notes` | Authenticated clinical tenant user |
+| GET | `/supervisor/dashboard?wardId=` | SUPERVISOR |
 
-### Ward Rounds — careround-core
+### AI Proxy
 
-| Method | Endpoint | Access |
-|---|---|---|
-| POST | `/rounds` | CONSULTANT, REGISTRAR |
-| POST | `/rounds/:roundId/start` | CONSULTANT, REGISTRAR |
-| PATCH | `/rounds/:roundId/patients/:patientId` | CONSULTANT, REGISTRAR, JUNIOR_DOCTOR |
-| POST | `/rounds/:roundId/complete` | CONSULTANT, REGISTRAR |
-| GET | `/rounds?wardId=...&teamId=...` | Authenticated clinical tenant user |
-| GET | `/rounds/:roundId/reviews` | Authenticated clinical tenant user |
+| Method | Path | Access | Response |
+|---|---|---|---|
+| POST | `/ai/process-voice-note` | DOCTOR, NURSE | `text/event-stream` (SSE) |
 
-### Clinical Notes, Care Tasks, and Escalations — careround-core
-
-| Method | Endpoint | Access |
-|---|---|---|
-| POST | `/clinical-notes` | CONSULTANT, REGISTRAR, JUNIOR_DOCTOR, NURSE, WARD_SUPERVISOR |
-| PATCH | `/clinical-notes/:noteId/amend` | CONSULTANT, REGISTRAR, JUNIOR_DOCTOR, NURSE, WARD_SUPERVISOR |
-| GET | `/clinical-notes/patient/:patientId` | Authenticated clinical tenant user |
-| POST | `/care-tasks` | CONSULTANT, REGISTRAR, NURSE, WARD_SUPERVISOR |
-| PATCH | `/care-tasks/:taskId/assign` | WARD_SUPERVISOR, or NURSE who created the task |
-| PATCH | `/care-tasks/:taskId/progress` | NURSE, JUNIOR_DOCTOR, REGISTRAR, WARD_SUPERVISOR |
-| PATCH | `/care-tasks/:taskId/complete` | NURSE, JUNIOR_DOCTOR, REGISTRAR, WARD_SUPERVISOR |
-| GET | `/care-tasks/ward/:wardId?status=PENDING` | Authenticated clinical tenant user |
-| GET | `/care-tasks/patient/:patientId` | Authenticated clinical tenant user |
-| POST | `/escalations` | NURSE, JUNIOR_DOCTOR, REGISTRAR, WARD_SUPERVISOR |
-| GET | `/escalations/ward/:wardId` | Authenticated clinical tenant user |
-| GET | `/escalations/patient/:patientId` | Authenticated clinical tenant user |
-| PATCH | `/escalations/:escalationId/acknowledge` | REGISTRAR, CONSULTANT |
-| PATCH | `/escalations/:escalationId/resolve` | REGISTRAR, CONSULTANT |
-
-### Notifications, Search, and Reports - careround-core
-
-These endpoints support the frontend shell: notification bell state, global navigation search, and operational chart views. They are tenant-scoped from the authenticated JWT.
-Dashboard endpoints include `unreadNotifications` and `recentNotifications` for the authenticated user. These notification items include persisted delivery records from `careround_notification.notifications`, so a user who receives an email/SMS alert also sees the same alert in their role dashboard.
-
-| Method | Endpoint | Access |
-|---|---|---|
-| GET | `/notifications` | Authenticated clinical tenant user |
-| GET | `/notifications/unread-count` | Authenticated clinical tenant user |
-| PATCH | `/notifications/:id/read` | Authenticated clinical tenant user |
-| PATCH | `/notifications/read-all` | Authenticated clinical tenant user |
-| GET | `/search?q=...` | Authenticated tenant user |
-| GET | `/reports/task-completion?wardId=...&from=2026-05-01&to=2026-05-13` | Authenticated clinical tenant user |
-| GET | `/reports/overdue-tasks?wardId=...&from=2026-05-01&to=2026-05-13` | Authenticated clinical tenant user |
-| GET | `/reports/patient-flow?wardId=...&from=2026-05-01&to=2026-05-13` | Authenticated clinical tenant user |
-| GET | `/reports/round-history?wardId=...&from=2026-05-01&to=2026-05-13` | Authenticated clinical tenant user |
-
----
-
-## 13. Business Rules
-
-These rules are enforced at the **service layer**, not the controller layer. Business rule violations throw `BusinessRuleException` (HTTP 422); authorization violations throw `AccessDeniedException`.
-
-1. **Round active uniqueness:** A round cannot be created if another round of the same `roundType` is already `IN_PROGRESS` for the same `wardId + medicalTeamId`.
-
-2. **Round requires active shift:** A Round cannot be created against a Shift with `status = PENDING_ASSIGNMENT`. Shift must be `ACTIVE`.
-
-3. **Handover requires active shift:** A Handover can only be initiated if the outgoing `Shift.status = ACTIVE`.
-
-4. **Discharge confirmation - Consultant only:** Only a user with `role = CONSULTANT` can set `dischargeAssessment = CONFIRMED` during a round review. Any other role attempting this returns `AccessDeniedException`.
-
-5. **CareTask forward-only status:** Task status transitions: `PENDING -> IN_PROGRESS -> COMPLETED` only. Backward transitions are rejected.
-
-6. **CareTask time window required:** API-created care tasks must include both `windowStart` and `windowEnd`, and `windowEnd` must be after `windowStart`.
-
-7. **CareTask automatic nurse assignment:** API-created care tasks are assigned to the patient's active ward `nurseInChargeId`. If that nurse has an overlapping `PENDING` or `IN_PROGRESS` task, the service selects another active nurse from a same-specialty ward. If every same-specialty nurse clashes, the task remains assigned to the ward nurse, `workloadConflict=true`, and `careround.care_task.workload_conflict` is published.
-
-8. **CareTask manual reassignment:** Manual assignment can be performed only by a `WARD_SUPERVISOR` or by the `NURSE` who created the task. Manual reassignment can override conflicts; nurse conflicts are recorded with `workloadConflict=true`.
-
-9. **Patient discharge event:** A patient must be `DISCHARGE_READY` before final discharge. When status is changed to `DISCHARGED`, all care tasks for the patient must already be `COMPLETED`; the service clears `wardId` and `bedNumber`, then publishes `careround.patient.discharged` for notification and audit consumers.
-
-10. **ClinicalNotes are immutable:** ClinicalNote records are never deleted. Amendments create a new version alongside the original with `isAmended = true`.
-
-11. **OutboxService inside transaction:** `OutboxService.publish()` must always be called within an existing `@Transactional` context. It inserts an `OutboxEvent` row and never publishes to Kafka directly.
-
-12. **Vitals update patient:** `Patient.newsScore` and `Patient.acuityLevel` are updated on every `PatientVitals` save, within the same transaction.
-
-13. **Invite same hospital:** A `MedicalTeamInvite` can only be sent to a User within the same `hospitalId`.
-
-14. **No duplicate pending invite:** A user cannot receive a duplicate `PENDING` invite to the same `MedicalTeam`.
-
-15. **Invite ownership:** Only the Consultant whose `userId = MedicalTeam.consultantId` can send invites or remove members from that team. Admins can assign/remove team ward mappings.
-
-16. **ShiftSchedule idempotency:** `ShiftCreationJob` checks for existing Shift records before creating. Unique constraint `(ward_id, type, start_time)` enforces this at the database level. If `ShiftSchedule.wardId` is null, the schedule applies to every ward in the hospital.
-
-17. **Cross-tenant scoping:** `hospitalId` from the authenticated user's JWT must match the `hospitalId` of every entity being accessed. Violations return `AccessDeniedException`.
-
-18. **NEWS thresholds from config:** Alert thresholds are read from `SystemConfiguration` per hospital, never hardcoded.
-
-19. **Dashboard scoping:** Dashboard responses are role-specific summaries scoped to the authenticated user's `hospitalId`; ward-supervisor metrics are further scoped to wards where `ward.supervisorId = userId`.
-
-20. **Cross-module repository access:** The current implementation keeps all repositories inside the modular monolith and uses direct repository access where workflows span bounded contexts. This is an implementation tradeoff; extractable service boundaries should be tightened before splitting modules into separate deployables.
-
-21. **Hospital onboarding gate:** Public users can only create `HospitalOnboardingRequest` records. A live `Hospital`, `SystemConfiguration`, and first tenant `ADMIN` are created only when a `PLATFORM_ADMIN` provisions an `APPROVED` request.
-
-22. **First admin activation:** The provisioned tenant admin starts inactive. Activation requires a valid, unexpired, unused token, sets the admin password, marks the token used, and then requires normal login through `/api/v1/auth/login`.
-
-23. **Platform auth isolation:** Platform operators are stored in `platform_operator`, not `users`. Platform JWTs can access platform-admin endpoints but do not populate tenant `HospitalContextHolder` state.
-
----
-
-## 14. Coding Standards
-
-### Dependency injection
-
-```java
-// Always use constructor injection via Lombok
-@Service
-@RequiredArgsConstructor
-public class PatientService {
-    private final PatientRepository patientRepository;
-    private final OutboxService outboxService;
-    // Never use @Autowired
-}
+**SSE event sequence:**
 ```
-
-### Transactions
-
-```java
-// All write operations
-@Transactional
-public PatientResponse admit(AdmitPatientRequest request) { ... }
-
-// All read-only operations
-@Transactional(readOnly = true)
-public PatientResponse getById(String patientId) { ... }
-```
-
-### HospitalContextHolder usage
-
-```java
-// Populated by JwtAuthFilter from JWT claims
-// Read in service layer — never from request parameters
-String hospitalId = HospitalContextHolder.getHospitalId();
-String userId = HospitalContextHolder.getUserId();
-UserRole role = HospitalContextHolder.getRole();
-
-// Always cleared in JwtAuthFilter finally block
-// Thread-local: safe for concurrent requests
-```
-
-### Controller response format
-
-```java
-// All controllers return ResponseEntity<ApiResponse<T>>
-@GetMapping("/{id}")
-public ResponseEntity<ApiResponse<PatientResponse>> getPatient(@PathVariable String id) {
-    PatientResponse patient = patientService.getById(id);
-    return ResponseEntity.ok(ApiResponse.ok(patient));
-}
-```
-
-### Error response format
-
-```json
-{
-  "status": 404,
-  "error": "RESOURCE_NOT_FOUND",
-  "message": "Patient not found",
-  "path": "/api/v1/patients/abc-123",
-  "correlationId": "f47ac10b-58cc-4372-a567-0e02b2c3d479",
-  "timestamp": "2025-05-06T08:00:00Z"
-}
-```
-
-### Validation
-
-```java
-// All request bodies use Jakarta Validation
-public record AdmitPatientRequest(
-    @NotBlank String firstName,
-    @NotBlank String lastName,
-    @NotNull LocalDate dateOfBirth,
-    @NotNull AdmissionType admissionType,
-    // ...
-) {}
-```
-
-### DTO style
-
-Most domain modules use Java records for immutable request and response DTOs. The existing auth-style DTO packages use Lombok classes for both requests and responses; new auth-adjacent DTOs should follow that local package convention unless the whole package is refactored together.
-
-### Structured logging
-
-```java
-// Every significant action logs with MDC fields
-log.info("action=ROUND_COMPLETED roundId={} wardId={} patientCount={} durationMs={}",
-    roundId, wardId, patientCount, duration);
-// MDC is populated by CorrelationIdFilter with correlationId, hospitalId, userId
-```
-
-### Micrometer custom counters
-
-```java
-// Example: escalation created
-Counter.builder("careround.escalation.created")
-    .tag("severity", severity.name())
-    .tag("hospitalId", hospitalId)
-    .register(meterRegistry)
-    .increment();
-```
-
-### Kafka consumer idempotency
-
-```java
-@KafkaListener(topics = "careround.round.completed", groupId = "careround-notification")
-@Transactional
-public void onRoundCompleted(RoundCompletedEvent event) {
-    // Check for duplicate processing
-    if (notificationRepository.existsByCorrelationId(event.correlationId())) return;
-    // Process...
-}
+event: transcription_complete   ← Whisper finished (~30–60s on CPU); empty payload
+event: processing_complete      ← LLM finished; payload: rawTranscription + clinicalNote + prescriptions[]
+event: done                     ← stream closed normally
+event: error                    ← a stage failed; payload: { "detail": "..." }
 ```
 
 ---
 
-## 15. Local Environment
+## 11. Kafka Event Catalogue
+
+All topics use 3 partitions, 1 replica. All payloads include `eventId`, `hospitalId`, `correlationId`, and `timestamp`.
+
+| Topic | Produced by | Consumed by |
+|---|---|---|
+| `prescription-confirmed` | ClinicalNoteService | careround-core (internal chain), careround-audit |
+| `prescription-discontinued` | PrescriptionService | careround-audit |
+| `medication-chart-created` | PrescriptionConfirmedConsumer | careround-core (internal chain), careround-audit |
+| `medication-task-reminder` | MedicationTaskReminderJob | careround-notification, careround-audit |
+| `medication-task-overdue` | MedicationTaskReminderJob | careround-notification, careround-audit |
+| `medication-task-completed` | MedicationTaskService | careround-audit |
+| `clinical-note-saved` | ClinicalNoteService | careround-audit |
+| `vitals-recorded` | PatientVitalsService | careround-audit |
+| `patient-admitted` | PatientService | careround-audit |
+| `patient-updated` | PatientService | careround-audit |
+| `patient-discharged` | PatientService | careround-audit |
+| `manual-medication-added` | MedicationChartService | careround-audit |
+| `hospital-onboarding-requested` | HospitalOnboardingService | careround-audit |
+| `hospital-onboarding-reviewed` | HospitalOnboardingService | careround-audit |
+| `hospital-provisioned` | HospitalOnboardingService | careround-audit |
+| `user-activation-requested` | HospitalOnboardingService | careround-notification, careround-audit |
+
+**Consumer groups:**
+
+| Group | Consumers |
+|---|---|
+| `careround-core-internal` | PrescriptionConfirmedConsumer, MedicationChartCreatedConsumer |
+| `careround-notification` | MedicationTaskReminderConsumer, MedicationTaskOverdueConsumer, NotificationDltConsumer |
+| `careround-audit-group` | AuditEventConsumer |
+
+---
+
+## 12. Security
+
+### JWT
+
+- Algorithm: HS256, 256-bit secret key
+- Access token: 15-minute expiry, claims: `{ sub: userId, hospitalId, role, email }`
+- Refresh token: 7-day expiry, stored in DB, rotated on every use
+- All existing refresh tokens are revoked on password change
+
+### Multi-Tenancy Enforcement
+
+- `hospitalId` is extracted from the JWT by `JwtAuthFilter` and stored in `HospitalContextHolder` (ThreadLocal)
+- Every repository call in business logic uses `findByIdAndHospitalId()` — bare `findById()` is never used in service code
+- Cross-tenant access attempts return 404, never 403
+- Kafka consumers read `hospitalId` from the event payload; `HospitalContextHolder` is not used in consumer threads
+
+### Rate Limiting
+
+Redis-backed sliding window per `hospitalId:userId`. Configured via `careround.ratelimit.*` properties.
+
+### Password Storage
+
+BCrypt with cost factor 10.
+
+### CORS
+
+All origins permitted in dev (`application-dev.yml`). Restrict to known domains in production.
+
+---
+
+## 13. Local Development
 
 ### Prerequisites
 
-```
-Java 21 JDK (Temurin)     — https://adoptium.net
-Maven 3.9+
-Docker Desktop
-IntelliJ IDEA Community
-Git
-```
+- Java 21 JDK (Eclipse Temurin recommended)
+- Maven 3.9+
+- Docker Desktop
+- IntelliJ IDEA (recommended) or VS Code
 
-### Docker Compose infrastructure
+### Infrastructure services
+
+Start MySQL, Redis, Kafka, and observability tooling with Docker Compose:
 
 ```bash
-# Start all infrastructure services
-docker compose up -d
-
-# Services started:
-#   MySQL 8       → localhost:3306
-#   Redis 7       → localhost:6379
-#   Kafka 3.7     → localhost:9094 (KRaft, no Zookeeper)
-#   Kafka UI      → http://localhost:8090
-#   Prometheus    → http://localhost:9090
-#   Grafana       → http://localhost:3001 (admin / from .env)
+docker compose up -d mysql redis kafka kafka-ui prometheus grafana
 ```
 
-### .env file
+Spring Boot services run on the host (not in Docker) so hot reload and debugging work normally.
+
+### Environment setup
+
+Copy `.env.example` to `.env` and fill in the required values:
 
 ```env
-MYSQL_ROOT_PASSWORD=careround_root
 MYSQL_USER=careround
 MYSQL_PASSWORD=careround_password
-JWT_SECRET=<256-bit hex string — generate with: openssl rand -hex 32>
+JWT_SECRET=<256-bit hex — generate with: openssl rand -hex 32>
 REDIS_HOST=localhost
 REDIS_PORT=6379
 KAFKA_BOOTSTRAP_SERVERS=localhost:9094
-GRAFANA_PASSWORD=admin
-CAREROUND_CORE_BASE_URL=http://localhost:8080
-CAREROUND_APP_ACTIVATION_BASE_URL=http://localhost:3000/activate
-CAREROUND_PLATFORM_BOOTSTRAP_ADMIN_EMAIL=platform-admin@careround.local
-CAREROUND_PLATFORM_BOOTSTRAP_ADMIN_PASSWORD=<set only for first startup, then remove>
-CAREROUND_SERVICE_ACCOUNT_JWT=<JWT used by notification service for core lookups>
 ```
 
-### Running the applications
+The `application-dev.yml` in each module supplies defaults for all other settings. `JWT_SECRET` is the only required env var for local development of `careround-core`.
+
+### Running the services
 
 ```bash
-# Build from monorepo root
-mvn clean install -DskipTests
+# Build all modules (skip tests)
+mvn clean package -DskipTests
 
-# Run each service (in separate terminals)
+# Run careround-core (in one terminal)
 cd careround-core && mvn spring-boot:run -Dspring-boot.run.profiles=dev
-cd careround-notification && mvn spring-boot:run -Dspring-boot.run.profiles=dev
-cd careround-audit && mvn spring-boot:run -Dspring-boot.run.profiles=dev
 
+# Run careround-notification (another terminal)
+cd careround-notification && mvn spring-boot:run -Dspring-boot.run.profiles=dev
+
+# Run careround-audit (another terminal)
+cd careround-audit && mvn spring-boot:run -Dspring-boot.run.profiles=dev
 ```
+
+### Seeding the database
+
+A demo seed script is provided at `infra/mysql/seed.sql`. It **truncates all domain tables first** and loads a complete dataset: one hospital tenant (City General Hospital, code `CGH`), three wards, seven staff accounts across all roles, and several patients at varying acuity levels.
+
+Run it after the services have started and Flyway has applied all migrations:
+
+```bash
+# Local dev (Docker MySQL on port 3306)
+mysql -h 127.0.0.1 -P 3306 -u careround -pcareround_password careround_core < infra/mysql/seed.sql
+
+# Production / deployed MySQL (substitute your actual host and credentials)
+mysql -h <MYSQL_HOST> -u <MYSQL_USER> -p<MYSQL_PASSWORD> careround_core < infra/mysql/seed.sql
+```
+
+**Password for all seeded accounts:** `Password123`
+
+**Seeded accounts:**
+
+| Role | Email | Name |
+|---|---|---|
+| ADMIN | `admin@citygeneral.nhs.uk` | Rebecca Morgan |
+| SUPERVISOR | `l.walsh@citygeneral.nhs.uk` | Linda Walsh |
+| DOCTOR | `s.chen@citygeneral.nhs.uk` | Sarah Chen |
+| DOCTOR | `j.okafor@citygeneral.nhs.uk` | James Okafor |
+| NURSE | `e.foster@citygeneral.nhs.uk` | Emily Foster |
+| NURSE | `m.adeyemi@citygeneral.nhs.uk` | Michael Adeyemi |
+| NURSE | `p.sharma@citygeneral.nhs.uk` | Priya Sharma |
+
+Log in with hospital code `CGH`, the email above, and `Password123`.
+
+**Seeded wards and patients:** Ward A (General Medicine) and Ward B (Surgery) each have patients at GREEN, AMBER, and RED acuity. ICU is seeded as an empty ward.
+
+> The seed script is safe to re-run at any time — it truncates and reloads cleanly. Do not run it against a production database that holds real patient data.
+
+### Running the AI service
+
+See the `careround-ai` repository README for full setup. For local development without models, stub mode is the fastest path:
+
+```bash
+# In careround-ai directory
+AI_PROVIDER=stub TRANSCRIPTION_PROVIDER=stub uvicorn main:app --reload --port 8000
+```
+
+Set `AI_SERVICE_URL=http://localhost:8000` in careround-core's `.env` or dev profile.
 
 ### IntelliJ setup
 
-1. File → Open → select `careround/` root (imports all modules via parent POM)
-2. File → Project Structure → SDK → Java 21
-3. Settings → Build → Compiler → Annotation Processors → **Enable annotation processing** (required for Lombok + MapStruct)
-4. Create Run Configurations (Spring Boot) for each service with `Active profiles: dev`
-5. Add `.env` file contents as environment variables in each Run Configuration
+1. **File → Open** → select the `careround/` root directory (imports all modules via parent POM)
+2. **Project Structure → SDK** → Java 21
+3. **Settings → Build → Compiler → Annotation Processors** → enable annotation processing (required for Lombok)
+4. Create a **Spring Boot Run Configuration** for each service with `Active profiles: dev`
+5. Add `.env` values as **Environment variables** in each Run Configuration
+
+### Port reference
+
+| Port | Service |
+|---|---|
+| 3001 | Grafana |
+| 3306 | MySQL |
+| 6379 | Redis |
+| 8000 | careround-ai (Python) |
+| 8080 | careround-core + Swagger UI |
+| 8081 | careround-notification |
+| 8082 | careround-audit |
+| 8090 | Kafka UI |
+| 9090 | Prometheus |
+| 9094 | Kafka (external listener) |
 
 ### API documentation
 
-Swagger UI is served by `careround-core` only:
+Swagger UI is available on careround-core only:
 
 ```
 http://localhost:8080/swagger-ui.html
-http://localhost:8080/swagger-ui/index.html
-http://localhost:8080/swagger-ui
-http://localhost:8080/docs
+http://localhost:8080/v3/api-docs       ← OpenAPI JSON
 ```
 
-OpenAPI JSON:
+`careround-notification` and `careround-audit` are Kafka-consumer-only services and expose no HTTP API.
 
-```
-http://localhost:8080/v3/api-docs
-```
+---
 
-`careround-notification` and `careround-audit` are Kafka consumer services and do not expose Swagger UI.
+## 14. Testing
 
-### Port allocation
+Tests use **Mockito** (`@ExtendWith(MockitoExtension.class)`) for service and component unit tests.
 
-```
-3001    Grafana
-3306    MySQL
-6379    Redis
-8080    careround-core
-8081    careround-notification
-8082    careround-audit
-8090    Kafka UI
-9090    Prometheus
-9094    Kafka (external listener)
-```
+Repository tests use `@DataJpaH2Test` — a custom composed annotation in `com.careround.test` that wires an in-memory H2 database in MySQL compatibility mode with `ddl-auto: create-drop` and Flyway disabled.
 
-### Flyway migrations — careround-core
+Controller tests use `@WebMvcTest` with mocked services.
 
-```
-V1__create_users.sql
-V2__create_hospital_config.sql
-V3__create_department_ward.sql
-V4__create_medical_team.sql
-V5__create_on_call_shift_schedule.sql
-V6__create_shift_handover.sql
-V7__create_patient.sql
-V8__create_vitals_nok.sql
-V9__create_escalation.sql
-V10__create_round_review.sql
-V11__create_clinical_note_care_task.sql
-V12__create_outbox.sql
-V13__create_quartz_tables.sql   ← full QRTZ_* schema for MySQL
-V14__create_indexes.sql         ← all composite indexes
-V15__allow_discharged_patients_without_ward.sql
-V16__create_onboarding_platform_activation.sql
-V17__add_care_task_workload_conflict.sql
-V18__add_refresh_token_cleanup_indexes.sql
+```bash
+# Run all tests
+mvn test
+
+# Run tests for one module
+mvn test -pl careround-core
+
+# Run a single test class
+mvn test -pl careround-core -Dtest=PatientServiceTest
+
+# Run a single test method
+mvn test -pl careround-core -Dtest=PatientServiceTest#shouldAdmitPatient
 ```
 
 ---
 
-## 16. Production Concerns
+## 15. Production Notes
 
-### Composite indexes (V14)
+### Horizontal scaling
 
-```sql
--- Round queue generation (most critical read path)
-CREATE INDEX idx_patient_ward_acuity
-  ON patient(hospital_id, ward_id, acuity_level, news_score);
+`careround-core` scales horizontally with no state changes:
+- JWT is stateless — each instance validates independently
+- Redis is shared — rate limit counters are consistent across instances
+- MySQL is shared — all instances see the same data
+- Quartz JDBC clustered mode — each registered job fires on exactly **one** instance across all replicas (`QRTZ_LOCKS` table provides distributed locking)
 
--- Overdue task detection (Quartz job, every minute)
-CREATE INDEX idx_care_task_overdue
-  ON care_task(hospital_id, ward_id, status, window_end);
+### HikariCP sizing
 
--- Outbox poller (every second)
-CREATE INDEX idx_outbox_unpublished
-  ON outbox_event(published, created_at);
+| Service | `maximum-pool-size` | `minimum-idle` |
+|---|---|---|
+| careround-core | 10 | 5 |
+| careround-notification | 5 | 2 |
+| careround-audit | 5 | 2 |
 
--- Refresh token cleanup (hourly)
-CREATE INDEX idx_refresh_tokens_expires_at
-  ON refresh_tokens(expires_at);
-CREATE INDEX idx_refresh_tokens_revoked
-  ON refresh_tokens(revoked);
-
--- On-call rotation lookup (every admission + escalation)
-CREATE INDEX idx_on_call_dept_time
-  ON on_call_rotation(department_id, start_time, end_time);
-
--- Current shift lookup
-CREATE INDEX idx_shift_ward_status
-  ON shift(ward_id, type, status, start_time);
-
--- Round status check
-CREATE INDEX idx_round_ward_team_type
-  ON round(ward_id, medical_team_id, round_type, status);
-
--- Vitals history
-CREATE INDEX idx_vitals_patient_time
-  ON patient_vitals(patient_id, recorded_at);
-```
-
-### Pagination
-
-All list endpoints must use cursor-based pagination:
-```
-GET /api/v1/patients?wardId=X&limit=20&cursor=<encoded>
-```
-Never return unbounded lists. A ward with years of round history must not return thousands of rows.
+At 3 instances of core + 1 each of notification and audit: `(3 × 10) + 5 + 5 = 40 connections` — within MySQL's default `max_connections: 151`.
 
 ### Graceful shutdown
 
@@ -1825,38 +784,68 @@ spring:
     timeout-per-shutdown-phase: 30s
 ```
 
-### Circuit breakers (careround-notification)
+### Key composite indexes (V7 migration)
 
-```java
-@CircuitBreaker(name = "emailProvider", fallbackMethod = "handleEmailFailure")
-public void sendEmail(String to, String subject, String body) { ... }
+```sql
+-- Patient acuity list ordering (most critical read path)
+INDEX ON patient(hospital_id, ward_id, acuity_color)
+
+-- Medication task reminder + overdue detection (runs every minute)
+INDEX ON medication_task(status, scheduled_time, pre_reminder_sent_at)
+INDEX ON medication_task(hospital_id, status, scheduled_time)
+
+-- Outbox poller (runs every second)
+INDEX ON outbox_event(published, created_at)
+
+-- Refresh token cleanup (hourly)
+INDEX ON refresh_tokens(expires_at)
+INDEX ON refresh_tokens(revoked)
+
+-- Vitals history
+INDEX ON patient_vitals(patient_id, recorded_at)
+
+-- Audit log lookup
+INDEX ON audit_log(hospital_id, event_type, received_at)
 ```
 
-Apply to all external provider calls (email, SMS). Configure: 5 consecutive failures → open for 30 seconds → allow one test call.
+### AI service in production
 
-### Quartz JDBC clustering (careround-core)
+The AI service runs on a private-subnet EC2 instance (GPU recommended: `g4dn.xlarge` for demo, `g4dn.2xlarge` for production). It must not be reachable from the public internet — careround-core reaches it over the VPC private network only. Raw transcription and clinical note content must not be logged anywhere in the pipeline.
 
-Already covered in Section 5. Critical: `QRTZ_LOCKS` table provides distributed locking. No ShedLock needed. All registered Quartz jobs fire on exactly one instance across any number of horizontal cores.
+### Environment variables (careround-core, production)
 
-### Redis rate limiting
-
-```java
-// In RateLimitingFilter
-// Per-hospital sliding window: max 1000 requests/minute per hospitalId
-// Per-user: max 100 requests/minute per userId
-// Uses Redis INCR + EXPIRE commands
+```env
+SPRING_PROFILES_ACTIVE=prod
+MYSQL_HOST=<RDS endpoint>
+MYSQL_USER=<db user>
+MYSQL_PASSWORD=<db password>
+REDIS_HOST=<ElastiCache endpoint>
+KAFKA_BOOTSTRAP_SERVERS=<Kafka broker>
+JWT_SECRET=<256-bit secret>
+AI_SERVICE_URL=http://<careround-ai-private-ip>:8000
+CAREROUND_APP_ACTIVATION_BASE_URL=https://<your-domain>/activate
+CAREROUND_PLATFORM_BOOTSTRAP_ADMIN_EMAIL=<first platform admin>
+CAREROUND_PLATFORM_BOOTSTRAP_ADMIN_PASSWORD=<set on first start only, then remove>
 ```
 
-### Correlation IDs
+### Environment variables (careround-notification, production)
 
-Every request gets a `X-Correlation-Id` header (generated by `CorrelationIdFilter` if not present). Stored in MDC for Logback. Included in all Kafka event payloads. Flows from HTTP request → service method → Kafka event → notification/audit consumers → log entries.
+```env
+SPRING_PROFILES_ACTIVE=prod
+MYSQL_HOST=<RDS endpoint>
+MYSQL_USER=<db user>
+MYSQL_PASSWORD=<db password>
+KAFKA_BOOTSTRAP_SERVERS=<Kafka broker>
+CAREROUND_CORE_BASE_URL=http://<core-private-ip>:8080
+FCM_CREDENTIALS_JSON=<Firebase service account JSON>
+```
 
-### Horizontal scaling
+### Environment variables (careround-audit, production)
 
-careround-core scales horizontally with zero state changes because:
-- JWT is stateless — each instance validates independently
-- Redis is shared — rate limit counters are consistent across instances
-- MySQL is shared — all instances see the same data
-- Quartz JDBC clustering — jobs fire on exactly one instance
-
-Run multiple instances behind a load balancer (round-robin, no sticky sessions needed).
+```env
+SPRING_PROFILES_ACTIVE=prod
+MYSQL_HOST=<RDS endpoint>
+MYSQL_USER=<db user>
+MYSQL_PASSWORD=<db password>
+KAFKA_BOOTSTRAP_SERVERS=<Kafka broker>
+```
