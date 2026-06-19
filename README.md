@@ -173,6 +173,8 @@ A `DOCTOR` updates patient status to `DISCHARGED`. The ward ID and bed number ar
 
 CareRound is a **modular monolith** for the clinical core with two lightweight event-driven satellite services and one dedicated AI service in a separate repository.
 
+![](Design Diagrams/Careround_System_Design.png)
+
 ```
 Clients (Web + Mobile)
           │ HTTPS
